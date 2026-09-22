@@ -1,45 +1,63 @@
-import { app } from "../config/firebase.js";
-import { getAuth } from "firebase-admin/auth";
-import User from "../models/user.model.js";
 import crypto from "crypto";
-import strict from "assert/strict";
+
+import { getAuth } from "firebase-admin/auth";
+
+import { app } from "../config/firebase.js";
+import User from "../models/user.model.js";
 import redis from "../../../shared/redis/redis.js";
 
+const SESSION_TTL = 7 * 24 * 60 * 60; // 7 days
+
+// Google/Firebase authentication + Redis session creation.
 export const googleAuth = async (req, res) => {
   try {
     const { token } = req.body;
 
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Authentication token is required.",
+      });
+    }
+
+    // Firebase verifies the token and gives us the trusted user identity.
     const decoded = await getAuth(app).verifyIdToken(token);
 
     let user = await User.findOne({ firebaseID: decoded.uid });
 
+    // Create the user only on their first successful login.
     if (!user) {
       user = await User.create({
         firebaseID: decoded.uid,
-        name: decoded.name,
+        name: decoded.name || "User",
         email: decoded.email,
       });
     }
 
+    // Generate a random session ID instead of storing Firebase credentials
+    // directly in the application session.
     const sessionId = crypto.randomUUID();
 
+    // Redis stores the server-side session with automatic expiration.
     await redis.set(
       `session:${sessionId}`,
       JSON.stringify({
-        userId: user._id,
+        userId: user._id.toString(),
         name: user.name,
         email: user.email,
         coins: user.coins,
       }),
       "EX",
-      7 * 24 * 60 * 60,
+      SESSION_TTL,
     );
 
+    // HTTP-only cookie prevents client-side JavaScript from reading
+    // the session ID, reducing the impact of XSS attacks.
     res.cookie("session", sessionId, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: SESSION_TTL * 1000,
     });
 
     return res.status(200).json({
@@ -47,32 +65,53 @@ export const googleAuth = async (req, res) => {
       user,
     });
   } catch (error) {
-    return res.status(500).json("Google Auth Error", error);
+    console.error("Google Auth Error:", error);
+
+    // Invalid/expired Firebase tokens should not be treated as
+    // internal server errors.
+    if (
+      error.code === "auth/id-token-expired" ||
+      error.code === "auth/id-token-invalid"
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired authentication token.",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Authentication failed. Please try again.",
+    });
   }
 };
 
-export const logout = async () => {
+// Destroy the Redis session and remove the browser cookie.
+export const logout = async (req, res) => {
   try {
     const sessionId = req.cookies?.session;
 
     if (sessionId) {
-      await redis.del(`Session:${sessionId}`);
+      // Keep the Redis key exactly consistent with googleAuth().
+      await redis.del(`session:${sessionId}`);
     }
 
     res.clearCookie("session", {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
     });
 
     return res.status(200).json({
       success: true,
-      message: "Logged-Out successfully!",
+      message: "Logged out successfully.",
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Logout Error:", error);
+
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Logout failed. Please try again.",
     });
   }
 };

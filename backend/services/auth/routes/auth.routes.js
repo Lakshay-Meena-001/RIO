@@ -1,11 +1,13 @@
-import express from 'express'
-import { googleAuth, logout } from '../controllers/auth.controller'
+import express from "express";
 
-const authRouter  = express.Router()
+import { googleAuth, logout } from "../controllers/auth.controller.js";
 
+const authRouter = express.Router();
 
-authRouter.post("/login",googleAuth)
+// Firebase authentication → create Redis session.
+authRouter.post("/login", googleAuth);
 
-authRouter.get("/logout",logout)
+// Destroy Redis session and clear authentication cookie.
+authRouter.post("/logout", logout);
 
 export default authRouter;
