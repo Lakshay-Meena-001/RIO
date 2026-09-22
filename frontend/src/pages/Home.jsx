@@ -11,7 +11,7 @@ import {
   FiTarget,
   FiTrendingUp,
 } from "react-icons/fi";
-import { FaArrowRight } from "react-icons/fa6";
+import { FaArrowRight } from "react-icons/fa";
 import { GiJetPack } from "react-icons/gi";
 import { SiFirebase } from "react-icons/si";
 
@@ -21,12 +21,21 @@ const RioMark = ({ className = "h-10 w-10", style }) => (
   <GiJetPack className={className} style={style} aria-hidden="true" />
 );
 
+const RocketTrail = () => (
+  <span
+    aria-hidden="true"
+    className="pointer-events-none absolute bottom-0 left-1/2 h-5 w-3 -translate-x-1/2 rounded-full bg-white/25 blur-md"
+    style={{ animation: "rioRocketSmoke 4.5s ease-in-out infinite" }}
+  />
+);
+
 const RioLogo = ({ compact = false }) => (
   <div className="flex items-center gap-3">
     <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+      <RocketTrail />
       <RioMark
         className="h-5 w-5"
-        style={{ animation: "rioRocketFly 2.2s ease-in-out infinite" }}
+        style={{ animation: "rioRocketFly 4.5s ease-in-out infinite" }}
       />
     </div>
 
@@ -39,7 +48,7 @@ const RioLogo = ({ compact = false }) => (
           RIO
         </span>
 
-        <span className="mt-1 block text-[9px] font-medium uppercase tracking-[0.22em] text-white/35">
+        <span className="mt-1 block text-[9px] font-medium uppercase tracking-[0.22em] text-white/[0.52]">
           Career Intelligence
         </span>
       </div>
@@ -97,7 +106,7 @@ const journey = [
   {
     step: "03",
     title: "See the gaps",
-    desc: "RYVO turns performance into clear skill signals so you know what actually needs work.",
+    desc: "RIO turns performance into clear skill signals so you know what actually needs work.",
   },
   {
     step: "04",
@@ -116,7 +125,7 @@ const skills = [
 function SectionHeading({ eyebrow, title, accent, children, center = true }) {
   return (
     <div className={`${center ? "mx-auto text-center" : ""} max-w-3xl`}>
-      <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/35">
+      <p className="mb-4 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/[0.62]">
         {eyebrow}
       </p>
 
@@ -133,7 +142,7 @@ function SectionHeading({ eyebrow, title, accent, children, center = true }) {
       </h2>
 
       {children && (
-        <p className="mt-6 text-sm leading-7 text-white/45 sm:text-base">
+        <p className="mt-6 text-sm leading-7 text-white/[0.62] sm:text-base">
           {children}
         </p>
       )}
@@ -173,18 +182,41 @@ const Home = ({ setUser }) => {
         @keyframes rioRocketFly {
           0% {
             opacity: 0;
-            transform: translate(-2px, 12px) rotate(-18deg);
+            transform: translateY(22px);
+            filter: blur(2px);
           }
           12% {
             opacity: 1;
+            transform: translateY(10px);
+            filter: blur(0.6px);
           }
-          68% {
+          72% {
             opacity: 1;
-            transform: translate(4px, -2px) rotate(-8deg);
+            transform: translateY(-22px);
+            filter: blur(0);
           }
           100% {
             opacity: 0;
-            transform: translate(18px, -24px) rotate(8deg);
+            transform: translateY(-62px);
+            filter: blur(2px);
+          }
+        }
+
+        @keyframes rioRocketSmoke {
+          0% {
+            opacity: 0;
+            transform: translateY(6px) scale(0.55);
+          }
+          15% {
+            opacity: 0.35;
+          }
+          65% {
+            opacity: 0.12;
+            transform: translateY(22px) scale(1);
+          }
+          100% {
+            opacity: 0;
+            transform: translateY(32px) scale(1.18);
           }
         }
 
@@ -255,7 +287,7 @@ const Home = ({ setUser }) => {
           <div className="mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-6 lg:px-10">
             <RioLogo />
 
-            <div className="hidden items-center gap-8 text-xs font-medium text-white/45 md:flex">
+            <div className="hidden items-center gap-8 text-xs font-medium text-white/[0.62] md:flex">
               <button
                 onClick={() =>
                   document
@@ -315,9 +347,10 @@ const Home = ({ setUser }) => {
         {/* Mobile brand */}
         <div className="relative z-10 flex flex-col items-center pt-7 lg:hidden">
           <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
+            <RocketTrail />
             <RioMark
               className="h-6 w-6"
-              style={{ animation: "rioRocketFly 2.2s ease-in-out infinite" }}
+              style={{ animation: "rioRocketFly 4.5s ease-in-out infinite" }}
             />
           </div>
 
@@ -328,7 +361,7 @@ const Home = ({ setUser }) => {
             >
               RIO
             </span>
-            <span className="mt-1.5 block text-[8px] font-medium uppercase tracking-[0.24em] text-white/35">
+            <span className="mt-1.5 block text-[8px] font-medium uppercase tracking-[0.24em] text-white/[0.52]">
               Career Intelligence
             </span>
           </div>
@@ -338,7 +371,7 @@ const Home = ({ setUser }) => {
         <section className="relative z-10 flex min-h-[calc(100svh-100px)] items-center px-5 pb-[190px] pt-8 lg:min-h-screen lg:px-10 lg:pb-16 lg:pt-[104px]">
           <div className="mx-auto grid w-full max-w-[1440px] items-center gap-12 lg:grid-cols-[1fr_0.72fr] lg:gap-8">
             <div className="mx-auto max-w-[760px] text-center lg:mx-0 lg:text-left">
-              <div className="mb-7 inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/55 backdrop-blur-xl">
+              <div className="mb-7 inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/[0.68] backdrop-blur-xl">
                 <span className="h-1.5 w-1.5 rounded-full bg-white shadow-[0_0_12px_rgba(255,255,255,0.35)]" />
                 AI-powered career intelligence
               </div>
@@ -357,7 +390,7 @@ const Home = ({ setUser }) => {
                 </span>
               </h1>
 
-              <p className="mx-auto mt-7 max-w-[560px] text-[14px] leading-6 text-white/48 sm:text-base lg:mx-0 lg:mt-8 lg:max-w-[610px] lg:leading-7">
+              <p className="mx-auto mt-7 max-w-[560px] text-[14px] leading-6 text-white/[0.68] sm:text-base lg:mx-0 lg:mt-8 lg:max-w-[610px] lg:leading-7">
                 Practice interviews, understand your skill gaps, build real
                 technical ability, and follow a measurable path toward the role
                 you want.
@@ -379,7 +412,7 @@ const Home = ({ setUser }) => {
                 <button
                   type="button"
                   onClick={scrollToHowItWorks}
-                  className="group flex h-12 items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-6 text-sm font-semibold text-white/75 backdrop-blur-xl transition-all hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
+                  className="group flex h-12 items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-6 text-sm font-semibold text-white/[0.82] backdrop-blur-xl transition-all hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
                 >
                   Explore how it works
                   <FiArrowRight
@@ -389,12 +422,12 @@ const Home = ({ setUser }) => {
                 </button>
               </div>
 
-              <div className="mx-auto mt-10 flex w-full max-w-[600px] justify-center divide-x divide-white/10 border-t border-white/[0.08] pt-6 lg:mx-0 lg:mt-12 lg:justify-start lg:pt-7">
+              <div className="mx-auto mt-10 flex w-full max-w-[600px] justify-center divide-x divide-white/10 border-y border-white/[0.08] py-6 lg:mx-0 lg:mt-12 lg:justify-start lg:py-7">
                 <div className="pr-5 sm:pr-8">
                   <p className="text-2xl font-semibold tracking-tight text-white">
                     AI
                   </p>
-                  <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/30">
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/[0.62]">
                     Guided practice
                   </p>
                 </div>
@@ -403,7 +436,7 @@ const Home = ({ setUser }) => {
                   <p className="text-2xl font-semibold tracking-tight text-white">
                     1 → 1
                   </p>
-                  <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/30">
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/[0.62]">
                     Skill feedback
                   </p>
                 </div>
@@ -412,7 +445,7 @@ const Home = ({ setUser }) => {
                   <p className="text-2xl font-semibold tracking-tight text-white">
                     ∞
                   </p>
-                  <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/30">
+                  <p className="mt-1 text-[10px] uppercase tracking-[0.16em] text-white/[0.62]">
                     Continuous growth
                   </p>
                 </div>
@@ -428,7 +461,7 @@ const Home = ({ setUser }) => {
                 <div className="absolute inset-4 rounded-[24px] border border-white/[0.06] bg-gradient-to-b from-white/[0.06] to-transparent" />
                 <div className="absolute bottom-7 left-7 right-7">
                   <div className="h-1 w-12 rounded-full bg-white" />
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-white/45">
+                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-white/[0.62]">
                     Career signal
                   </p>
                   <p className="mt-2 text-2xl font-semibold tracking-tight text-white">
@@ -446,14 +479,14 @@ const Home = ({ setUser }) => {
                 }}
                 className="absolute bottom-[12%] right-[2%] h-[300px] w-[290px] rounded-[30px] border border-white/12 bg-[#111315]/70 p-6 shadow-[0_35px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl"
               >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/[0.78]">
                   Progress map
                 </p>
 
                 <div className="mt-7 space-y-4">
                   {skills.slice(0, 3).map((skill) => (
                     <div key={skill.name}>
-                      <div className="mb-2 flex justify-between text-[10px] text-white/40">
+                      <div className="mb-2 flex justify-between text-[10px] text-white/[0.58]">
                         <span>{skill.name}</span>
                         <span>{skill.value}%</span>
                       </div>
@@ -471,10 +504,10 @@ const Home = ({ setUser }) => {
                 </div>
 
                 <div className="mt-8 border-t border-white/[0.08] pt-5">
-                  <p className="text-[10px] uppercase tracking-[0.16em] text-white/25">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-white/[0.42]">
                     Next focus
                   </p>
-                  <p className="mt-2 text-sm font-semibold text-white/75">
+                  <p className="mt-2 text-sm font-semibold text-white/[0.82]">
                     Advanced graph patterns
                   </p>
                 </div>
@@ -486,7 +519,7 @@ const Home = ({ setUser }) => {
         {/* Product introduction */}
         <section
           id="product"
-          className="relative z-10 px-5 py-24 sm:py-32 lg:px-10 lg:py-40"
+          className="relative z-10 px-5 py-10 sm:py-24 lg:px-10 lg:py-24"
         >
           <div className="mx-auto max-w-[1200px]">
             <motion.div
@@ -500,7 +533,7 @@ const Home = ({ setUser }) => {
                 title="Everything you need to"
                 accent="move forward."
               >
-                RYVO connects preparation, assessment and progress in one place.
+                RIO connects preparation, assessment and progress in one place.
                 Instead of collecting disconnected tools, you get a continuous
                 picture of what you know, what you need next, and why.
               </SectionHeading>
@@ -511,16 +544,18 @@ const Home = ({ setUser }) => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.15 }}
               transition={{ duration: 0.7 }}
-              className="mt-16 overflow-hidden rounded-[32px] border border-white/10 bg-[#111315]/70 shadow-[0_35px_100px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:mt-20"
+              className="mt-10 overflow-hidden rounded-[32px] border border-white/10 bg-[#111315]/70 shadow-[0_35px_100px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:mt-14"
             >
               <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4 sm:px-7">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-white/60" />
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
-                    RYVO / Career overview
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/[0.52]">
+                    RIO / Career overview
                   </span>
                 </div>
-                <span className="text-[10px] text-white/20">Live profile</span>
+                <span className="text-[10px] text-white/[0.38]">
+                  Live profile
+                </span>
               </div>
 
               <div className="grid lg:grid-cols-[0.72fr_1.28fr]">
@@ -533,28 +568,28 @@ const Home = ({ setUser }) => {
                       <p className="text-sm font-semibold text-white">
                         Target role
                       </p>
-                      <p className="mt-1 text-xs text-white/35">
+                      <p className="mt-1 text-xs text-white/[0.52]">
                         Software Engineer
                       </p>
                     </div>
                   </div>
 
                   <div className="mt-9 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-5">
-                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/25">
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-white/[0.42]">
                       Career signal
                     </p>
                     <p className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white">
                       74
-                      <span className="ml-1 text-base font-normal text-white/25">
+                      <span className="ml-1 text-base font-normal text-white/[0.42]">
                         / 100
                       </span>
                     </p>
-                    <p className="mt-2 text-xs leading-5 text-white/35">
+                    <p className="mt-2 text-xs leading-5 text-white/[0.52]">
                       Your current preparation signal across assessed skills.
                     </p>
                   </div>
 
-                  <div className="mt-5 flex items-center gap-2 text-xs text-white/40">
+                  <div className="mt-5 flex items-center gap-2 text-xs text-white/[0.58]">
                     <FiTrendingUp size={14} />
                     <span>Progress is measured over time</span>
                   </div>
@@ -563,14 +598,14 @@ const Home = ({ setUser }) => {
                 <div className="p-6 sm:p-8">
                   <div className="flex items-end justify-between">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.16em] text-white/25">
+                      <p className="text-[10px] uppercase tracking-[0.16em] text-white/[0.42]">
                         Skill profile
                       </p>
                       <p className="mt-2 text-xl font-semibold text-white">
                         Know what deserves attention.
                       </p>
                     </div>
-                    <FiArrowUpRight className="text-white/30" />
+                    <FiArrowUpRight className="text-white/[0.62]" />
                   </div>
 
                   <div className="mt-8 grid gap-5 sm:grid-cols-2">
@@ -580,7 +615,9 @@ const Home = ({ setUser }) => {
                         className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4"
                       >
                         <div className="flex justify-between gap-4 text-xs">
-                          <span className="text-white/55">{skill.name}</span>
+                          <span className="text-white/[0.68]">
+                            {skill.name}
+                          </span>
                           <span className="font-semibold text-white">
                             {skill.value}%
                           </span>
@@ -608,7 +645,7 @@ const Home = ({ setUser }) => {
         {/* How it works */}
         <section
           id="how-it-works"
-          className="relative z-10 scroll-mt-24 px-5 py-24 sm:py-32 lg:px-10 lg:py-40"
+          className="relative z-10 scroll-mt-24 px-5 py-10 sm:py-24 lg:px-10 lg:py-24"
         >
           <div className="mx-auto max-w-[1200px]">
             <motion.div
@@ -618,7 +655,7 @@ const Home = ({ setUser }) => {
               viewport={{ once: true, amount: 0.2 }}
             >
               <SectionHeading
-                eyebrow="How RYVO works"
+                eyebrow="How RIO works"
                 title="A simple loop."
                 accent="Built for real progress."
               >
@@ -627,7 +664,7 @@ const Home = ({ setUser }) => {
               </SectionHeading>
             </motion.div>
 
-            <div className="mt-16 grid gap-px overflow-hidden rounded-[28px] border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-10 grid gap-px overflow-hidden rounded-[28px] border border-white/10 bg-white/10 sm:grid-cols-2 lg:grid-cols-4">
               {journey.map((item, index) => (
                 <motion.div
                   key={item.step}
@@ -635,19 +672,19 @@ const Home = ({ setUser }) => {
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.2 }}
                   transition={{ duration: 0.55, delay: index * 0.08 }}
-                  className="group bg-[#17191C]/95 p-6 transition-colors hover:bg-white/[0.045] sm:p-7"
+                  className="group bg-[#17191C]/95 p-5 transition-colors hover:bg-white/[0.045] sm:p-7"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-semibold tracking-[0.18em] text-white/25">
+                    <span className="text-[10px] font-semibold tracking-[0.18em] text-white/[0.42]">
                       {item.step}
                     </span>
-                    <FiArrowUpRight className="text-white/20 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+                    <FiArrowUpRight className="text-white/[0.38] transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                   </div>
 
-                  <h3 className="mt-12 text-lg font-semibold text-white">
+                  <h3 className="mt-9 text-lg font-semibold text-white">
                     {item.title}
                   </h3>
-                  <p className="mt-3 text-sm leading-6 text-white/40">
+                  <p className="mt-3 text-sm leading-6 text-white/[0.58]">
                     {item.desc}
                   </p>
                 </motion.div>
@@ -657,10 +694,10 @@ const Home = ({ setUser }) => {
             <div className="mt-8 rounded-[28px] border border-white/[0.08] bg-white/[0.025] p-6 sm:p-8">
               <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/25">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/[0.42]">
                     The loop
                   </p>
-                  <div className="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold text-white/75 sm:text-base">
+                  <div className="mt-4 flex flex-col items-start gap-2 text-sm font-semibold text-white/[0.80] sm:text-base lg:flex-row lg:flex-wrap lg:items-center">
                     {[
                       "Profile",
                       "Assessment",
@@ -674,7 +711,10 @@ const Home = ({ setUser }) => {
                           {item}
                         </span>
                         {index < arr.length - 1 && (
-                          <FiArrowRight className="text-white/20" size={13} />
+                          <FaArrowRight
+                            className="shrink-0 rotate-90 text-white/[0.68] lg:rotate-0"
+                            size={11}
+                          />
                         )}
                       </span>
                     ))}
@@ -684,7 +724,7 @@ const Home = ({ setUser }) => {
                 <button
                   type="button"
                   onClick={openLogin}
-                  className="group flex h-11 shrink-0 items-center justify-center gap-3 rounded-xl bg-white px-5 text-sm font-bold text-[#17191C] transition-transform hover:-translate-y-0.5"
+                  className="group flex h-11 w-full shrink-0 items-center justify-center gap-3 rounded-xl bg-white px-5 text-sm font-bold text-[#17191C] transition-transform hover:-translate-y-0.5 lg:w-auto"
                 >
                   Start with your profile
                   <FiArrowRight
@@ -702,7 +742,7 @@ const Home = ({ setUser }) => {
         {/* Agents */}
         <section
           id="agents"
-          className="relative z-10 px-5 py-24 sm:py-32 lg:px-10 lg:py-40"
+          className="relative z-10 px-5 py-10 sm:py-24 lg:px-10 lg:py-24"
         >
           <div className="mx-auto max-w-[1200px]">
             <motion.div
@@ -721,7 +761,7 @@ const Home = ({ setUser }) => {
               </SectionHeading>
             </motion.div>
 
-            <div className="mt-16 grid gap-4 sm:grid-cols-2">
+            <div className="mt-10 grid gap-4 sm:grid-cols-2">
               {agents.map((agent, index) => (
                 <motion.div
                   key={agent.number}
@@ -735,22 +775,22 @@ const Home = ({ setUser }) => {
                   <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
 
                   <div className="flex items-start justify-between">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-white/80">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-white/[0.80]">
                       {agent.icon}
                     </div>
-                    <span className="text-[10px] font-semibold tracking-[0.18em] text-white/20">
+                    <span className="text-[10px] font-semibold tracking-[0.18em] text-white/[0.38]">
                       {agent.number}
                     </span>
                   </div>
 
-                  <h3 className="mt-14 text-xl font-semibold tracking-[-0.02em] text-white">
+                  <h3 className="mt-10 text-xl font-semibold tracking-[-0.02em] text-white sm:mt-14">
                     {agent.title}
                   </h3>
-                  <p className="mt-3 max-w-md text-sm leading-6 text-white/40">
+                  <p className="mt-3 max-w-md text-sm leading-6 text-white/[0.58]">
                     {agent.desc}
                   </p>
 
-                  <div className="mt-8 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/25">
+                  <div className="mt-8 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/[0.42]">
                     Explore agent
                     <FiArrowRight
                       size={11}
@@ -766,18 +806,18 @@ const Home = ({ setUser }) => {
         <GlassLine />
 
         {/* Assessment section */}
-        <section className="relative z-10 px-5 py-24 sm:py-32 lg:px-10 lg:py-40">
-          <div className="mx-auto grid max-w-[1200px] items-center gap-14 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20">
+        <section className="relative z-10 px-5 py-10 sm:py-24 lg:px-10 lg:py-24">
+          <div className="mx-auto grid max-w-[1200px] items-center gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20">
             <motion.div
               variants={reveal}
               initial="hidden"
               whileInView="visible"
               viewport={{ once: true, amount: 0.2 }}
             >
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white/30">
+              <p className="text-center text-[10px] font-semibold uppercase tracking-[0.22em] text-white/[0.62] lg:text-left">
                 From answers to signals
               </p>
-              <h2 className="mt-5 text-[clamp(2.5rem,5vw,4.6rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-white">
+              <h2 className="mt-5 text-center text-[clamp(2.5rem,5vw,4.6rem)] font-semibold leading-[0.96] tracking-[-0.055em] text-white lg:text-left">
                 Don&apos;t just know
                 <span
                   className="mt-2 block font-serif font-normal italic text-[#A1A1AA]"
@@ -786,13 +826,13 @@ const Home = ({ setUser }) => {
                   your score.
                 </span>
               </h2>
-              <p className="mt-6 max-w-lg text-sm leading-7 text-white/45 sm:text-base">
-                A score without context is only a number. RYVO breaks
-                performance down into signals you can act on, then connects
-                those signals to what you should practice next.
+              <p className="mx-auto mt-5 max-w-lg text-center text-sm leading-7 text-white/[0.72] sm:text-base lg:mx-0 lg:text-left">
+                A score without context is only a number. RIO breaks performance
+                down into signals you can act on, then connects those signals to
+                what you should practice next.
               </p>
 
-              <div className="mt-8 space-y-3">
+              <div className="mx-auto mt-7 w-fit space-y-3 lg:mx-0">
                 {[
                   "Role-aware interview assessment",
                   "Skill-level performance signals",
@@ -800,7 +840,7 @@ const Home = ({ setUser }) => {
                 ].map((item) => (
                   <div
                     key={item}
-                    className="flex items-center gap-3 text-sm text-white/60"
+                    className="flex items-center gap-3 text-sm text-white/[0.72]"
                   >
                     <span className="flex h-6 w-6 items-center justify-center rounded-full border border-white/10 bg-white/[0.04]">
                       <FiCheck size={12} />
@@ -820,14 +860,14 @@ const Home = ({ setUser }) => {
             >
               <div className="flex items-center justify-between border-b border-white/[0.08] pb-5">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/25">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/[0.42]">
                     Interview analysis
                   </p>
                   <p className="mt-2 text-lg font-semibold text-white">
                     Technical interview
                   </p>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-semibold text-white/70">
+                <div className="rounded-xl border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-semibold text-white/[0.78]">
                   74 / 100
                 </div>
               </div>
@@ -842,7 +882,7 @@ const Home = ({ setUser }) => {
                     key={name}
                     className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4"
                   >
-                    <p className="text-[10px] uppercase tracking-[0.12em] text-white/25">
+                    <p className="text-[10px] uppercase tracking-[0.12em] text-white/[0.42]">
                       {name}
                     </p>
                     <p className="mt-3 text-xl font-semibold text-white">
@@ -854,10 +894,10 @@ const Home = ({ setUser }) => {
 
               <div className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-semibold text-white/60">
+                  <p className="text-xs font-semibold text-white/[0.72]">
                     Recommended next focus
                   </p>
-                  <FiTrendingUp className="text-white/25" size={15} />
+                  <FiTrendingUp className="text-white/[0.42]" size={15} />
                 </div>
 
                 <div className="mt-5 flex items-center gap-4">
@@ -868,7 +908,7 @@ const Home = ({ setUser }) => {
                     <p className="text-sm font-semibold text-white">
                       System design fundamentals
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-white/30">
+                    <p className="mt-1 text-xs leading-5 text-white/[0.62]">
                       Improve architecture reasoning and trade-off explanation.
                     </p>
                   </div>
@@ -883,7 +923,7 @@ const Home = ({ setUser }) => {
         {/* Roadmap */}
         <section
           id="roadmap"
-          className="relative z-10 px-5 py-24 sm:py-32 lg:px-10 lg:py-40"
+          className="relative z-10 px-5 py-10 sm:py-24 lg:px-10 lg:py-24"
         >
           <div className="mx-auto max-w-[1200px]">
             <motion.div
@@ -903,7 +943,7 @@ const Home = ({ setUser }) => {
               </SectionHeading>
             </motion.div>
 
-            <div className="mt-16 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="mt-10 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
               <motion.div
                 initial={{ opacity: 0, x: -25 }}
                 whileInView={{ opacity: 1, x: 0 }}
@@ -913,7 +953,7 @@ const Home = ({ setUser }) => {
               >
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/25">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/[0.42]">
                       Current roadmap
                     </p>
                     <p className="mt-2 text-xl font-semibold text-white">
@@ -921,11 +961,11 @@ const Home = ({ setUser }) => {
                     </p>
                   </div>
                   <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
-                    <FiMap size={17} className="text-white/60" />
+                    <FiMap size={17} className="text-white/[0.72]" />
                   </div>
                 </div>
 
-                <div className="mt-8 space-y-3">
+                <div className="mx-auto mt-7 w-fit space-y-3 lg:mx-0">
                   {[
                     ["DSA foundations", "Completed", true],
                     ["Advanced graph patterns", "In progress", true],
@@ -936,14 +976,14 @@ const Home = ({ setUser }) => {
                       key={title}
                       className="flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4"
                     >
-                      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-xs font-semibold text-white/45">
+                      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-xs font-semibold text-white/[0.62]">
                         {done ? <FiCheck size={14} /> : index + 1}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-white/75">
+                        <p className="text-sm font-semibold text-white/[0.82]">
                           {title}
                         </p>
-                        <p className="mt-1 text-[11px] text-white/25">
+                        <p className="mt-1 text-[11px] text-white/[0.42]">
                           {state}
                         </p>
                       </div>
@@ -964,20 +1004,22 @@ const Home = ({ setUser }) => {
               >
                 <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-white/[0.05] blur-[70px]" />
                 <div className="relative">
-                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/25">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-white/[0.42]">
                     Why it matters
                   </p>
                   <h3 className="mt-4 text-2xl font-semibold leading-tight text-white">
                     Your next step should be obvious.
                   </h3>
-                  <p className="mt-4 text-sm leading-6 text-white/40">
-                    RYVO turns assessment history into a prioritized learning
+                  <p className="mt-4 text-sm leading-6 text-white/[0.58]">
+                    RIO turns assessment history into a prioritized learning
                     sequence, so every practice session has a reason behind it.
                   </p>
 
                   <div className="mt-10 border-t border-white/[0.08] pt-6">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-white/35">Roadmap progress</span>
+                      <span className="text-white/[0.52]">
+                        Roadmap progress
+                      </span>
                       <span className="font-semibold text-white">68%</span>
                     </div>
                     <div className="mt-3 h-2 rounded-full bg-white/[0.07]">
@@ -997,16 +1039,17 @@ const Home = ({ setUser }) => {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.2 }}
             transition={{ duration: 0.7 }}
-            className="mx-auto max-w-[1200px] overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] px-6 py-16 text-center shadow-[0_40px_120px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-10 sm:py-20 lg:px-16 lg:py-24"
+            className="mx-auto max-w-[1200px] overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] px-6 py-12 text-center shadow-[0_40px_120px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-10 sm:py-10 lg:px-16 lg:py-24"
           >
-            <div className="mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06]">
+            <div className="relative mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06]">
+              <RocketTrail />
               <RioMark
                 className="h-7 w-7"
-                style={{ animation: "rioRocketFly 2.2s ease-in-out infinite" }}
+                style={{ animation: "rioRocketFly 4.5s ease-in-out infinite" }}
               />
             </div>
 
-            <p className="mt-8 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/30">
+            <p className="mt-8 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/[0.62]">
               Start building momentum
             </p>
 
@@ -1020,8 +1063,8 @@ const Home = ({ setUser }) => {
               </span>
             </h2>
 
-            <p className="mx-auto mt-6 max-w-xl text-sm leading-7 text-white/40 sm:text-base">
-              Create your profile, take your first assessment and let RYVO turn
+            <p className="mx-auto mt-6 max-w-xl text-sm leading-7 text-white/[0.58] sm:text-base">
+              Create your profile, take your first assessment and let RIO turn
               the result into your next move.
             </p>
 
@@ -1045,17 +1088,17 @@ const Home = ({ setUser }) => {
             <div className="grid gap-10 md:grid-cols-[1.5fr_1fr_1fr_1fr]">
               <div>
                 <RioLogo />
-                <p className="mt-5 max-w-sm text-sm leading-6 text-white/30">
+                <p className="mt-5 max-w-sm text-sm leading-6 text-white/[0.62]">
                   AI-powered career intelligence for deliberate interview
                   preparation and measurable professional growth.
                 </p>
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/25">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/[0.42]">
                   Product
                 </p>
-                <div className="mt-4 space-y-3 text-sm text-white/40">
+                <div className="mt-4 space-y-3 text-sm text-white/[0.58]">
                   <button
                     onClick={() =>
                       document
@@ -1090,10 +1133,10 @@ const Home = ({ setUser }) => {
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/25">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/[0.42]">
                   Platform
                 </p>
-                <div className="mt-4 space-y-3 text-sm text-white/40">
+                <div className="mt-4 space-y-3 text-sm text-white/[0.58]">
                   <button
                     onClick={openLogin}
                     className="block transition-colors hover:text-white"
@@ -1106,14 +1149,14 @@ const Home = ({ setUser }) => {
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/25">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/[0.42]">
                   Security
                 </p>
-                <div className="mt-4 flex items-center gap-2 text-xs text-white/25">
+                <div className="mt-4 flex items-center gap-2 text-xs text-white/[0.42]">
                   <SiFirebase size={13} />
                   Firebase secured
                 </div>
-                <p className="mt-4 text-xs leading-5 text-white/20">
+                <p className="mt-4 text-xs leading-5 text-white/[0.38]">
                   Built with security and privacy as part of the product
                   foundation.
                 </p>
@@ -1122,7 +1165,7 @@ const Home = ({ setUser }) => {
 
             <GlassLine className="mt-12" />
 
-            <div className="flex flex-col gap-3 pt-6 text-[10px] uppercase tracking-[0.15em] text-white/20 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-3 pt-6 text-[10px] uppercase tracking-[0.15em] text-white/[0.38] sm:flex-row sm:items-center sm:justify-between">
               <span>
                 © {new Date().getFullYear()} RIO. All rights reserved.
               </span>
@@ -1146,7 +1189,7 @@ const Home = ({ setUser }) => {
               />
             </button>
 
-            <div className="mt-5 flex items-center justify-center gap-2 text-[9px] uppercase tracking-[0.14em] text-white/18">
+            <div className="mt-5 flex items-center justify-center gap-2 text-[9px] uppercase tracking-[0.14em] text-white/[0.18]">
               <SiFirebase size={11} />
               Firebase secured
             </div>
