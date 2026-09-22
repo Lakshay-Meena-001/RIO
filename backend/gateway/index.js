@@ -4,6 +4,8 @@ import proxy from "express-http-proxy";
 import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
+import { getCurrentUser } from "./controllers/userController.js";
+import {isAuth} from "./middlewares/isAuth.js"
 
 dotenv.config();
 
@@ -46,6 +48,9 @@ app.get("/health", (req, res) => {
 
 // Forward authentication requests to the Auth microservice.
 app.use("/api/auth", proxy(AUTH_SERVICE_URL));
+
+// Return the currently authenticated user from the session.
+app.get("/api/me", isAuth, getCurrentUser);
 
 // Handle unknown gateway routes consistently.
 app.use((req, res) => {

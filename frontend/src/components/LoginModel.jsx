@@ -46,7 +46,7 @@ const RioMark = ({ className = "h-10 w-10" }) => (
   </svg>
 );
 
-const Loginmodel = ({ onClose }) => {
+const Loginmodel = ({ onClose, setUser }) => {
   const [authMode, setAuthMode] = useState("login");
   const [method, setMethod] = useState("email");
   const [showPassword, setShowPassword] = useState(false);
@@ -68,9 +68,12 @@ const Loginmodel = ({ onClose }) => {
       const result = await signInWithPopup(auth, authProvider);
       const token = await result.user.getIdToken();
 
-      await api.post("/api/auth/login", { token });
+      const response = await api.post("/api/auth/login", { token });
 
       toast.success(`${providerName} login successful`);
+
+      setUser(response?.data?.user)
+
       onClose();
     } catch (error) {
       console.error(`${providerName} authentication failed:`, error);

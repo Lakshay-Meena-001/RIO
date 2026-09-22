@@ -1,4 +1,4 @@
-const Dashboard = () => {
+const Dashboard = ({user,setUser}) => {
   return <div>DashBoard</div>;
 };
 

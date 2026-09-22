@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { motion } from "motion/react";
 import { FaArrowRight } from "react-icons/fa";
 
 import Loginmodel from "../components/Loginmodel";
@@ -55,7 +54,7 @@ const RioLogo = ({ compact = false }) => (
   </div>
 );
 
-const Home = () => {
+const Home = ({setUser}) => {
   const [showLogin, setShowLogin] = useState(false);
 
   return (
@@ -297,7 +296,7 @@ const Home = () => {
         </div>
       </section>
 
-      {showLogin && <Loginmodel onClose={() => setShowLogin(false)} />}
+      {showLogin && <Loginmodel onClose={() => setShowLogin(false)} setUser = {setUser} />}
     </main>
   );
 };
