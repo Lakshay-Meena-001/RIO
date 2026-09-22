@@ -1,6 +1,6 @@
 import redis from "../../shared/redis/redis.js";
 
-export const auth = async (req, res, next) => {
+export const isAuth = async (req, res, next) => {
   try {
     const sessionId = req.cookies?.session;
 

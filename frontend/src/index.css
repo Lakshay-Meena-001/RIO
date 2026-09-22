@@ -1,4 +1,8 @@
 @import "tailwindcss";
+
+*{
+  scroll-behavior: smooth;
+}
 /* =========================================================
    RYVO DESIGN TOKENS
    DEFAULT THEME = DARK
