@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { logoutUser } from "../api/user.api.js";
 import {
   FiBarChart2,
   FiChevronLeft,
@@ -18,6 +19,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 
 function Sidebar({
   user,
+  setUser,
   mobileOpen,
   setMobileOpen,
   sidebarOpen,
@@ -95,8 +97,9 @@ function Sidebar({
 
   const handleLogout = async () => {
     try {
-      // Keep the existing logout flow here when backend logout is wired.
-      navigate("/");
+      await logoutUser();
+
+      setUser(null);
       setMobileOpen?.(false);
     } catch (error) {
       console.error("Logout failed:", error);

@@ -10,3 +10,14 @@ export const getCurrentUser = async () => {
     return null;
   }
 };
+
+// Log out the current user and destroy the server-side session.
+export const logoutUser = async () => {
+  try {
+    const response = await api.post("/api/auth/logout");
+    return response.data;
+  } catch (error) {
+    console.error("Failed to logout:", error);
+    throw error;
+  }
+};

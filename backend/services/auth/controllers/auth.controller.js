@@ -8,7 +8,7 @@ import redis from "../../../shared/redis/redis.js";
 
 const SESSION_TTL = 7 * 24 * 60 * 60; // 7 days
 
-// Google/Firebase authentication + Redis session creation.
+// Firebase authentication + Redis session creation.
 export const googleAuth = async (req, res) => {
   try {
     const { token } = req.body;
@@ -22,6 +22,22 @@ export const googleAuth = async (req, res) => {
 
     // Firebase verifies the token and gives us the trusted user identity.
     const decoded = await getAuth(app).verifyIdToken(token);
+
+    // Email/password accounts must verify their email before
+    // RIO creates a server-side session.
+    //
+    // OAuth providers such as Google/GitHub may not require this
+    // check because Firebase handles their provider verification.
+    if (
+      decoded.firebase?.sign_in_provider === "password" &&
+      decoded.email_verified !== true
+    ) {
+      return res.status(403).json({
+        success: false,
+        code: "EMAIL_NOT_VERIFIED",
+        message: "Please verify your email before continuing.",
+      });
+    }
 
     let user = await User.findOne({ firebaseID: decoded.uid });
 
@@ -65,7 +81,7 @@ export const googleAuth = async (req, res) => {
       user,
     });
   } catch (error) {
-    console.error("Google Auth Error:", error);
+    console.error("Firebase Authentication Error:", error);
 
     // Invalid/expired Firebase tokens should not be treated as
     // internal server errors.

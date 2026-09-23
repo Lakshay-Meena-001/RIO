@@ -19,7 +19,7 @@ import {
 } from "react-icons/fi";
 import { SiFirebase } from "react-icons/si";
 
-function Dashboard({ user }) {
+function Dashboard({ user, setUser }) {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -188,6 +188,7 @@ function Dashboard({ user }) {
             setMobileOpen={setMobileOpen}
             user={user}
             sidebarOpen={sidebarOpen}
+            setUser={setUser}
             setSidebarOpen={setSidebarOpen}
           />
 
@@ -649,10 +650,6 @@ function Dashboard({ user }) {
               </motion.section>
 
               <footer className="mt-10 flex items-center justify-center border-t border-white/[0.08] py-6 text-[11px] text-[#71717A]">
-                <span>RIO</span>
-                <span className="mx-2 text-[#52525B]">·</span>
-                <span>Career Intelligence</span>
-                <span className="mx-2 text-[#52525B]">·</span>
                 <SiFirebase size={13} className="mr-1.5 text-[#A1A1AA]" />
                 <span>Secured by Firebase</span>
               </footer>
