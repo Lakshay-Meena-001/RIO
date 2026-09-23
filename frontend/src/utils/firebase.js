@@ -1,11 +1,10 @@
-// Import the functions you need from the SDKs you need
 import { initializeApp } from "firebase/app";
-import { getAuth, GoogleAuthProvider, GithubAuthProvider } from "firebase/auth";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import {
+  getAuth,
+  GoogleAuthProvider,
+  GithubAuthProvider,
+} from "firebase/auth";
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_AUTH_SECRET,
   authDomain: "ryvo-a515f.firebaseapp.com",
@@ -16,10 +15,15 @@ const firebaseConfig = {
   measurementId: "G-LTV5XJ17MJ",
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
 const auth = getAuth(app);
+
+// Disable Firebase app verification only during local development/testing.
+// Production must use normal app verification.
+if (import.meta.env.DEV) {
+  auth.settings.appVerificationDisabledForTesting = true;
+}
 
 const provider = new GoogleAuthProvider();
 const githubProvider = new GithubAuthProvider();

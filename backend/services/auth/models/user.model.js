@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema(
   {
-    // Firebase authenticated user ki unique identity.
+    // Firebase authenticated user's unique identity.
     firebaseID: {
       type: String,
       required: true,
@@ -12,20 +12,40 @@ const userSchema = new mongoose.Schema(
     },
 
     // Basic profile information.
+    // Phone users can initially use the default value
+    // until the name onboarding step is completed.
     name: {
       type: String,
       required: true,
+      default: "User",
       trim: true,
       minlength: 2,
       maxlength: 100,
     },
 
+    // Email is optional because Firebase phone users
+    // may not have an email address.
     email: {
       type: String,
-      required: true,
       unique: true,
+      sparse: true,
       lowercase: true,
       trim: true,
+    },
+
+    // Phone number is optional because email/social users
+    // may not have a phone number.
+    phoneNumber: {
+      type: String,
+      unique: true,
+      sparse: true,
+      trim: true,
+    },
+
+    // Minimum Info Required
+    profileCompleted: {
+      type: Boolean,
+      default: false,
     },
 
     // Professional profile information.
@@ -111,32 +131,3 @@ const userSchema = new mongoose.Schema(
 const User = mongoose.model("User", userSchema);
 
 export default User;
-// import mongoose, { STATES } from "mongoose";
-
-// const userSchema = new mongoose.Schema(
-//   {
-//     firebaseID: {
-//       type: String,
-//       required: true,
-//       unique: true,
-//     },
-//     name: {
-//       type: String,
-//       required: true,
-//     },
-//     email: {
-//       type: String,
-//       required: true,
-//       unique: true,
-//     },
-//     coins: {
-//       type: Number,
-//       default: 150,
-//     },
-//   },
-//   { timestamps: true },
-// );
-
-// const User = mongoose.model("User", userSchema);
-
-// export default User;

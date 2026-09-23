@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import Sidebar from "../components/Sidebar";
+import Sidebar from "../components/SideBar";
+import { FiPlusCircle } from "react-icons/fi";
 
 import {
   FiArrowRight,
@@ -10,6 +11,7 @@ import {
   FiCheckCircle,
   FiChevronRight,
   FiClock,
+  FiCreditCard,
   FiFileText,
   FiMenu,
   FiPlay,
@@ -193,7 +195,9 @@ function Dashboard({ user, setUser }) {
           />
 
           <main
-            className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-in-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
+            className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-in-out ${
+              sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
+            }`}
           >
             <div className="mx-auto w-full max-w-[1500px] px-4 pb-6 pt-[86px] sm:px-6 sm:pt-[86px] lg:px-8 lg:py-8">
               {/* Header */}
@@ -215,7 +219,7 @@ function Dashboard({ user, setUser }) {
 
                     <div className="mt-1 mb-2 flex items-center gap-2 sm:mt-0 sm:inline-flex">
                       <span
-                        className="whitespace-nowrap  text-white bg-clip-text text-[56px] font-bold leading-none tracking-[-0.045em] text-transparent sm:text-[48px]"
+                        className="whitespace-nowrap text-white bg-clip-text text-[56px] font-bold leading-none tracking-[-0.045em] text-transparent sm:text-[48px]"
                         style={{ letterSpacing: 0.4 }}
                       >
                         {firstName}
@@ -231,17 +235,32 @@ function Dashboard({ user, setUser }) {
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => navigate("/interview")}
-                  className="group flex w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#17191C] transition-transform duration-200 hover:scale-[1.02] sm:w-auto"
-                >
-                  Start an interview
-                  <FiArrowRight
-                    size={16}
-                    className="transition-transform duration-200 group-hover:translate-x-0.5"
-                  />
-                </button>
+                {/* Credits */}
+                <div className="relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-white/40 bg-gradient-to-br from-white/[0.08] via-white/[0.045] to-white/[0.02] px-4 py-3.5 sm:w-[190px]">
+                  {/* Left: Credit Icon */}
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-[#D4D4D8]">
+                    <FiCreditCard size={16} strokeWidth={1.7} />
+                  </div>
+
+                  {/* Middle: Credits + Balance */}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                      Credits
+                    </p>
+
+                    <p className="mt-0.5 text-[16px] font-semibold tracking-[-0.02em] text-white">
+                      {user?.coins ?? 0} INR
+                    </p>
+                  </div>
+
+                  {/* Right: Add Balance Button */}
+                  <button
+                    type="button"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.06] text-white/80 transition-colors hover:bg-white/[0.12]"
+                  >
+                    <FiPlusCircle size={18} strokeWidth={2.5} />
+                  </button>
+                </div>
               </motion.section>
 
               {/* Stats */}

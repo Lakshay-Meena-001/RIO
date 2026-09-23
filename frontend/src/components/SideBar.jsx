@@ -1,10 +1,12 @@
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { logoutUser } from "../api/user.api.js";
+import { FiPlusCircle } from "react-icons/fi";
 import {
   FiBarChart2,
   FiChevronLeft,
   FiChevronRight,
+  FiCreditCard,
   FiFileText,
   FiHome,
   FiLogOut,
@@ -30,6 +32,36 @@ function Sidebar({
 
   const touchStartX = useRef(null);
 
+  useEffect(() => {
+    if (!mobileOpen) {
+      document.body.style.overflow = "";
+      document.body.style.touchAction = "";
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    const previousTouchAction = document.body.style.touchAction;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+
+    const preventBackgroundScroll = (event) => {
+      if (!event.target.closest('[data-mobile-sidebar="true"]')) {
+        event.preventDefault();
+      }
+    };
+
+    document.addEventListener("touchmove", preventBackgroundScroll, {
+      passive: false,
+    });
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.touchAction = previousTouchAction;
+      document.removeEventListener("touchmove", preventBackgroundScroll);
+    };
+  }, [mobileOpen]);
+
   const firstName = user?.name?.split(" ")[0] || "User";
 
   const initials = user?.name
@@ -40,6 +72,8 @@ function Sidebar({
         .slice(0, 2)
         .toUpperCase()
     : "U";
+
+  const credits = user?.coins ?? 0;
 
   const navigationItems = [
     {
@@ -273,6 +307,50 @@ function Sidebar({
     </nav>
   );
 
+  const creditsSection = (isExpanded) => (
+    <div
+      className={`transition-[opacity,transform] duration-300 ease-out ${
+        isExpanded ? "translate-x-0 opacity-100" : "translate-x-0 opacity-100"
+      }`}
+    >
+      {isExpanded ? (
+        <div className="flex w-full items-center justify-between px-3 py-2.5">
+          <div className="flex  items-center gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045] text-[#A1A1AA]">
+              <FiCreditCard size={18} strokeWidth={1.7} />
+            </div>
+
+            <div className=" min-w-0 flex-1 ">
+              <span className="block text-[10px] uppercase tracking-[0.16em] text-[#71717A]">
+                Credits
+              </span>
+
+              <span className="mt-0.5 block text-[13px] font-semibold text-[#E4E4E7]">
+                {credits}
+                {" INR"}
+              </span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.06] text-white/80 transition-colors hover:bg-white/[0.12]"
+          >
+            <FiPlusCircle size={18} strokeWidth={2.5} />
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          title={`${credits} Credits`}
+          aria-label={`${credits} Credits`}
+          className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-[#A1A1AA] transition-[background-color,color,transform] duration-200 hover:bg-white/[0.06] hover:text-white"
+        >
+          <FiCreditCard size={16} strokeWidth={1.7} />
+        </button>
+      )}
+    </div>
+  );
+
   const userSection = (isExpanded) => (
     <div className="shrink-0 border-t border-white/[0.08] p-3">
       <div className="relative h-[62px]">
@@ -293,6 +371,7 @@ function Sidebar({
                 <span className="block truncate text-[14px] font-bold leading-tight text-[#A1A1AA]">
                   {firstName}
                 </span>
+
                 <p className="mt-1 truncate text-[10px] text-[#71717A]">
                   {user?.email || "RIO member"}
                 </p>
@@ -327,6 +406,22 @@ function Sidebar({
             {initials}
           </button>
         </div>
+      </div>
+    </div>
+  );
+
+  const sidebarBottom = (isExpanded) => (
+    <div className="shrink-0">
+      {/* Mobile: User → Credits */}
+      <div className="md:hidden">
+        <div className="px-3 pb-3">{creditsSection(isExpanded)}</div>
+        {userSection(isExpanded)}
+      </div>
+
+      {/* Desktop: Credits → User */}
+      <div className="hidden md:block">
+        <div className=" p-3 pb-2">{creditsSection(isExpanded)}</div>
+        {userSection(isExpanded)}
       </div>
     </div>
   );
@@ -406,7 +501,7 @@ function Sidebar({
           {renderAccountItems(isExpanded, animateDesktopContent && isExpanded)}
         </div>
 
-        {!isExpanded && !animateDesktopContent && (
+        {!isExpanded && (
           <div className="absolute inset-x-0 top-0">
             {renderNavigationItems(false)}
             <div className="my-5 h-px bg-white/[0.07]" />
@@ -415,8 +510,8 @@ function Sidebar({
         )}
       </div>
 
-      {/* User */}
-      {userSection(isExpanded)}
+      {/* Credits + User */}
+      {sidebarBottom(isExpanded)}
     </div>
   );
 
@@ -476,6 +571,7 @@ function Sidebar({
               }}
               onTouchStart={handleSidebarTouchStart}
               onTouchEnd={handleSidebarTouchEnd}
+              data-mobile-sidebar="true"
               className="fixed inset-y-0 left-0 z-[60] w-[285px] border-r border-white/[0.1] bg-[#111315] shadow-2xl md:hidden"
             >
               <div className="relative h-full">

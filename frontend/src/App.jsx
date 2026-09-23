@@ -28,15 +28,18 @@ const App = () => {
     );
   }
 
+  const isAuthenticated = Boolean(user);
+  const isProfileComplete = user?.profileCompleted === true;
+
   return (
     <Routes>
       <Route
         path="/"
         element={
-          user ? (
+          isProfileComplete ? (
             <Navigate to="/dashboard" replace />
           ) : (
-            <Home setUser={setUser} />
+            <Home user={user} setUser={setUser} />
           )
         }
       />
@@ -44,7 +47,7 @@ const App = () => {
       <Route
         path="/dashboard"
         element={
-          user ? (
+          isAuthenticated && isProfileComplete ? (
             <Dashboard user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />

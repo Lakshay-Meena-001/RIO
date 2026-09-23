@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import {
   FiArrowRight,
@@ -14,7 +14,7 @@ import {
 import { FaArrowRight } from "react-icons/fa";
 import { SiFirebase } from "react-icons/si";
 
-import Loginmodel from "../components/Loginmodel";
+import Loginmodel from "../components/LoginModel";
 
 const RioLogo = ({ compact = false }) => (
   <span
@@ -127,8 +127,14 @@ function GlassLine({ className = "" }) {
   );
 }
 
-const Home = ({ setUser }) => {
+const Home = ({ setUser, user }) => {
   const [showLogin, setShowLogin] = useState(false);
+
+  useEffect(() => {
+    if (user && !user.profileCompleted) {
+      setShowLogin(true);
+    }
+  }, [user]);
 
   const openLogin = () => setShowLogin(true);
 
@@ -1106,7 +1112,11 @@ const Home = ({ setUser }) => {
         </div>
 
         {showLogin && (
-          <Loginmodel onClose={() => setShowLogin(false)} setUser={setUser} />
+          <Loginmodel
+            onClose={() => setShowLogin(false)}
+            setUser={setUser}
+            initialAccountSetupUser={user}
+          />
         )}
       </main>
     </>
