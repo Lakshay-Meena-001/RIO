@@ -11,17 +11,12 @@ import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
 import { MdPhoneIphone } from "react-icons/md";
 import { SiFirebase } from "react-icons/si";
-import { GiJetPack } from "react-icons/gi";
 import { signInWithPopup } from "firebase/auth";
 import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
 
 import { auth, provider, githubProvider } from "../utils/firebase";
 import api from "../utils/axios";
-
-const RioMark = ({ className = "h-10 w-10" }) => (
-  <GiJetPack className={className} aria-hidden="true" />
-);
 
 const Loginmodel = ({ onClose, setUser }) => {
   const [authMode, setAuthMode] = useState("login");
@@ -83,6 +78,17 @@ const Loginmodel = ({ onClose, setUser }) => {
     <>
       <style>{`
       @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap');
+
+      .auth-panel-scroll {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+      }
+
+      .auth-panel-scroll::-webkit-scrollbar {
+        display: none;
+        width: 0;
+        height: 0;
+      }
     `}</style>
       <div
         className="fixed inset-0 z-[100] overflow-y-auto bg-[#111315]/88 p-4 backdrop-blur-[16px] sm:p-6"
@@ -125,11 +131,7 @@ const Loginmodel = ({ onClose, setUser }) => {
                 <div className="absolute inset-0 bg-gradient-to-br from-white/[0.045] via-transparent to-white/[0.015]" />
 
                 <div className="relative z-10">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/15 bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]">
-                      <RioMark className="h-6 w-6" />
-                    </div>
-
+                  <div className="flex items-center">
                     <div className="leading-none">
                       <p
                         className="text-[16px] font-bold tracking-[0.22em] text-white"
@@ -171,13 +173,7 @@ const Loginmodel = ({ onClose, setUser }) => {
               </div>
 
               {/* Auth panel */}
-              <div
-                className="min-h-0 overflow-y-auto"
-                style={{
-                  scrollbarWidth: "thin",
-                  scrollbarColor: "rgba(255,255,255,0.15) transparent",
-                }}
-              >
+              <div className="auth-panel-scroll min-h-0 overflow-y-auto">
                 <div className="min-h-full p-7 pb-9 sm:p-9 sm:pb-10">
                   <div className="pr-12">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/75/75">
@@ -187,7 +183,13 @@ const Loginmodel = ({ onClose, setUser }) => {
                     <h3 className="mt-2 text-[30px] font-semibold tracking-[-0.035em] text-white">
                       {authMode === "login" ? (
                         <>
-                          <span style={{ fontFamily: " sans-serif" }}>
+                          <span
+                            style={{
+                              fontFamily: " sans-serif",
+                              fontSize: 24,
+                              fontWeight: 400,
+                            }}
+                          >
                             Welcome to{" "}
                           </span>
                           <span

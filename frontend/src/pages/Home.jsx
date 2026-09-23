@@ -12,48 +12,17 @@ import {
   FiTrendingUp,
 } from "react-icons/fi";
 import { FaArrowRight } from "react-icons/fa";
-import { GiJetPack } from "react-icons/gi";
 import { SiFirebase } from "react-icons/si";
 
 import Loginmodel from "../components/Loginmodel";
 
-const RioMark = ({ className = "h-10 w-10", style }) => (
-  <GiJetPack className={className} style={style} aria-hidden="true" />
-);
-
-const RocketTrail = () => (
-  <span
-    aria-hidden="true"
-    className="pointer-events-none absolute bottom-0 left-1/2 h-5 w-3 -translate-x-1/2 rounded-full bg-white/25 blur-md"
-    style={{ animation: "rioRocketSmoke 4.5s ease-in-out infinite" }}
-  />
-);
-
 const RioLogo = ({ compact = false }) => (
-  <div className="flex items-center gap-3">
-    <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-      <RocketTrail />
-      <RioMark
-        className="h-5 w-5"
-        style={{ animation: "rioRocketFly 4.5s ease-in-out infinite" }}
-      />
-    </div>
-
-    {!compact && (
-      <div className="leading-none">
-        <span
-          className="block text-[20px] font-bold tracking-[0.22em] text-white"
-          style={{ fontFamily: '"Zen Dots", sans-serif' }}
-        >
-          RIO
-        </span>
-
-        <span className="mt-1 block text-[9px] font-medium uppercase tracking-[0.22em] text-white/[0.52]">
-          Career Intelligence
-        </span>
-      </div>
-    )}
-  </div>
+  <span
+    className={`${compact ? "text-[17px]" : "text-[20px]"} font-bold tracking-[0.22em] text-white`}
+    style={{ fontFamily: '"Zen Dots", sans-serif' }}
+  >
+    RIO
+  </span>
 );
 
 const reveal = {
@@ -177,47 +146,6 @@ const Home = ({ setUser }) => {
 
         html {
           scroll-behavior: smooth;
-        }
-
-        @keyframes rioRocketFly {
-          0% {
-            opacity: 0;
-            transform: translateY(22px);
-            filter: blur(2px);
-          }
-          12% {
-            opacity: 1;
-            transform: translateY(10px);
-            filter: blur(0.6px);
-          }
-          72% {
-            opacity: 1;
-            transform: translateY(-22px);
-            filter: blur(0);
-          }
-          100% {
-            opacity: 0;
-            transform: translateY(-62px);
-            filter: blur(2px);
-          }
-        }
-
-        @keyframes rioRocketSmoke {
-          0% {
-            opacity: 0;
-            transform: translateY(6px) scale(0.55);
-          }
-          15% {
-            opacity: 0.35;
-          }
-          65% {
-            opacity: 0.12;
-            transform: translateY(22px) scale(1);
-          }
-          100% {
-            opacity: 0;
-            transform: translateY(32px) scale(1.18);
-          }
         }
 
         @keyframes rioSoftFloat {
@@ -344,31 +272,17 @@ const Home = ({ setUser }) => {
           </div>
         </nav>
 
-        {/* Mobile brand */}
-        <div className="relative z-10 flex flex-col items-center pt-7 lg:hidden">
-          <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.045] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl">
-            <RocketTrail />
-            <RioMark
-              className="h-6 w-6"
-              style={{ animation: "rioRocketFly 4.5s ease-in-out infinite" }}
-            />
-          </div>
+        {/* Mobile navbar */}
+        <nav className="fixed left-4 right-4 top-3 z-40 flex h-[58px] flex-col items-center justify-center rounded-2xl border border-white/[0.10] bg-[#17191C]/72 shadow-[0_16px_45px_rgba(0,0,0,0.28)] backdrop-blur-[32px] backdrop-saturate-150 lg:hidden">
+          <RioLogo compact />
 
-          <div className="mt-3 text-center leading-none">
-            <span
-              className="block text-[17px] font-bold tracking-[0.22em] text-white"
-              style={{ fontFamily: '"Zen Dots", sans-serif' }}
-            >
-              RIO
-            </span>
-            <span className="mt-1.5 block text-[8px] font-medium uppercase tracking-[0.24em] text-white/[0.52]">
-              Career Intelligence
-            </span>
-          </div>
-        </div>
+          <span className="mt-1 text-[7px] font-semibold uppercase tracking-[0.20em] text-[#71717A]">
+            Career Intelligence
+          </span>
+        </nav>
 
         {/* Hero */}
-        <section className="relative z-10 flex min-h-[calc(100svh-100px)] items-center px-5 pb-[190px] pt-8 lg:min-h-screen lg:px-10 lg:pb-16 lg:pt-[104px]">
+        <section className="relative z-10 flex min-h-0 items-center px-5 pb-12 pt-[88px] lg:min-h-screen lg:px-10 lg:pb-16 lg:pt-[104px]">
           <div className="mx-auto grid w-full max-w-[1440px] items-center gap-12 lg:grid-cols-[1fr_0.72fr] lg:gap-8">
             <div className="mx-auto max-w-[760px] text-center lg:mx-0 lg:text-left">
               <div className="mb-7 inline-flex h-9 items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/[0.68] backdrop-blur-xl">
@@ -697,7 +611,7 @@ const Home = ({ setUser }) => {
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/[0.42]">
                     The loop
                   </p>
-                  <div className="mt-4 flex flex-col items-start gap-2 text-sm font-semibold text-white/[0.80] sm:text-base lg:flex-row lg:flex-wrap lg:items-center">
+                  <div className="mt-4 flex w-full flex-col items-center justify-center gap-2 text-center text-sm font-semibold text-white/[0.80] sm:text-base lg:flex-row lg:flex-wrap lg:items-center">
                     {[
                       "Profile",
                       "Assessment",
@@ -706,8 +620,11 @@ const Home = ({ setUser }) => {
                       "Practice",
                       "Re-assess",
                     ].map((item, index, arr) => (
-                      <span key={item} className="flex items-center gap-2">
-                        <span className="rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2">
+                      <span
+                        key={item}
+                        className="flex w-full flex-col items-center gap-2 lg:w-auto lg:flex-row"
+                      >
+                        <span className="w-full max-w-[245px] rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-center">
                           {item}
                         </span>
                         {index < arr.length - 1 && (
@@ -724,7 +641,7 @@ const Home = ({ setUser }) => {
                 <button
                   type="button"
                   onClick={openLogin}
-                  className="group flex h-11 w-full shrink-0 items-center justify-center gap-3 rounded-xl bg-white px-5 text-sm font-bold text-[#17191C] transition-transform hover:-translate-y-0.5 lg:w-auto"
+                  className="group mx-auto flex h-11 w-full max-w-[245px] shrink-0 items-center justify-center gap-3 rounded-xl bg-white px-5 text-sm font-bold text-[#17191C] transition-transform hover:-translate-y-0.5 lg:w-auto"
                 >
                   Start with your profile
                   <FiArrowRight
@@ -1041,14 +958,6 @@ const Home = ({ setUser }) => {
             transition={{ duration: 0.7 }}
             className="mx-auto max-w-[1200px] overflow-hidden rounded-[34px] border border-white/10 bg-white/[0.045] px-6 py-12 text-center shadow-[0_40px_120px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-10 sm:py-10 lg:px-16 lg:py-24"
           >
-            <div className="relative mx-auto flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.06]">
-              <RocketTrail />
-              <RioMark
-                className="h-7 w-7"
-                style={{ animation: "rioRocketFly 4.5s ease-in-out infinite" }}
-              />
-            </div>
-
             <p className="mt-8 text-[10px] font-semibold uppercase tracking-[0.22em] text-white/[0.62]">
               Start building momentum
             </p>

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   FiBarChart2,
@@ -13,17 +13,18 @@ import {
   FiUser,
   FiX,
 } from "react-icons/fi";
-import { GiJetPack } from "react-icons/gi";
 import { IoAddOutline } from "react-icons/io5";
-import { MdWavingHand } from "react-icons/md";
 import { useNavigate, useLocation } from "react-router-dom";
 
-function Sidebar({ user, mobileOpen, setMobileOpen }) {
+function Sidebar({
+  user,
+  mobileOpen,
+  setMobileOpen,
+  sidebarOpen,
+  setSidebarOpen,
+}) {
   const navigate = useNavigate();
   const location = useLocation();
-
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [showWave, setShowWave] = useState(true);
 
   const touchStartX = useRef(null);
 
@@ -37,14 +38,6 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
         .slice(0, 2)
         .toUpperCase()
     : "U";
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setShowWave(false);
-    }, 1800);
-
-    return () => clearTimeout(timer);
-  }, []);
 
   const navigationItems = [
     {
@@ -148,7 +141,7 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
     touchStartX.current = null;
   };
 
-  const brand = (isExpanded = true) => (
+  const brand = (isExpanded = true, animateBrand = false) => (
     <button
       type="button"
       onClick={() => handleNavigation("/dashboard")}
@@ -156,36 +149,42 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
         isExpanded ? "gap-3" : "justify-center"
       }`}
     >
-      <div
-        className={`flex shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] ${
-          isExpanded ? "h-10 w-10" : "h-9 w-9"
-        }`}
-      >
-        <GiJetPack size={isExpanded ? 23 : 20} className="text-white" />
-      </div>
-
-      {isExpanded && (
-        <div className="text-left">
-          <div
-            className="text-[17px] leading-none tracking-tight text-white"
-            style={{ fontFamily: '"Zen Dots", sans-serif' }}
-          >
-            RIO
-          </div>
-
-          <div className="mt-1 text-[8px] font-semibold uppercase tracking-[0.20em] text-[#71717A]">
-            Career Intelligence
-          </div>
+      <div className="relative shrink-0 text-left">
+        <div
+          className={`leading-none tracking-tight text-white ${
+            isExpanded ? "text-[17px]" : "text-[16px]"
+          }`}
+          style={{ fontFamily: '"Zen Dots", sans-serif' }}
+        >
+          RIO
         </div>
-      )}
+
+        <div
+          className={`pointer-events-none absolute left-0 top-[calc(100%+4px)] whitespace-nowrap text-[8px] font-semibold uppercase tracking-[0.20em] text-[#71717A] transition-[opacity,transform] duration-300 ease-out ${
+            !isExpanded
+              ? "translate-x-0 opacity-0"
+              : animateBrand
+                ? "translate-x-0 opacity-100 delay-[320ms]"
+                : "translate-x-0 opacity-100"
+          }`}
+        >
+          Career Intelligence
+        </div>
+      </div>
     </button>
   );
 
-  const renderNavigationItems = (isExpanded) => (
+  const renderNavigationItems = (isExpanded, stagger = false) => (
     <nav className="space-y-1">
-      {navigationItems.map((item) => {
+      {navigationItems.map((item, index) => {
         const Icon = item.icon;
         const active = isActive(item.path);
+
+        const itemAnimationClass = stagger
+          ? isExpanded
+            ? "translate-x-0 opacity-100"
+            : "-translate-x-2 opacity-0"
+          : "translate-x-0 opacity-100";
 
         return (
           <button
@@ -193,13 +192,18 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
             type="button"
             onClick={() => handleNavigation(item.path)}
             title={!isExpanded ? item.label : undefined}
-            className={`group relative flex w-full items-center rounded-xl transition-colors duration-200 ${
+            className={`group relative flex w-full items-center rounded-xl transition-[opacity,transform,background-color,color] duration-300 ease-out ${
               isExpanded ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-3"
-            } ${
+            } ${itemAnimationClass} ${
               active
                 ? "bg-white/[0.09] text-white"
                 : "text-[#71717A] hover:bg-white/[0.045] hover:text-[#D4D4D8]"
             }`}
+            style={
+              stagger && isExpanded
+                ? { transitionDelay: `${320 + index * 55}ms` }
+                : undefined
+            }
           >
             {active && (
               <span className="absolute left-0 h-5 w-[2px] rounded-full bg-white" />
@@ -218,11 +222,17 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
     </nav>
   );
 
-  const renderAccountItems = (isExpanded) => (
+  const renderAccountItems = (isExpanded, stagger = false) => (
     <nav className="space-y-1">
-      {accountItems.map((item) => {
+      {accountItems.map((item, index) => {
         const Icon = item.icon;
         const active = isActive(item.path);
+
+        const itemAnimationClass = stagger
+          ? isExpanded
+            ? "translate-x-0 opacity-100"
+            : "-translate-x-2 opacity-0"
+          : "translate-x-0 opacity-100";
 
         return (
           <button
@@ -230,13 +240,18 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
             type="button"
             onClick={() => handleNavigation(item.path)}
             title={!isExpanded ? item.label : undefined}
-            className={`group relative flex w-full items-center rounded-xl transition-colors duration-200 ${
+            className={`group relative flex w-full items-center rounded-xl transition-[opacity,transform,background-color,color] duration-300 ease-out ${
               isExpanded ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-3"
-            } ${
+            } ${itemAnimationClass} ${
               active
                 ? "bg-white/[0.09] text-white"
                 : "text-[#71717A] hover:bg-white/[0.045] hover:text-[#D4D4D8]"
             }`}
+            style={
+              stagger && isExpanded
+                ? { transitionDelay: `${320 + index * 55}ms` }
+                : undefined
+            }
           >
             {active && (
               <span className="absolute left-0 h-5 w-[2px] rounded-full bg-white" />
@@ -256,79 +271,68 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
   );
 
   const userSection = (isExpanded) => (
-    <div
-      className={`shrink-0 border-t border-white/[0.08] ${
-        isExpanded ? "p-3" : "p-2"
-      }`}
-    >
-      {isExpanded ? (
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-3">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-xs font-bold text-[#17191C]">
-              {initials}
-            </div>
-
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-[14px] font-bold leading-tight text-[#A1A1AA]">
-                  {firstName}
-                </span>
-
-                {showWave && (
-                  <motion.span
-                    initial={{
-                      x: -8,
-                      y: 8,
-                      rotate: -35,
-                      opacity: 0,
-                    }}
-                    animate={{
-                      x: [0, 12, 20, 12, 0],
-                      y: [8, -2, -10, -3, 5],
-                      rotate: [-35, 15, 40, 8, -12],
-                      opacity: [0, 1, 1, 1, 0],
-                    }}
-                    transition={{
-                      duration: 1.6,
-                      ease: "easeInOut",
-                    }}
-                    className="origin-bottom-left"
-                  >
-                    <MdWavingHand size={15} className="text-[#A1A1AA]" />
-                  </motion.span>
-                )}
+    <div className="shrink-0 border-t border-white/[0.08] p-3">
+      <div className="relative h-[62px]">
+        <div
+          className={`absolute inset-0 transition-[opacity,transform] duration-300 ease-out ${
+            isExpanded
+              ? "translate-x-0 opacity-100 delay-[320ms]"
+              : "pointer-events-none -translate-x-2 opacity-0"
+          }`}
+        >
+          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-xs font-bold text-[#17191C]">
+                {initials}
               </div>
 
-              <p className="mt-1 truncate text-[10px] text-[#71717A]">
-                {user?.email || "RIO member"}
-              </p>
-            </div>
+              <div className="min-w-0 flex-1">
+                <span className="block truncate text-[14px] font-bold leading-tight text-[#A1A1AA]">
+                  {firstName}
+                </span>
+                <p className="mt-1 truncate text-[10px] text-[#71717A]">
+                  {user?.email || "RIO member"}
+                </p>
+              </div>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#71717A] transition-colors hover:bg-white/[0.06] hover:text-white"
-              aria-label="Logout"
-              title="Logout"
-            >
-              <FiLogOut size={15} />
-            </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#71717A] transition-colors hover:bg-white/[0.06] hover:text-white"
+                aria-label="Logout"
+                title="Logout"
+              >
+                <FiLogOut size={15} />
+              </button>
+            </div>
           </div>
         </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => handleNavigation("/profile")}
-          className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-white text-xs font-bold text-[#17191C]"
-          title={firstName}
+
+        <div
+          className={`absolute inset-0 flex items-center justify-center transition-[opacity,transform] duration-300 ease-out ${
+            isExpanded
+              ? "pointer-events-none translate-x-2 opacity-0"
+              : "translate-x-0 opacity-100 delay-[320ms]"
+          }`}
         >
-          {initials}
-        </button>
-      )}
+          <button
+            type="button"
+            onClick={() => handleNavigation("/profile")}
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-xs font-bold text-[#17191C]"
+            title={firstName}
+          >
+            {initials}
+          </button>
+        </div>
+      </div>
     </div>
   );
 
-  const sidebarContent = (isExpanded, showDesktopToggle = true) => (
+  const sidebarContent = (
+    isExpanded,
+    showDesktopToggle = true,
+    animateDesktopContent = false,
+  ) => (
     <div className="flex h-full flex-col">
       {/* Brand */}
       <div
@@ -336,7 +340,7 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
           isExpanded ? "justify-between px-4" : "justify-between px-2"
         }`}
       >
-        {brand(isExpanded)}
+        {brand(isExpanded, animateDesktopContent)}
 
         {showDesktopToggle && (
           <button
@@ -355,24 +359,57 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
       </div>
 
       {/* Navigation */}
-      <div className="mt-6 min-h-0 flex-1 overflow-y-auto px-2">
-        {isExpanded && (
-          <p className="px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B]">
-            Workspace
-          </p>
+      <div className="relative mt-6 min-h-0 flex-1 overflow-hidden px-2">
+        <div
+          className={
+            animateDesktopContent && isExpanded
+              ? "transition-opacity duration-300 opacity-100"
+              : animateDesktopContent
+                ? "pointer-events-none opacity-0"
+                : "opacity-100"
+          }
+        >
+          {isExpanded && (
+            <p
+              className={
+                animateDesktopContent
+                  ? "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B] transition-[opacity,transform] duration-300 translate-x-0 opacity-100 delay-[280ms]"
+                  : "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B]"
+              }
+            >
+              Workspace
+            </p>
+          )}
+
+          {renderNavigationItems(
+            isExpanded,
+            animateDesktopContent && isExpanded,
+          )}
+
+          {isExpanded && <div className="my-5 h-px bg-white/[0.07]" />}
+
+          {isExpanded && (
+            <p
+              className={
+                animateDesktopContent
+                  ? "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B] transition-[opacity,transform] duration-300 translate-x-0 opacity-100 delay-[500ms]"
+                  : "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B]"
+              }
+            >
+              Account
+            </p>
+          )}
+
+          {renderAccountItems(isExpanded, animateDesktopContent && isExpanded)}
+        </div>
+
+        {!isExpanded && !animateDesktopContent && (
+          <div className="absolute inset-x-0 top-0">
+            {renderNavigationItems(false)}
+            <div className="my-5 h-px bg-white/[0.07]" />
+            {renderAccountItems(false)}
+          </div>
         )}
-
-        {renderNavigationItems(isExpanded)}
-
-        {isExpanded && <div className="my-5 h-px bg-white/[0.07]" />}
-
-        {isExpanded && (
-          <p className="px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B]">
-            Account
-          </p>
-        )}
-
-        {renderAccountItems(isExpanded)}
       </div>
 
       {/* User */}
@@ -384,11 +421,11 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`sticky top-0 hidden h-screen shrink-0 border-r border-white/[0.08] bg-[#111315] transition-[width] duration-300 md:block ${
+        className={`fixed left-0 top-0 z-50 hidden h-screen shrink-0 overflow-hidden border-r border-white/[0.08] bg-[#111315] transition-[width] duration-300 md:block ${
           sidebarOpen ? "w-[250px]" : "w-[76px]"
         }`}
       >
-        {sidebarContent(sidebarOpen)}
+        {sidebarContent(sidebarOpen, true, true)}
       </aside>
 
       {/* Floating Create Interview */}
@@ -449,7 +486,7 @@ function Sidebar({ user, mobileOpen, setMobileOpen }) {
                   <FiX size={17} />
                 </button>
 
-                {sidebarContent(true, false)}
+                {sidebarContent(true, false, false)}
               </div>
             </motion.aside>
           </>
