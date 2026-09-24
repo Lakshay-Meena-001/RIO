@@ -236,15 +236,15 @@ function Dashboard({ user, setUser }) {
                 </div>
 
                 {/* Credits */}
-                <div className="relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-white/40 bg-gradient-to-br from-white/[0.08] via-white/[0.045] to-white/[0.02] px-4 py-3.5 sm:w-[190px]">
+                <div className="relative flex w-full items-center gap-3 overflow-hidden rounded-2xl border border-white/40 bg-gradient-to-br from-white/[0.5] via-white/[0.1] to-white/[0.5] px-4 py-3.5 sm:w-[190px]">
                   {/* Left: Credit Icon */}
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-[#D4D4D8]">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.2] text-[#D4D4D8]">
                     <FiCreditCard size={16} strokeWidth={1.7} />
                   </div>
 
                   {/* Middle: Credits + Balance */}
                   <div className="min-w-0 flex-1">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#ffffff]">
                       Credits
                     </p>
 
@@ -256,7 +256,7 @@ function Dashboard({ user, setUser }) {
                   {/* Right: Add Balance Button */}
                   <button
                     type="button"
-                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.06] text-white/80 transition-colors hover:bg-white/[0.12]"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.2] text-white/80 transition-colors hover:bg-white/[0.12]"
                   >
                     <FiPlusCircle size={18} strokeWidth={2.5} />
                   </button>
