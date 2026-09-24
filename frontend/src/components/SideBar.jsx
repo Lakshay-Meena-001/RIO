@@ -89,7 +89,7 @@ function Sidebar({
     {
       label: "Resume Scorer",
       icon: FiStar,
-      path: "/resume-score",
+      path: "/scorer",
     },
     {
       label: "Roadmap Builder",

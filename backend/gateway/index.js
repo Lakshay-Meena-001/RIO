@@ -5,7 +5,8 @@ import cors from "cors";
 import morgan from "morgan";
 import cookieParser from "cookie-parser";
 import { getCurrentUser } from "./controllers/userController.js";
-import {isAuth} from "./middlewares/isAuth.js"
+import { isAuth } from "./middlewares/isAuth.js";
+import { proxyWithHeaders } from "./utils/proxyHeader.js";
 
 dotenv.config();
 
@@ -13,6 +14,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL;
+const RESUME_SERVICE_URL = process.env.RESUME_SERVICE_URL;
 
 // Basic request parsing and cookie support.
 app.use(express.json());
@@ -36,6 +38,9 @@ app.disable("x-powered-by");
 if (!AUTH_SERVICE_URL) {
   throw new Error("AUTH_SERVICE_URL is not defined");
 }
+if (!RESUME_SERVICE_URL) {
+  throw new Error("RESUME_SERVICE_URL is not defined");
+}
 
 // Gateway health check for monitoring and deployment systems.
 app.get("/health", (req, res) => {
@@ -48,6 +53,9 @@ app.get("/health", (req, res) => {
 
 // Forward authentication requests to the Auth microservice.
 app.use("/api/auth", proxy(AUTH_SERVICE_URL));
+
+// Forward authentication requests to the Resume microservice.
+app.use("/api/resume", isAuth, proxyWithHeaders(RESUME_SERVICE_URL));
 
 // Return the currently authenticated user from the session.
 app.get("/api/me", isAuth, getCurrentUser);

@@ -244,11 +244,11 @@ function Dashboard({ user, setUser }) {
 
                   {/* Middle: Credits + Balance */}
                   <div className="min-w-0 flex-1">
-                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#ffffff]">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#ffffff]/60">
                       Credits
                     </p>
 
-                    <p className="mt-0.5 text-[16px] font-semibold tracking-[-0.02em] text-white">
+                    <p className=" text-[16px] leading-none font-semibold tracking-[-0.02em] text-white">
                       {user?.coins ?? 0} INR
                     </p>
                   </div>
