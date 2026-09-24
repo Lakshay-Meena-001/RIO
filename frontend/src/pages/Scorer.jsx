@@ -100,6 +100,10 @@ const Scorer = ({ user, setUser }) => {
 
       const resumeData = resumeResponse?.data;
 
+      console.log("UPLOAD RESPONSE:", response.data);
+      console.log("GET RESUME RESPONSE:", resumeResponse);
+      console.log("RESUME DATA:", resumeData);
+
       if (!resumeData) {
         throw new Error("Resume was analyzed but could not be loaded.");
       }
