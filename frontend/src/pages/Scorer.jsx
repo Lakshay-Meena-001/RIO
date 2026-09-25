@@ -800,7 +800,7 @@ const ResultView = ({
         <button
           type="button"
           onClick={handleAnalyzeAnother}
-          className="flex w-fit shrink-0 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white/55 transition-all hover:bg-white/[0.08] hover:text-white"
+          className="flex w-fit font-bold shrink-0 items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-black/55 transition-all hover:bg-black/[0.08] hover:text-black"
         >
           <RotateCcw className="h-4 w-4" />
           Analyze another

@@ -10,3 +10,14 @@ export const getResume = async () => {
     return null;
   }
 };
+
+export const updateResume = async (resumeData) => {
+  try {
+    const response = await api.patch("/api/resume/update", resumeData);
+
+    return response.data;
+  } catch (error) {
+    console.log("Failed to update resume:", error);
+    return null;
+  }
+};

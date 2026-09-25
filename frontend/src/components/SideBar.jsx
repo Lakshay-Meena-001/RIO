@@ -84,7 +84,7 @@ function Sidebar({
     {
       label: "Resume Builder",
       icon: FiFileText,
-      path: "/resume",
+      path: "/builder",
     },
     {
       label: "Resume Scorer",

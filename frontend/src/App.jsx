@@ -10,6 +10,7 @@ import { getCurrentUser } from "./api/user.api";
 import { getResume } from "./api/resume.api";
 
 import { setResume } from "./redux/resumeSlice";
+import ResumeBuilder from "./pages/ResumeBuilder";
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -104,6 +105,18 @@ const App = () => {
         element={
           isAuthenticated && isProfileComplete ? (
             <Scorer user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      {/* RESUME BUILDER */}
+      <Route
+        path="/builder"
+        element={
+          isAuthenticated && isProfileComplete ? (
+            <ResumeBuilder user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
           )
