@@ -10,6 +10,7 @@ const resumeOutputSchema = z.object({
     linkedIn: z.string(),
     github: z.string(),
     portfolio: z.string(),
+    leetcode: z.string(),
   }),
 
   summary: z.string(),

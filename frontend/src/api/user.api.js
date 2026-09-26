@@ -4,9 +4,11 @@ import api from "../utils/axios.js";
 export const getCurrentUser = async () => {
   try {
     const response = await api.get("/api/me");
+
     return response.data;
   } catch (error) {
     console.error("Failed to fetch current user:", error);
+
     return null;
   }
 };
@@ -15,9 +17,24 @@ export const getCurrentUser = async () => {
 export const logoutUser = async () => {
   try {
     const response = await api.post("/api/auth/logout");
+
     return response.data;
   } catch (error) {
     console.error("Failed to logout:", error);
+
+    throw error;
+  }
+};
+
+// Deduct coins from the authenticated user's balance.
+export const useCoins = async (data) => {
+  try {
+    const response = await api.post("/api/auth/user-coins", data);
+
+    return response.data;
+  } catch (error) {
+    console.error("Failed to use coins:", error);
+
     throw error;
   }
 };

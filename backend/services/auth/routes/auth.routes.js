@@ -4,6 +4,7 @@ import {
   googleAuth,
   completeProfile,
   logout,
+  useCoins,
 } from "../controllers/auth.controller.js";
 
 const authRouter = express.Router();
@@ -16,5 +17,8 @@ authRouter.patch("/profile", completeProfile);
 
 // Destroy Redis session and clear authentication cookie.
 authRouter.post("/logout", logout);
+
+// Deduct coins from the authenticated user's balance.
+authRouter.post("/user-coins", useCoins);
 
 export default authRouter;

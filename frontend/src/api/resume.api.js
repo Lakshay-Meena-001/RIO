@@ -6,8 +6,8 @@ export const getResume = async () => {
 
     return response.data;
   } catch (error) {
-    console.log("Failed to fetch resume:", error);
-    return null;
+    console.error("Failed to fetch resume:", error);
+    throw error;
   }
 };
 
@@ -17,7 +17,18 @@ export const updateResume = async (resumeData) => {
 
     return response.data;
   } catch (error) {
-    console.log("Failed to update resume:", error);
-    return null;
+    console.error("Failed to update resume:", error);
+    throw error;
+  }
+};
+
+export const useCoins = async (data) => {
+  try {
+    const response = await api.post("/api/auth/user-coins", data);
+
+    return response.data;
+  } catch (error) {
+    console.error("Failed to use coins:", error);
+    throw error;
   }
 };

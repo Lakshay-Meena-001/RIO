@@ -16,6 +16,66 @@ const normalizeEmail = (email) => {
   return email.trim().toLowerCase();
 };
 
+const getSessionKey = (sessionId) => {
+  return `session:${sessionId}`;
+};
+
+/*
+ * Build the exact data that should live inside
+ * the Redis session.
+ *
+ * MongoDB remains the source of truth.
+ */
+const buildSessionData = (user) => ({
+  userId: user._id.toString(),
+  name: user.name,
+  email: user.email,
+  phoneNumber: user.phoneNumber,
+  coins: Number(user.coins) || 0,
+  profileCompleted: user.profileCompleted,
+});
+
+/*
+ * Create/update a Redis session while keeping
+ * the session structure consistent everywhere.
+ */
+const saveSession = async (sessionId, user) => {
+  await redis.set(
+    getSessionKey(sessionId),
+    JSON.stringify(buildSessionData(user)),
+    "EX",
+    SESSION_TTL,
+  );
+};
+
+/*
+ * Safely read the authenticated Redis session.
+ */
+const getAuthenticatedSession = async (req) => {
+  const sessionId = req.cookies?.session;
+
+  if (!sessionId) {
+    return null;
+  }
+
+  const rawSession = await redis.get(getSessionKey(sessionId));
+
+  if (!rawSession) {
+    return null;
+  }
+
+  try {
+    return {
+      sessionId,
+      data: JSON.parse(rawSession),
+    };
+  } catch (error) {
+    console.error("Invalid Redis session data:", error);
+
+    return null;
+  }
+};
+
 /*
  * Resolve the RIO user from a verified Firebase identity.
  *
@@ -186,20 +246,8 @@ export const googleAuth = async (req, res) => {
     // directly in the application session.
     const sessionId = crypto.randomUUID();
 
-    // Redis stores the server-side session with automatic expiration.
-    await redis.set(
-      `session:${sessionId}`,
-      JSON.stringify({
-        userId: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        coins: user.coins,
-        profileCompleted: user.profileCompleted,
-      }),
-      "EX",
-      SESSION_TTL,
-    );
+    // Store the current MongoDB user state in Redis.
+    await saveSession(sessionId, user);
 
     // HTTP-only cookie prevents client-side JavaScript from reading
     // the session ID, reducing the impact of XSS attacks.
@@ -252,6 +300,8 @@ export const completeProfile = async (req, res) => {
     const { name, email, phoneNumber } = req.body;
 
     const trimmedName = name?.trim();
+    const normalizedEmail = normalizeEmail(email);
+    const trimmedPhoneNumber = phoneNumber?.trim();
 
     if (!trimmedName) {
       return res.status(400).json({
@@ -267,34 +317,25 @@ export const completeProfile = async (req, res) => {
       });
     }
 
-    if (!email && !phoneNumber) {
+    if (!normalizedEmail && !trimmedPhoneNumber) {
       return res.status(400).json({
         success: false,
         message: "Email or contact is required.",
       });
     }
 
-    const sessionId = req.cookies?.session;
+    const authenticatedSession = await getAuthenticatedSession(req);
 
-    if (!sessionId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required.",
-      });
-    }
-
-    const sessionData = await redis.get(`session:${sessionId}`);
-
-    if (!sessionData) {
+    if (!authenticatedSession) {
       return res.status(401).json({
         success: false,
         message: "Your session has expired. Please sign in again.",
       });
     }
 
-    const session = JSON.parse(sessionData);
+    const { sessionId, data: sessionData } = authenticatedSession;
 
-    const user = await User.findById(session.userId);
+    const user = await User.findById(sessionData.userId);
 
     if (!user) {
       return res.status(404).json({
@@ -305,31 +346,23 @@ export const completeProfile = async (req, res) => {
 
     user.name = trimmedName;
 
-    if (email) {
-      user.email = email.trim().toLowerCase();
+    if (normalizedEmail) {
+      user.email = normalizedEmail;
     }
 
-    if (phoneNumber) {
-      user.phoneNumber = phoneNumber.trim();
+    if (trimmedPhoneNumber) {
+      user.phoneNumber = trimmedPhoneNumber;
     }
 
     user.profileCompleted = true;
 
     await user.save();
 
-    await redis.set(
-      `session:${sessionId}`,
-      JSON.stringify({
-        userId: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        phoneNumber: user.phoneNumber,
-        coins: user.coins,
-        profileCompleted: user.profileCompleted,
-      }),
-      "EX",
-      SESSION_TTL,
-    );
+    /*
+     * Rebuild the Redis session from the saved MongoDB user.
+     * This automatically keeps coins synchronized as well.
+     */
+    await saveSession(sessionId, user);
 
     return res.status(200).json({
       success: true,
@@ -352,8 +385,7 @@ export const logout = async (req, res) => {
     const sessionId = req.cookies?.session;
 
     if (sessionId) {
-      // Keep the Redis key exactly consistent with googleAuth().
-      await redis.del(`session:${sessionId}`);
+      await redis.del(getSessionKey(sessionId));
     }
 
     res.clearCookie("session", {
@@ -372,6 +404,109 @@ export const logout = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Logout failed. Please try again.",
+    });
+  }
+};
+
+/*
+ * Deduct coins from the authenticated user.
+ *
+ * MongoDB is the source of truth.
+ * Redis session is synchronized only after the MongoDB update succeeds.
+ */
+export const useCoins = async (req, res) => {
+  try {
+    const authenticatedSession = await getAuthenticatedSession(req);
+
+    if (!authenticatedSession) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
+    const { sessionId, data: sessionData } = authenticatedSession;
+
+    const { coin, action } = req.body;
+
+    const coinAmount = Number(coin);
+
+    /*
+     * Coins must always be a positive integer.
+     */
+    if (!Number.isInteger(coinAmount) || coinAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Coin amount must be a positive integer.",
+      });
+    }
+
+    /*
+     * IMPORTANT:
+     * concurrent requests can both read the same balance.
+     * Instead, the balance check and deduction happen atomically
+     * inside MongoDB.
+     */
+    const updatedUser = await User.findOneAndUpdate(
+      {
+        _id: sessionData.userId,
+        coins: {
+          $gte: coinAmount,
+        },
+      },
+      {
+        $inc: {
+          coins: -coinAmount,
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
+
+    /*
+     * No document means either:
+     * 1. User does not exist, or
+     * 2. User does not have enough coins.
+     */
+    if (!updatedUser) {
+      const currentUser = await User.findById(sessionData.userId).select(
+        "coins",
+      );
+
+      if (!currentUser) {
+        return res.status(404).json({
+          success: false,
+          message: "User account not found.",
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: "Not enough coins.",
+        coins: Number(currentUser.coins) || 0,
+      });
+    }
+
+    /*
+     * MongoDB update succeeded.
+     * Now synchronize Redis with the NEW authoritative balance.
+     */
+    await saveSession(sessionId, updatedUser);
+
+    return res.status(200).json({
+      success: true,
+      message: "Coins updated successfully.",
+      action: action || null,
+      coins: Number(updatedUser.coins) || 0,
+    });
+  } catch (error) {
+    console.error("Coin deduction failed:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update coins. Please try again.",
     });
   }
 };

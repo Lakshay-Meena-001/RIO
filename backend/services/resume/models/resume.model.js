@@ -190,6 +190,12 @@ const resumeSchema = new mongoose.Schema(
         trim: true,
         default: "",
       },
+      
+      leetcode: {
+        type: String,
+        trim: true,
+        default: "",
+      },
     },
 
     summary: {

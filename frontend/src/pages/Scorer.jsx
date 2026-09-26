@@ -800,7 +800,7 @@ const ResultView = ({
         <button
           type="button"
           onClick={handleAnalyzeAnother}
-          className="flex w-fit font-bold shrink-0 items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-black/55 transition-all hover:bg-black/[0.08] hover:text-black"
+          className="flex w-fit font-bold shrink-0 items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-black/80 transition-all hover:bg-white/[0.8] hover:text-black/[0.8]"
         >
           <RotateCcw className="h-4 w-4" />
           Analyze another
@@ -824,22 +824,22 @@ const ResultView = ({
           transition={{
             delay: 0.04,
           }}
-          className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#111315] p-6 sm:p-8"
+          className="relative overflow-hidden rounded-[28px] border border-white/8 bg-[#111315] p-6 sm:p-8"
         >
-          <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/[0.2] blur-[90px]" />
+          <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/20 blur-[90px]" />
 
           <div className="relative">
             <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/25">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
                   Candidate profile
                 </p>
 
-                <h2 className="mt-3 break-words text-3xl font-medium tracking-[-0.04em]">
+                <h2 className="mt-3 wrap-break-words text-3xl font-medium tracking-[-0.04em]">
                   {profile.name || "Your resume"}
                 </h2>
 
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-white/30">
+                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-white/50">
                   {profile.email && (
                     <span className="break-all">{profile.email}</span>
                   )}
@@ -850,7 +850,7 @@ const ResultView = ({
                 </div>
               </div>
 
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04]">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/4">
                 <UserRound className="h-4 w-4 text-white/45" />
               </div>
             </div>
@@ -1019,6 +1019,7 @@ const ResultView = ({
       {/* CAREER + STRENGTHS */}
 
       <div className="grid gap-5 xl:grid-cols-2">
+        
         <InsightSection
           icon={<BriefcaseBusiness />}
           eyebrow="Career direction"
@@ -1070,7 +1071,7 @@ const ResultView = ({
         transition={{
           delay: 0.18,
         }}
-        className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#111315] p-6 sm:p-8"
+        className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-black/10 p-6 sm:p-8"
       >
         <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-white/[0.025] blur-[70px]" />
 
@@ -1192,11 +1193,13 @@ const InsightSection = ({
       transition={{
         duration: 0.4,
       }}
-      className="rounded-[28px] border border-white/[0.08] bg-white/[0.035] p-5 sm:p-7"
+      className="rounded-[28px] border border-white/[0.08] bg-black/10 p-5 sm:p-7"
     >
+      
+      
       <div className="flex items-center gap-2 text-white/60">
+      
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
-
         <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
           {eyebrow}
         </span>
@@ -1207,12 +1210,14 @@ const InsightSection = ({
       </h2>
 
       <div className={`mt-6 ${compact ? "space-y-2" : "grid gap-2"}`}>
+        
         {items?.length ? (
           items.map((item, index) => (
             <div
               key={`${item}-${index}`}
               className="group flex min-w-0 gap-4 rounded-2xl border border-white/[0.05] bg-white/[0.2] p-4 transition-colors hover:bg-white/[0.04]"
             >
+              
               {numbered ? (
                 <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.045] text-[10px] font-semibold text-white/80">
                   {String(index + 1).padStart(2, "0")}
@@ -1225,12 +1230,15 @@ const InsightSection = ({
                 {item}
               </p>
             </div>
+            
           ))
         ) : (
           <EmptyState text="Nothing was identified here from the uploaded resume." />
         )}
       </div>
+      
     </motion.div>
+    
   );
 };
 

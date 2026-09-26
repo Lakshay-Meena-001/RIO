@@ -144,3 +144,93 @@ export const getResume = async (req, res) => {
     });
   }
 };
+
+/**
+ * Update resume data from Resume Builder.
+ *
+ * Only user-editable resume fields are accepted.
+ * Protected/system fields such as userId, analysis,
+ * processing and extractedText cannot be modified here.
+ */
+export const updateResume = async (req, res) => {
+  try {
+    // 1. Get authenticated user ID from Gateway
+    const userId = req.headers["x-user-id"];
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "UserId is required",
+      });
+    }
+
+    // 2. Pick only fields that Resume Builder is allowed to modify
+    const {
+      profile,
+      summary,
+      education,
+      experience,
+      projects,
+      skills,
+      certifications,
+      achievements,
+      languages,
+    } = req.body;
+
+    // 3. Build a whitelist-based update object
+    const updateData = {
+      profile,
+      summary,
+      education,
+      experience,
+      projects,
+      skills,
+      certifications,
+      achievements,
+      languages,
+    };
+
+    // 4. Remove undefined fields
+    Object.keys(updateData).forEach((key) => {
+      if (updateData[key] === undefined) {
+        delete updateData[key];
+      }
+    });
+
+    // 5. Update only the authenticated user's resume
+    const resume = await Resume.findOneAndUpdate(
+      { userId },
+      {
+        $set: updateData,
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
+
+    if (!resume) {
+      return res.status(404).json({
+        success: false,
+        message: "Resume not found",
+      });
+    }
+
+    // 6. Keep Redis synchronized with MongoDB
+    await redis.set(`resume:${userId}`, JSON.stringify(resume));
+
+    // 7. Return updated resume
+    return res.status(200).json({
+      success: true,
+      message: "Resume updated successfully",
+      data: resume,
+    });
+  } catch (error) {
+    console.error("Update resume error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to update resume",
+    });
+  }
+};
