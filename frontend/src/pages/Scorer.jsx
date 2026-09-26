@@ -1,7 +1,14 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+
+import { FaUserCircle } from "react-icons/fa";
+import { FaPhoneAlt } from "react-icons/fa";
+import { FaMapMarkerAlt } from "react-icons/fa";
+import { FaGithub } from "react-icons/fa";
+import { FaLinkedin } from "react-icons/fa6";
+import { MdEmail } from "react-icons/md";
 
 import {
   AlertCircle,
@@ -42,9 +49,98 @@ import {
 import api from "../utils/axios";
 import { setResume } from "../redux/resumeSlice";
 import { getResume } from "../api/resume.api";
+import { deductCoins } from "../api/user.api";
 import Sidebar from "../components/SideBar";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
+const SCORER_COST = 10;
+
+const normalizeExternalUrl = (url) => {
+  if (!url) return "";
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+};
+
+/* =========================================================
+   COIN NOTIFICATION
+========================================================= */
+
+const CoinNotification = ({ notification, onClose }) => {
+  useEffect(() => {
+    if (!notification) return;
+
+    const timer = window.setTimeout(() => {
+      onClose();
+    }, 2000);
+
+    return () => window.clearTimeout(timer);
+  }, [notification, onClose]);
+
+  if (!notification) return null;
+
+  const isSuccess = notification.type === "success";
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0, y: -16, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: -16, scale: 0.98 }}
+        transition={{ duration: 0.2 }}
+        className="fixed left-1/2 top-4 z-[100] w-[calc(100%-24px)] max-w-sm -translate-x-1/2 overflow-hidden rounded-2xl border border-white/[0.10] bg-[#111315]/90 p-4 shadow-[0_20px_70px_rgba(0,0,0,0.35)] backdrop-blur-2xl"
+        role="status"
+        aria-live="polite"
+      >
+        <div className="flex items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.05]">
+            {isSuccess ? (
+              <CheckCircle2 className="h-4 w-4 text-white/80" />
+            ) : (
+              <AlertCircle className="h-4 w-4 text-white/70" />
+            )}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-white/90">
+              {isSuccess ? "Balance Updated" : "Insufficient Balance"}
+            </p>
+
+            {isSuccess ? (
+              <>
+                <p className="mt-1 text-xs leading-5 text-white/50">
+                  {notification.deducted} coins deducted.
+                </p>
+                <p className="text-xs leading-5 text-white/70">
+                  Remaining balance: {notification.balance}
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-1 text-xs leading-5 text-white/50">
+                  You need {notification.required} coins to use this service.
+                </p>
+                <p className="text-xs leading-5 text-white/70">
+                  Current balance: {notification.balance} coins.
+                </p>
+                <p className="text-xs leading-5 text-white/40">
+                  Please recharge your balance.
+                </p>
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-white/35 transition-colors hover:bg-white/[0.06] hover:text-white/70"
+            aria-label="Close notification"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+};
 
 /* =========================================================
    SCORE RING
@@ -113,6 +209,11 @@ const Scorer = ({ user, setUser }) => {
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [coinNotification, setCoinNotification] = useState(null);
+
+  const showCoinNotification = (type, data) => {
+    setCoinNotification({ type, ...data });
+  };
 
   const hasResult = Boolean(resume?.analysis);
 
@@ -164,35 +265,82 @@ const Scorer = ({ user, setUser }) => {
     if (!file || loading) return;
 
     setError("");
+
+    // Client-side balance check is only a UX guard.
+    // The backend performs the authoritative atomic deduction.
+    const currentBalance = Number(user?.coins ?? 0);
+
+    if (currentBalance < SCORER_COST) {
+      showCoinNotification("insufficient", {
+        required: SCORER_COST,
+        balance: currentBalance,
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
       const formData = new FormData();
-
       formData.append("resume", file);
 
+      // 1. Analyze the resume first.
+      // Coins are NOT deducted if the analysis fails.
       const response = await api.post("/api/resume/upload", formData);
 
       if (!response?.data?.success) {
         throw new Error(response?.data?.message || "Resume analysis failed.");
       }
 
+      // 2. Load the successfully generated resume.
       const resumeResponse = await getResume();
-
       const resumeData = resumeResponse?.data;
 
       if (!resumeData) {
         throw new Error("Resume was analyzed but could not be loaded.");
       }
 
+      // 3. Deduct coins only after successful analysis.
+      // Backend/MongoDB is authoritative and performs an atomic check.
+      const coinResponse = await deductCoins({
+        coin: SCORER_COST,
+        action: "resume_scorer",
+      });
+
+      if (!coinResponse?.success) {
+        throw new Error(
+          coinResponse?.message || "Unable to update your coin balance.",
+        );
+      }
+
+      const newBalance = Number(
+        coinResponse?.coins ?? Math.max(currentBalance - SCORER_COST, 0),
+      );
+
+      // 4. Keep the shared user state in sync so the sidebar updates.
+      setUser((previousUser) => ({
+        ...previousUser,
+        coins: newBalance,
+      }));
+
+      // 5. Only show the result after both analysis and coin deduction succeed.
       dispatch(setResume(resumeData));
+
+      showCoinNotification("success", {
+        deducted: SCORER_COST,
+        balance: newBalance,
+      });
 
       clearFile();
     } catch (uploadError) {
       console.error("Resume upload failed:", uploadError);
 
-      setError(
+      const serverMessage =
         uploadError?.response?.data?.message ||
+        uploadError?.response?.data?.error?.message;
+
+      setError(
+        serverMessage ||
           uploadError?.message ||
           "We couldn't analyze your resume. Please try again.",
       );
@@ -212,16 +360,22 @@ const Scorer = ({ user, setUser }) => {
   const analysis = resume?.analysis || {};
 
   return (
-    <div className="relative min-h-screen w-full max-w-full overflow-x-hidden overflow-y-visible bg-[#17191C] text-white">
-      {/* ===================================================
+    <>
+      <CoinNotification
+        notification={coinNotification}
+        onClose={() => setCoinNotification(null)}
+      />
+
+      <div className="relative min-h-screen w-full max-w-full overflow-x-hidden overflow-y-visible bg-[#17191C] text-white">
+        {/* ===================================================
           RIO BACKGROUND
       =================================================== */}
 
-      <div className="pointer-events-none fixed inset-0 z-0">
-        <div
-          className="absolute inset-0"
-          style={{
-            background: `
+        <div className="pointer-events-none fixed inset-0 z-0">
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `
               radial-gradient(
                 ellipse 90% 70% at 100% 0%,
                 rgba(255,255,255,0.055) 0%,
@@ -242,103 +396,105 @@ const Scorer = ({ user, setUser }) => {
                 #1b1e21 100%
               )
             `,
-          }}
-        />
+            }}
+          />
 
-        <div
-          className="absolute inset-0 opacity-[0.025] mix-blend-soft-light"
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
-          }}
-        />
+          <div
+            className="absolute inset-0 opacity-[0.025] mix-blend-soft-light"
+            style={{
+              backgroundImage:
+                "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
+            }}
+          />
 
-        <div className="absolute -right-40 top-20 h-[500px] w-[500px] rounded-full bg-white/[0.025] blur-[120px]" />
+          <div className="absolute -right-40 top-20 h-[500px] w-[500px] rounded-full bg-white/[0.025] blur-[120px]" />
 
-        <div className="absolute -bottom-40 -left-40 h-[450px] w-[450px] rounded-full bg-white/[0.018] blur-[120px]" />
-      </div>
+          <div className="absolute -bottom-40 -left-40 h-[450px] w-[450px] rounded-full bg-white/[0.018] blur-[120px]" />
+        </div>
 
-      {/* ===================================================
+        {/* ===================================================
           MOBILE HEADER
       =================================================== */}
 
-      <header className="fixed left-3 right-3 top-3 z-50 flex h-14 items-center justify-between rounded-full border border-white/[0.12] bg-[#17191C]/65 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white transition-colors hover:bg-white/[0.1]"
-          aria-label="Open navigation"
-        >
-          <span className="text-lg">☰</span>
-        </button>
+        <header className="fixed left-3 right-3 top-3 z-50 flex h-14 items-center justify-between rounded-full border border-white/[0.12] bg-[#17191C]/65 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white transition-colors hover:bg-white/[0.1]"
+            aria-label="Open navigation"
+          >
+            <span className="text-lg">☰</span>
+          </button>
 
-        <span
-          className="text-[17px] tracking-tight"
-          style={{
-            fontFamily: '"Zen Dots", sans-serif',
-          }}
-        >
-          RIO
-        </span>
+          <span
+            className="text-[17px] tracking-tight"
+            style={{
+              fontFamily: '"Zen Dots", sans-serif',
+            }}
+          >
+            RIO
+          </span>
 
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-xs font-semibold">
-          {(user?.name?.[0] || "U").toUpperCase()}
-        </div>
-      </header>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-xs font-semibold">
+            {(user?.name?.[0] || "U").toUpperCase()}
+          </div>
+        </header>
 
-      <div className="relative z-10 flex min-h-screen">
-        {/* =================================================
+        <div className="relative z-10 flex min-h-screen">
+          {/* =================================================
             SIDEBAR
         ================================================= */}
 
-        <Sidebar
-          mobileOpen={mobileOpen}
-          setMobileOpen={setMobileOpen}
-          user={user}
-          sidebarOpen={sidebarOpen}
-          setUser={setUser}
-          setSidebarOpen={setSidebarOpen}
-        />
+          <Sidebar
+            mobileOpen={mobileOpen}
+            setMobileOpen={setMobileOpen}
+            user={user}
+            sidebarOpen={sidebarOpen}
+            setUser={setUser}
+            setSidebarOpen={setSidebarOpen}
+          />
 
-        {/* =================================================
+          {/* =================================================
             MAIN
         ================================================= */}
 
-        <main
-          className={`min-w-0 w-full max-w-full flex-1 overflow-x-hidden transition-[margin-left] duration-300 ${
-            sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
-          }`}
-        >
-          <div className="mx-auto w-full max-w-[1500px] min-w-0 px-3 pb-16 pt-[92px] sm:px-6 lg:px-8 lg:pt-9">
-            <AnimatePresence mode="wait">
-              {!hasResult ? (
-                <UploadView
-                  file={file}
-                  loading={loading}
-                  error={error}
-                  dragActive={dragActive}
-                  inputRef={inputRef}
-                  setDragActive={setDragActive}
-                  selectFile={selectFile}
-                  clearFile={clearFile}
-                  handleDrop={handleDrop}
-                  handleUpload={handleUpload}
-                />
-              ) : (
-                <ResultView
-                  resume={resume}
-                  profile={profile}
-                  analysis={analysis}
-                  score={score}
-                  handleAnalyzeAnother={handleAnalyzeAnother}
-                  navigate={navigate}
-                />
-              )}
-            </AnimatePresence>
-          </div>
-        </main>
+          <main
+            className={`min-w-0 w-full max-w-full flex-1 overflow-x-hidden transition-[margin-left] duration-300 ${
+              sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
+            }`}
+          >
+            <div className="mx-auto w-full max-w-[1500px] min-w-0 px-3 pb-16 pt-[92px] sm:px-6 lg:px-8 lg:pt-9">
+              <AnimatePresence mode="wait">
+                {!hasResult ? (
+                  <UploadView
+                    file={file}
+                    loading={loading}
+                    error={error}
+                    dragActive={dragActive}
+                    inputRef={inputRef}
+                    setDragActive={setDragActive}
+                    selectFile={selectFile}
+                    clearFile={clearFile}
+                    handleDrop={handleDrop}
+                    handleUpload={handleUpload}
+                    coinBalance={Number(user?.coins ?? 0)}
+                  />
+                ) : (
+                  <ResultView
+                    resume={resume}
+                    profile={profile}
+                    analysis={analysis}
+                    score={score}
+                    handleAnalyzeAnother={handleAnalyzeAnother}
+                    navigate={navigate}
+                  />
+                )}
+              </AnimatePresence>
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
@@ -357,6 +513,8 @@ const UploadView = ({
   clearFile,
   handleDrop,
   handleUpload,
+  coinBalance,
+  navigate,
 }) => {
   return (
     <motion.section
@@ -367,6 +525,16 @@ const UploadView = ({
       transition={{ duration: 0.4 }}
       className="mx-auto w-full max-w-[1180px] min-w-0"
     >
+      {/* BACK TO RESUME SCORER DASHBOARD */}
+      <button
+        type="button"
+        onClick={() => navigate("/dashboard")}
+        className="mb-5 flex items-center gap-2 text-xs text-white/35 transition-colors hover:text-white"
+      >
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Resume Scorer Dashboard
+      </button>
+
       {/* HEADER */}
 
       <motion.div
@@ -573,6 +741,12 @@ const UploadView = ({
                       </>
                     )}
                   </button>
+
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-white/30">
+                    <span>Cost: {SCORER_COST} coins</span>
+                    <span className="text-white/15">•</span>
+                    <span>Balance: {coinBalance} coins</span>
+                  </div>
                 </motion.div>
               )}
             </div>
@@ -641,54 +815,6 @@ const UploadView = ({
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* LOADING */}
-
-      <AnimatePresence>
-        {loading && (
-          <motion.div
-            initial={{
-              opacity: 0,
-              y: 8,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-            }}
-            className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5"
-          >
-            <div className="flex items-center gap-4">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06]">
-                <Loader2 className="h-4 w-4 animate-spin text-white/65" />
-              </div>
-
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-white/75">
-                  RIO is analyzing your resume
-                </p>
-
-                <p className="mt-1 break-words text-xs text-white/30">
-                  Extracting your profile and generating career insights.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 h-1 overflow-hidden rounded-full bg-white/[0.06]">
-              <motion.div
-                className="h-full w-1/3 rounded-full bg-white/60"
-                animate={{
-                  x: ["-100%", "300%"],
-                }}
-                transition={{
-                  duration: 1.5,
-                  repeat: Infinity,
-                  ease: "easeInOut",
-                }}
-              />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </motion.section>
   );
 };
@@ -727,6 +853,57 @@ const ResultView = ({
   handleAnalyzeAnother,
   navigate,
 }) => {
+  const [activeContact, setActiveContact] = useState(null);
+  const [hoveredContact, setHoveredContact] = useState(null);
+
+  const contactItems = [
+    profile?.email
+      ? {
+          id: "email",
+          icon: <MdEmail />,
+          value: profile.email,
+          href: `mailto:${profile.email}`,
+          external: false,
+        }
+      : null,
+    profile?.phone
+      ? {
+          id: "phone",
+          icon: <FaPhoneAlt />,
+          value: profile.phone,
+          href: `tel:${profile.phone}`,
+          external: false,
+        }
+      : null,
+    profile?.location
+      ? {
+          id: "location",
+          icon: <FaMapMarkerAlt />,
+          value: profile.location,
+          href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.location)}`,
+          external: true,
+        }
+      : null,
+    profile?.linkedIn
+      ? {
+          id: "linkedin",
+          icon: <FaLinkedin />,
+          value: profile.linkedIn,
+          href: normalizeExternalUrl(profile.linkedIn),
+          external: true,
+        }
+      : null,
+    profile?.github
+      ? {
+          id: "github",
+          icon: <FaGithub />,
+          value: profile.github,
+          href: normalizeExternalUrl(profile.github),
+          external: true,
+        }
+      : null,
+  ].filter(Boolean);
+
   const resumeBreakdown = [
     {
       name: "Experience",
@@ -757,7 +934,7 @@ const ResultView = ({
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.45 }}
-      className="space-y-5"
+      className="space-y-3 pb-8 sm:space-y-5 sm:pb-0"
     >
       {/* RESULT HEADER */}
 
@@ -782,7 +959,7 @@ const ResultView = ({
             Dashboard
           </button>
 
-          <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35">
+          <div className="mb-3 hidden items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/35 sm:flex">
             <CheckCircle2 className="h-3.5 w-3.5" />
             Analysis complete
           </div>
@@ -800,7 +977,7 @@ const ResultView = ({
         <button
           type="button"
           onClick={handleAnalyzeAnother}
-          className="flex w-fit font-bold shrink-0 items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm text-black/80 transition-all hover:bg-white/[0.8] hover:text-black/[0.8]"
+          className="hidden w-fit shrink-0 items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-sm font-bold text-black/80 transition-all hover:bg-white/[0.8] hover:text-black/[0.8] sm:flex"
         >
           <RotateCcw className="h-4 w-4" />
           Analyze another
@@ -809,7 +986,7 @@ const ResultView = ({
 
       {/* HERO INTELLIGENCE GRID */}
 
-      <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
+      <div className="grid gap-3 sm:gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         {/* PROFILE */}
 
         <motion.div
@@ -824,40 +1001,189 @@ const ResultView = ({
           transition={{
             delay: 0.04,
           }}
-          className="relative overflow-hidden rounded-[28px] border border-white/8 bg-[#111315] p-6 sm:p-8"
+          className="relative overflow-hidden rounded-2xl border border-white/8 bg-[#111315] p-4 sm:rounded-[28px] sm:p-8"
         >
           <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-white/20 blur-[90px]" />
 
           <div className="relative">
-            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
+            {/* DESKTOP PROFILE */}
+            <div className="hidden sm:block">
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0 flex-1">
+                  <p className="mt-2 mb-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
+                    Candidate profile
+                  </p>
+
+                  <h2 className="min-w-0 wrap-break-words text-3xl font-medium tracking-[-0.04em]">
+                    {profile.name || "Your resume"}
+                  </h2>
+
+                  <div className="mt-3 flex min-h-8 flex-wrap items-center gap-x-1 gap-y-2 text-xs text-white/50">
+                    {contactItems.map((item) => {
+                      const isOpen =
+                        activeContact === item.id || hoveredContact === item.id;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className="flex min-w-0 items-center"
+                          onMouseEnter={() => setHoveredContact(item.id)}
+                          onMouseLeave={() => setHoveredContact(null)}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveContact((current) =>
+                                current === item.id ? null : item.id,
+                              )
+                            }
+                            aria-label={
+                              activeContact === item.id
+                                ? `Hide ${item.id}`
+                                : `Show ${item.id}`
+                            }
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all duration-200 ${
+                              isOpen
+                                ? "border-white/20 bg-white/[0.10] text-white"
+                                : "border-white/[0.08] bg-white/[0.035] text-white/45 hover:border-white/[0.14] hover:bg-white/[0.07] hover:text-white/75"
+                            }`}
+                          >
+                            <span className="flex h-4 w-4 items-center justify-center text-[12px]">
+                              {item.icon}
+                            </span>
+                          </button>
+
+                          <AnimatePresence initial={false}>
+                            {isOpen && (
+                              <motion.a
+                                key={`${item.id}-desktop`}
+                                href={item.href}
+                                target={item.external ? "_blank" : undefined}
+                                rel={item.external ? "noreferrer" : undefined}
+                                initial={{
+                                  opacity: 0,
+                                  width: 0,
+                                  x: -8,
+                                }}
+                                animate={{
+                                  opacity: 1,
+                                  width: "auto",
+                                  x: 0,
+                                }}
+                                exit={{
+                                  opacity: 0,
+                                  width: 0,
+                                  x: -8,
+                                }}
+                                transition={{
+                                  duration: 0.2,
+                                  ease: "easeOut",
+                                }}
+                                className="ml-1 overflow-hidden whitespace-nowrap text-white/65 hover:text-white"
+                              >
+                                {item.value}
+                              </motion.a>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04]">
+                  <UserRound className="h-4 w-4 text-white/45" />
+                </div>
+              </div>
+            </div>
+
+            {/* MOBILE PROFILE */}
+            <div className="sm:hidden">
+              <div className="text-center">
+                <p className="mt-2 mb-5 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
                   Candidate profile
                 </p>
 
-                <h2 className="mt-3 wrap-break-words text-3xl font-medium tracking-[-0.04em]">
-                  {profile.name || "Your resume"}
-                </h2>
+                <div className="flex flex-col items-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/8 bg-white/4 text-white/50">
+                    <FaUserCircle className="h-10 w-10" />
+                  </div>
 
-                <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-xs text-white/50">
-                  {profile.email && (
-                    <span className="break-all">{profile.email}</span>
-                  )}
+                  <h2 className="mt-3 max-w-full break-words text-2xl font-medium tracking-[-0.04em]">
+                    {profile.name || "Your resume"}
+                  </h2>
 
-                  {profile.location && <span>{profile.location}</span>}
+                  <div className="mt-4 w-full">
+                    {/* All contact icons stay on one line */}
+                    <div className="flex items-center justify-center gap-2">
+                      {contactItems.map((item) => {
+                        const isOpen = activeContact === item.id;
 
-                  {profile.phone && <span>{profile.phone}</span>}
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() =>
+                              setActiveContact((current) =>
+                                current === item.id ? null : item.id,
+                              )
+                            }
+                            aria-label={`Show ${item.id}`}
+                            aria-expanded={isOpen}
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 ${
+                              isOpen
+                                ? "border-white/15 bg-white/[0.09] text-white"
+                                : "border-transparent bg-white/[0.035] text-white/45 hover:bg-white/[0.07] hover:text-white/70"
+                            }`}
+                          >
+                            <span className="text-[14px]">{item.icon}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Selected contact opens underneath the icon row */}
+                    <AnimatePresence initial={false} mode="wait">
+                      {activeContact && (
+                        <motion.div
+                          key={activeContact}
+                          initial={{ opacity: 0, height: 0, y: -5 }}
+                          animate={{ opacity: 1, height: "auto", y: 0 }}
+                          exit={{ opacity: 0, height: 0, y: -5 }}
+                          transition={{ duration: 0.2, ease: "easeOut" }}
+                          className="overflow-hidden"
+                        >
+                          {(() => {
+                            const item = contactItems.find(
+                              (contact) => contact.id === activeContact,
+                            );
+
+                            if (!item) return null;
+
+                            return (
+                              <a
+                                href={item.href}
+                                target={item.external ? "_blank" : undefined}
+                                rel={item.external ? "noreferrer" : undefined}
+                                className="mt-2 inline-flex max-w-full items-center justify-center rounded-lg bg-white/[0.045] px-3 py-2 text-xs text-white/65 transition-colors hover:text-white"
+                              >
+                                <span className="max-w-[260px] break-all">
+                                  {item.value}
+                                </span>
+                              </a>
+                            );
+                          })()}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/4">
-                <UserRound className="h-4 w-4 text-white/45" />
               </div>
             </div>
 
             {/* COUNTERS */}
 
-            <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div className="mt-5 grid grid-cols-2 gap-2 sm:mt-8 sm:grid-cols-4 sm:gap-3">
               <MiniStat
                 icon={<BriefcaseBusiness />}
                 label="Experience"
@@ -899,12 +1225,12 @@ const ResultView = ({
           transition={{
             delay: 0.08,
           }}
-          className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#17191C]"
+          className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-[#17191C] sm:rounded-[28px]"
         >
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(255,255,255,0.055),transparent_55%)]" />
 
-          <div className="relative flex h-full min-h-[330px] flex-col items-center justify-center p-6">
-            <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
+          <div className="relative flex h-full min-h-[270px] flex-col items-center justify-center p-4 sm:min-h-[330px] sm:p-6">
+            <div className=" mt-2 mb-6 mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/50">
               <BarChart3 className="h-3.5 w-3.5" />
               Resume score
             </div>
@@ -936,26 +1262,27 @@ const ResultView = ({
         transition={{
           delay: 0.12,
         }}
-        className="rounded-[28px] border border-white/[0.08] bg-white/[0.035] p-5 sm:p-7"
+        className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-4 sm:rounded-[28px] sm:p-7"
       >
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
+        <div className="flex flex-col gap-2 text-center sm:flex-row sm:items-end sm:justify-between sm:text-left">
+          <div className="min-w-0">
+            <p className=" mt-2 mb-6 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/60">
               Resume composition
             </p>
 
-            <h2 className="mt-2 text-2xl font-medium tracking-[-0.03em]">
+            <h2 className="mt-2 text-xl font-medium tracking-[-0.03em] sm:text-2xl">
               What's inside your resume
             </h2>
           </div>
 
-          <p className="max-w-sm text-xs leading-5 text-white/60">
+          <p className="mx-auto mb-6 max-w-sm text-xs leading-5 text-white/60 sm:mx-0">
             A visual breakdown of the information RIO extracted from your
             uploaded resume.
           </p>
         </div>
 
-        <div className="mt-7 h-[260px] w-full min-w-0">
+        {/* DESKTOP COMPOSITION CHART */}
+        <div className="mt-5 hidden h-[220px] w-full min-w-0 sm:mt-7 sm:block sm:h-[260px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={resumeBreakdown}
@@ -1014,12 +1341,50 @@ const ResultView = ({
             </BarChart>
           </ResponsiveContainer>
         </div>
+
+        {/* MOBILE LINEAR COMPOSITION */}
+        <div className="mt-5 space-y-4 sm:hidden">
+          {(() => {
+            const total = resumeBreakdown.reduce(
+              (sum, item) => sum + item.value,
+              0,
+            );
+
+            return resumeBreakdown.map((item) => {
+              const percentage =
+                total > 0 ? Math.round((item.value / total) * 100) : 0;
+
+              return (
+                <div key={item.name} className="min-w-0">
+                  <div className="mb-1.5 flex items-center justify-between gap-3">
+                    <span className="min-w-0 truncate text-xs font-medium text-white/65">
+                      {item.name}
+                    </span>
+                    <span className="shrink-0 text-xs font-semibold text-white/60">
+                      {percentage}%
+                    </span>
+                  </div>
+
+                  <div className="h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                    <div
+                      className="h-full rounded-full bg-white/70 transition-all duration-500"
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+
+                  <p className="mt-1 text-[10px] text-white/30">
+                    {item.value} {item.value === 1 ? "item" : "items"}
+                  </p>
+                </div>
+              );
+            });
+          })()}
+        </div>
       </motion.div>
 
       {/* CAREER + STRENGTHS */}
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        
+      <div className="grid gap-3 sm:gap-5 xl:grid-cols-2">
         <InsightSection
           icon={<BriefcaseBusiness />}
           eyebrow="Career direction"
@@ -1039,7 +1404,7 @@ const ResultView = ({
 
       {/* WEAKNESSES + MISSING SKILLS */}
 
-      <div className="grid gap-5 xl:grid-cols-2">
+      <div className="grid gap-3 sm:gap-5 xl:grid-cols-2">
         <InsightSection
           icon={<AlertCircle />}
           eyebrow="Attention"
@@ -1071,13 +1436,13 @@ const ResultView = ({
         transition={{
           delay: 0.18,
         }}
-        className="relative overflow-hidden rounded-[28px] border border-white/[0.08] bg-black/10 p-6 sm:p-8"
+        className="relative overflow-hidden rounded-2xl border border-white/[0.08] bg-black/10 p-4 sm:rounded-[28px] sm:p-8"
       >
         <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-white/[0.025] blur-[70px]" />
 
         <div className="relative">
-          <div className="flex items-start gap-4">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04]">
+          <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:gap-4 sm:text-left">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-white/4  sm:h-11 sm:w-11 sm:rounded-xl">
               <Lightbulb className="h-4 w-4 text-white/80" />
             </div>
 
@@ -1086,7 +1451,7 @@ const ResultView = ({
                 RIO guidance
               </p>
 
-              <h2 className="mt-2 break-words text-2xl font-medium tracking-[-0.03em]">
+              <h2 className="mt-2 break-words text-xl font-medium tracking-[-0.03em] sm:text-2xl">
                 What to work on next
               </h2>
 
@@ -1096,7 +1461,7 @@ const ResultView = ({
             </div>
           </div>
 
-          <div className="mt-7 grid gap-3 lg:grid-cols-2">
+          <div className="mt-5 grid gap-2 sm:mt-7 sm:gap-3 lg:grid-cols-2">
             {analysis.recommendations?.length ? (
               analysis.recommendations.map((item, index) => (
                 <motion.div
@@ -1112,9 +1477,9 @@ const ResultView = ({
                   transition={{
                     delay: index * 0.04,
                   }}
-                  className="group rounded-2xl border border-white/[0.06] bg-white/[0.2] p-5 transition-colors hover:bg-white/[0.045]"
+                  className="group rounded-xl border border-white/[0.06] bg-white/[0.12] p-3 transition-colors hover:bg-white/[0.045] sm:rounded-2xl sm:bg-white/[0.2] sm:p-5"
                 >
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-start gap-3 sm:gap-4">
                     <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] text-[10px] font-semibold text-white/80">
                       {String(index + 1).padStart(2, "0")}
                     </span>
@@ -1134,13 +1499,30 @@ const ResultView = ({
 
       {/* FOOTNOTE */}
 
-      <div className="flex items-start gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 text-xs text-white/25">
+      <div className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-xs text-white/25 sm:rounded-2xl sm:p-4">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
 
         <span>
           RIO's score is an AI-generated heuristic and is not a score from a
           real ATS system.
         </span>
+      </div>
+
+      {/* MOBILE FIXED ACTION BAR */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2.5 shadow-[0_-16px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl sm:hidden">
+        <button
+          type="button"
+          onClick={handleAnalyzeAnother}
+          className="mx-auto flex w-full max-w-md items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-bold text-black/70 transition-transform active:scale-[0.99]"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Analyze another
+        </button>
+
+        <div className="mt-2 flex items-center justify-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+          <CheckCircle2 className="h-3.5 w-3.5" />
+          Analysis complete
+        </div>
       </div>
     </motion.section>
   );
@@ -1152,7 +1534,7 @@ const ResultView = ({
 
 const MiniStat = ({ icon, label, value }) => {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-white/[0.1] p-4">
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.1] p-3 sm:rounded-2xl sm:p-4">
       <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.04] text-white/35">
         <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{icon}</span>
       </div>
@@ -1193,52 +1575,46 @@ const InsightSection = ({
       transition={{
         duration: 0.4,
       }}
-      className="rounded-[28px] border border-white/[0.08] bg-black/10 p-5 sm:p-7"
+      className="rounded-2xl border border-white/[0.08] bg-black/10 p-4 sm:rounded-[28px] sm:p-7"
     >
-      
-      
-      <div className="flex items-center gap-2 text-white/60">
-      
+      <div className="mt-2 mb-2 flex items-center justify-center gap-2 text-center text-white/60 sm:justify-start sm:text-left">
         <span className="[&>svg]:h-4 [&>svg]:w-4">{icon}</span>
         <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
           {eyebrow}
         </span>
       </div>
 
-      <h2 className="mt-3 break-words text-2xl font-medium tracking-[-0.03em]">
+      <h2 className="mb-6 break-words text-center text-xl font-medium tracking-[-0.03em] sm:mt-3 sm:text-left sm:text-2xl">
         {title}
       </h2>
 
-      <div className={`mt-6 ${compact ? "space-y-2" : "grid gap-2"}`}>
-        
+      <div
+        className={` ${compact ? "space-y-1.5" : "grid gap-1.5"} sm:mt-6 sm:gap-2`}
+      >
         {items?.length ? (
           items.map((item, index) => (
             <div
               key={`${item}-${index}`}
-              className="group flex min-w-0 gap-4 rounded-2xl border border-white/[0.05] bg-white/[0.2] p-4 transition-colors hover:bg-white/[0.04]"
+              className="group flex min-w-0 gap-3 rounded-xl border border-white/[0.05] bg-white/[0.12] p-3 transition-colors hover:bg-white/[0.04] sm:gap-4 sm:rounded-2xl sm:bg-white/[0.2] sm:p-4"
             >
-              
               {numbered ? (
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/[0.045] text-[10px] font-semibold text-white/80">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white/[0.045] text-[9px] font-semibold text-white/80 sm:h-7 sm:w-7 sm:rounded-lg sm:text-[10px]">
                   {String(index + 1).padStart(2, "0")}
                 </span>
               ) : (
                 <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-white/40" />
               )}
 
-              <p className="min-w-0 break-words text-sm leading-6 text-white/80">
+              <p className="min-w-0 break-words text-[13px] leading-5 text-white/80 sm:text-sm sm:leading-6">
                 {item}
               </p>
             </div>
-            
           ))
         ) : (
           <EmptyState text="Nothing was identified here from the uploaded resume." />
         )}
       </div>
-      
     </motion.div>
-    
   );
 };
 

@@ -22,13 +22,3 @@ export const updateResume = async (resumeData) => {
   }
 };
 
-export const useCoins = async (data) => {
-  try {
-    const response = await api.post("/api/auth/user-coins", data);
-
-    return response.data;
-  } catch (error) {
-    console.error("Failed to use coins:", error);
-    throw error;
-  }
-};

@@ -952,7 +952,7 @@ const ResumeBuilder = ({ user, setUser }) => {
                   <div className="flex w-full flex-col items-center text-center">
                     <CompletionRing value={completion} />
 
-                    <div className="mt-5 flex w-full min-w-0 flex-col items-center">
+                    <div className="mt-2 flex w-full min-w-0 flex-col items-center">
                       <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-white sm:text-[28px]">
                       {completion >= 90
                         ? "Your resume is nearly ready."
