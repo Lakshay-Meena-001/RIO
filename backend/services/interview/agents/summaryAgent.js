@@ -4,35 +4,43 @@ import { summarySchema } from "../validators/interview.schema.js";
 
 export const summaryAgent = async (data) => {
   try {
-    // 1. Final summary prompt prepare karo
+    // 1. Build prompt
     const prompt = summaryPrompt(data);
 
-    // 2. LLM se final interview report generate karwao
+    // 2. Ask LLM for final report
     const response = await llm.invoke(prompt);
 
-    // 3. LLM response ko string mein convert karo
+    // 3. Convert response to string
     const content =
       typeof response.content === "string"
         ? response.content
         : JSON.stringify(response.content);
 
-    // 4. Markdown JSON code block remove karo
+    // 4. Remove markdown JSON fences if present
     const cleaned = content
-      .replace(/```json/g, "")
+      .replace(/```json/gi, "")
       .replace(/```/g, "")
       .trim();
 
-    // 5. JSON string -> JavaScript object
+    // 5. Parse JSON
     const parsed = JSON.parse(cleaned);
 
-    // 6. Zod se final report validate karo
-    const validatedSummary = summarySchema.parse(parsed);
+    // 6. Validate LLM output
+    const validatedSummary =
+      summarySchema.parse(parsed);
 
-    // 7. Validated report return karo
+    // 7. Return only validated data
     return validatedSummary;
   } catch (error) {
     console.error("Summary Agent Error:", error);
 
-    throw new Error("Failed to generate interview summary.");
+    const agentError = new Error(
+      "Failed to generate interview summary.",
+    );
+
+    agentError.statusCode = 502;
+    agentError.cause = error;
+
+    throw agentError;
   }
 };

@@ -1,7 +1,10 @@
 import mongoose from "mongoose";
 
 /*
- * AI evaluates the candidate's answer after submission.
+ * ---------------------------------------------------------
+ * Evaluation Schema
+ * ---------------------------------------------------------
+ * AI evaluation of one candidate answer.
  */
 const evaluationSchema = new mongoose.Schema(
   {
@@ -65,25 +68,29 @@ const evaluationSchema = new mongoose.Schema(
       default: [],
     },
   },
-  { _id: false },
+  {
+    _id: false,
+  },
 );
 
 /*
  * ---------------------------------------------------------
- * Interview Question
+ * Question Schema
  * ---------------------------------------------------------
- * Stores one question asked during the interview.
+ * Stores every question asked during one interview.
  */
 const questionSchema = new mongoose.Schema(
   {
     questionId: {
       type: String,
       required: true,
+      trim: true,
     },
 
     text: {
       type: String,
       required: true,
+      trim: true,
     },
 
     section: {
@@ -100,6 +107,7 @@ const questionSchema = new mongoose.Schema(
         "system-design",
         "behavioral",
       ],
+      required: true,
     },
 
     type: {
@@ -111,19 +119,31 @@ const questionSchema = new mongoose.Schema(
     difficulty: {
       type: String,
       enum: ["easy", "medium", "hard"],
-      default: "easy",
+      required: true,
     },
 
+    /*
+     * Candidate's answer.
+     */
     answer: {
       type: String,
       default: "",
     },
 
+    /*
+     * When question was generated/shown.
+     */
     askedAt: {
       type: Date,
       default: null,
     },
 
+    /*
+     * Set only after evaluation succeeds.
+     *
+     * This distinction allows us to preserve the answer
+     * if the LLM temporarily fails.
+     */
     submittedAt: {
       type: Date,
       default: null,
@@ -134,20 +154,25 @@ const questionSchema = new mongoose.Schema(
       default: () => ({}),
     },
   },
-  { _id: false },
+  {
+    _id: false,
+  },
 );
 
 /*
  * ---------------------------------------------------------
  * Interview Schema
  * ---------------------------------------------------------
- * One document represents one complete interview attempt.
+ * One MongoDB document = one interview attempt/history.
  */
 const interviewSchema = new mongoose.Schema(
   {
     /*
+     * -----------------------------------------------------
      * Candidate
+     * -----------------------------------------------------
      */
+
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
@@ -173,8 +198,11 @@ const interviewSchema = new mongoose.Schema(
     },
 
     /*
+     * -----------------------------------------------------
      * Interview Configuration
+     * -----------------------------------------------------
      */
+
     interviewType: {
       type: String,
       enum: [
@@ -190,10 +218,15 @@ const interviewSchema = new mongoose.Schema(
     },
 
     subjects: {
-      type: [String],
+      type: [
+        {
+          type: String,
+          enum: ["dbms", "os", "cn", "sql", "oop"],
+        },
+      ],
       default: [],
     },
-    
+
     language: {
       type: String,
       enum: ["english"],
@@ -209,12 +242,14 @@ const interviewSchema = new mongoose.Schema(
     timeLimit: {
       type: Number,
       min: 1,
+      max: 180,
       default: 30,
     },
 
     questionCount: {
       type: Number,
       min: 1,
+      max: 50,
       default: 10,
     },
 
@@ -224,8 +259,11 @@ const interviewSchema = new mongoose.Schema(
     },
 
     /*
+     * -----------------------------------------------------
      * Project / GitHub Context
+     * -----------------------------------------------------
      */
+
     projectContext: {
       source: {
         type: String,
@@ -236,54 +274,72 @@ const interviewSchema = new mongoose.Schema(
       projectName: {
         type: String,
         default: "",
+        trim: true,
       },
 
       description: {
         type: String,
         default: "",
+        trim: true,
       },
 
       githubUrl: {
         type: String,
         default: "",
+        trim: true,
       },
     },
 
     /*
+     * -----------------------------------------------------
      * Interview State
+     * -----------------------------------------------------
      */
+
     status: {
       type: String,
       enum: ["created", "in-progress", "paused", "completed", "abandoned"],
       default: "created",
+      index: true,
     },
 
     currentQuestionIndex: {
       type: Number,
+      min: 0,
       default: 0,
     },
 
     /*
-     * Complete Interview Conversation
+     * -----------------------------------------------------
+     * Interview Conversation
+     * -----------------------------------------------------
      */
+
     questions: {
       type: [questionSchema],
       default: [],
     },
 
     /*
-     * Final Interview Result
+     * -----------------------------------------------------
+     * Final Interview Report
+     * -----------------------------------------------------
      */
+
     overallScore: {
       type: Number,
-      default: 0,
       min: 0,
       max: 10,
+      default: 0,
     },
 
     sectionScores: {
       type: Map,
-      of: Number,
+      of: {
+        type: Number,
+        min: 0,
+        max: 10,
+      },
       default: {},
     },
 
@@ -311,6 +367,18 @@ const interviewSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+
+/*
+ * ---------------------------------------------------------
+ * Indexes
+ * ---------------------------------------------------------
+ *
+ * History is queried by user and sorted by newest first.
+ */
+interviewSchema.index({
+  userId: 1,
+  createdAt: -1,
+});
 
 const Interview = mongoose.model("Interview", interviewSchema);
 

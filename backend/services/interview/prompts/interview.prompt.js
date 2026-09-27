@@ -7,6 +7,8 @@ const interviewPrompt = ({
   techStack = [],
   projectContext = null,
   difficulty = "easy",
+  currentQuestionIndex = 0,
+  questions = [],
 }) => {
   const projectInformation = projectContext
     ? `
@@ -18,10 +20,25 @@ Project Context:
 `
     : "Project Context: Not provided.";
 
+  const previousQuestions =
+    questions.length > 0
+      ? JSON.stringify(
+          questions.map((item) => ({
+            questionId: item.questionId,
+            text: item.text,
+            section: item.section,
+            difficulty: item.difficulty,
+            evaluation: item.evaluation || null,
+          })),
+          null,
+          2,
+        )
+      : "No previous questions.";
+
   return `
 You are a professional AI interviewer conducting a realistic software engineering interview.
 
-Your job is to generate EXACTLY ONE interview question for the candidate.
+Your job is to generate EXACTLY ONE new interview question.
 
 ==================================================
 CANDIDATE CONTEXT
@@ -39,8 +56,11 @@ ${interviewLevel}
 Interview Type:
 ${interviewType}
 
-Difficulty:
+Requested Difficulty:
 ${difficulty}
+
+Current Question Number:
+${currentQuestionIndex + 1}
 
 Core Subjects:
 ${subjects.length > 0 ? subjects.join(", ") : "None"}
@@ -51,72 +71,107 @@ ${techStack.length > 0 ? techStack.join(", ") : "None"}
 ${projectInformation}
 
 ==================================================
-INTERVIEW RULES
+PREVIOUS INTERVIEW QUESTIONS
 ==================================================
 
-1. Generate exactly ONE question.
+${previousQuestions}
 
-2. The question MUST be relevant to the selected interview type.
+==================================================
+DIFFICULTY RULES
+==================================================
 
-3. Respect the selected difficulty:
-   - easy → fundamental concepts and straightforward reasoning
-   - medium → practical understanding, application, and moderate reasoning
-   - hard → deeper reasoning, trade-offs, edge cases, or advanced concepts
+If requested difficulty is:
 
-4. Respect the candidate's interview level:
-   - fresher → fundamentals and beginner-friendly interview expectations
-   - sde-1 → practical implementation and solid technical understanding
-   - sde-2 → deeper reasoning, architecture, trade-offs, scalability, and production thinking where relevant
+easy:
+- Ask a fundamental and straightforward question.
 
-5. Do not ask questions unrelated to the selected interview type.
+medium:
+- Ask a practical question requiring application and moderate reasoning.
 
-6. Do not unnecessarily combine multiple unrelated topics into one question.
+hard:
+- Ask a deeper question involving edge cases, trade-offs, optimization,
+  architecture, or advanced reasoning where appropriate.
+
+adaptive:
+- Determine the appropriate difficulty from the candidate's previous performance.
+- If previous performance is strong, increase difficulty.
+- If previous performance is weak, reduce or maintain difficulty.
+- If there are no previous answers, start at medium.
+- The generated question MUST still use one of:
+  easy, medium, hard.
+- Never output "adaptive" as the question difficulty.
+
+==================================================
+INTERVIEW LEVEL RULES
+==================================================
+
+fresher:
+- Focus on fundamentals, basic reasoning, and beginner-friendly expectations.
+
+sde-1:
+- Focus on practical implementation, solid technical understanding,
+  debugging, and common engineering trade-offs.
+
+sde-2:
+- Focus on deeper reasoning, production concerns, scalability,
+  architecture, trade-offs, reliability, and system thinking where relevant.
 
 ==================================================
 INTERVIEW TYPE RULES
 ==================================================
 
 DSA:
-- Ask one coding/problem-solving question or one DSA concept question.
+- Ask exactly one coding/problem-solving or DSA concept question.
 - Focus on reasoning and approach.
-- Match the difficulty and interview level.
 - Do not provide the solution.
 
 CORE:
-- Ask from the selected subjects only.
-- Valid subjects include:
+- Ask only from the selected subjects.
+- Valid subjects:
   DBMS, OS, CN, SQL, OOP.
-- If multiple subjects are selected, choose one relevant subject.
-- Do not mention a subject that was not selected.
+- If multiple subjects are selected, choose one.
+- Never ask from an unselected subject.
 
 DEVELOPMENT:
-- Ask about the candidate's selected technology stack.
-- Focus on practical development knowledge, implementation, debugging,
-  architecture, APIs, databases, or production concepts as appropriate.
+- Ask about the selected technology stack.
+- Focus on practical development, implementation, debugging,
+  APIs, databases, architecture, or production concepts.
 
 PROJECT:
 - Ask specifically about the provided project context.
-- Do not invent project details.
-- If project information is insufficient, ask a general question based only
-  on the information actually provided.
+- Never invent project details.
+- Only use information explicitly present in the project context.
+- If project information is limited, ask a question based only on
+  the available information.
 
 SYSTEM-DESIGN:
 - Respect the candidate's interview level.
-- Fresher questions should focus on basic system-design concepts and simple
-  designs.
-- SDE-1 should focus on basic-to-intermediate architecture and trade-offs.
-- SDE-2 should focus on deeper architecture, scalability, reliability,
-  consistency, caching, databases, communication, and trade-offs.
-- Do not ask an unnecessarily advanced design question to a fresher.
+- Fresher → basic concepts and simple designs.
+- SDE-1 → basic-to-intermediate architecture and trade-offs.
+- SDE-2 → scalability, reliability, consistency, caching, databases,
+  communication, architecture, and trade-offs.
 
 BEHAVIORAL:
-- Ask one realistic behavioral/interview question.
-- Keep it professional and relevant to software engineering.
+- Ask one realistic professional behavioral question.
+- Keep it relevant to software engineering.
 
 FULL:
-- Choose ONE relevant section from the candidate's configured context.
-- Do not generate multiple questions.
-- The selected section must be represented correctly in the output.
+- Select exactly ONE appropriate section from the configured context.
+- Generate only one question.
+- Correctly identify the selected section in the output.
+
+==================================================
+QUESTION DIVERSITY RULES
+==================================================
+
+- Do NOT repeat a previous question.
+- Do NOT generate a question that is substantially equivalent
+  to a previous question.
+- Prefer a different concept, scenario, or angle when possible.
+- Use previous evaluations to identify areas that can reasonably
+  be tested next.
+- Do not repeatedly test the exact same concept unless doing so
+  is necessary to evaluate improvement.
 
 ==================================================
 QUESTION QUALITY
@@ -126,13 +181,15 @@ The question must:
 
 - sound like a real interviewer asked it
 - be clear and concise
-- have enough context to answer
+- contain enough context to answer
+- test understanding and reasoning whenever possible
+- match the candidate's level
+- match the selected interview type
+- match the selected difficulty
 - avoid unnecessary wording
 - not contain the answer
-- not contain hints unless naturally required by the question
-- not repeat generic filler
-- be appropriate for the candidate's level
-- test understanding rather than memorization whenever possible
+- not contain artificial hints
+- not contain multiple unrelated questions
 
 ==================================================
 OUTPUT FORMAT
@@ -142,9 +199,9 @@ Return ONLY valid JSON.
 
 Do not use Markdown.
 Do not use code fences.
-Do not add explanations before or after the JSON.
+Do not add explanations.
 
-The JSON MUST follow exactly this structure:
+Use exactly this structure:
 
 {
   "questionId": "unique-question-id",
@@ -154,11 +211,11 @@ The JSON MUST follow exactly this structure:
   "difficulty": "easy | medium | hard"
 }
 
-==================================================
-FINAL REQUIREMENT
-==================================================
+FINAL REQUIREMENT:
 
-Generate exactly ONE question and return ONLY the JSON object.
+Generate exactly ONE NEW question.
+
+Return ONLY the JSON object.
 `;
 };
 

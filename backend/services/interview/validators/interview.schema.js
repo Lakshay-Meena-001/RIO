@@ -48,7 +48,7 @@ export const projectContextSchema = z.object({
 
   projectName: z.string().trim().default(""),
 
-  description: z.string().default(""),
+  description: z.string().trim().default(""),
 
   githubUrl: z.string().trim().default(""),
 });
@@ -74,9 +74,9 @@ export const startInterviewSchema = z.object({
 
   difficulty: difficultySchema.default("easy"),
 
-  timeLimit: z.number().int().min(1).default(30),
+  timeLimit: z.number().int().min(1).max(180).default(30),
 
-  questionCount: z.number().int().min(1).default(10),
+  questionCount: z.number().int().min(1).max(50).default(10),
 
   techStack: z.array(z.string().trim().min(1)).default([]),
 
@@ -90,7 +90,7 @@ export const startInterviewSchema = z.object({
 */
 
 export const submitAnswerSchema = z.object({
-  interviewId: z.string().min(1, "Interview ID is required"),
+  interviewId: z.string().trim().min(1, "Interview ID is required"),
 
   answer: z.string().trim().min(1, "Answer is required"),
 });
@@ -102,16 +102,15 @@ export const submitAnswerSchema = z.object({
 */
 
 export const interviewQuestionSchema = z.object({
-  questionId: z.string().min(1),
+  questionId: z.string().trim().min(1),
 
-  text: z.string().min(1),
+  text: z.string().trim().min(1),
 
   section: questionSectionSchema,
 
   type: z.enum(["primary"]).default("primary"),
 
   difficulty: z.enum(["easy", "medium", "hard"]),
-
 });
 
 /*
@@ -142,7 +141,6 @@ export const feedbackSchema = z.object({
   recommendations: z.array(z.string()),
 });
 
-
 /*
 |--------------------------------------------------------------------------
 | Final Interview Summary
@@ -163,10 +161,9 @@ export const summarySchema = z.object({
   summary: z.string(),
 });
 
-
 /*
 |--------------------------------------------------------------------------
-| Add more questions
+| Add More Questions
 |--------------------------------------------------------------------------
 */
 

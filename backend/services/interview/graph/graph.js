@@ -1,44 +1,75 @@
 import { END, START, StateGraph } from "@langchain/langgraph";
+
 import InterviewState from "./state.js";
 
-import {
-  interviewNode,
-  feedbackNode,
-  summaryNode,
-} from "./nodes.js";
+import { interviewNode, feedbackNode, summaryNode } from "./nodes.js";
 
+/*
+ * ========================================================
+ * START ROUTER
+ * ========================================================
+ *
+ * Every HTTP request tells the graph what operation
+ * needs to be performed.
+ */
 function startRouter(state) {
-  if (state.action === "start") {
-    return "interviewNode";
-  }
+  switch (state.action) {
+    case "start":
+      return "interviewNode";
 
-  if (state.action === "submit-answer") {
-    return "feedbackNode";
-  }
+    case "submit-answer":
+      return "feedbackNode";
 
-  if (state.action === "summary") {
-    return "summaryNode";
-  }
+    case "summary":
+      return "summaryNode";
 
-  return END;
+    default:
+      return END;
+  }
 }
 
+/*
+ * ========================================================
+ * INTERVIEW GRAPH
+ * ========================================================
+ */
+
 const graph = new StateGraph(InterviewState)
+
+  /*
+   * Nodes
+   */
   .addNode("interviewNode", interviewNode)
+
   .addNode("feedbackNode", feedbackNode)
+
   .addNode("summaryNode", summaryNode)
 
+  /*
+   * START → appropriate node
+   */
   .addConditionalEdges(START, startRouter, {
     interviewNode: "interviewNode",
+
     feedbackNode: "feedbackNode",
+
     summaryNode: "summaryNode",
+
     [END]: END,
   })
 
+  /*
+   * Every operation ends after its job.
+   */
   .addEdge("interviewNode", END)
+
   .addEdge("feedbackNode", END)
+
   .addEdge("summaryNode", END)
 
+  /*
+   * Compile graph.
+   */
   .compile();
 
 export default graph;

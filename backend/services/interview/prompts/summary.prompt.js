@@ -8,7 +8,12 @@ const summaryPrompt = ({
   questions = [],
 }) => {
   return `
-You are a senior software engineering interviewer preparing the final evaluation report for a completed interview.
+You are a senior software engineering interviewer preparing the final
+evaluation report for a completed interview.
+
+==================================================
+CANDIDATE CONTEXT
+==================================================
 
 Candidate Role:
 ${role}
@@ -28,23 +33,28 @@ ${subjects.length ? subjects.join(", ") : "None"}
 Technology Stack:
 ${techStack.length ? techStack.join(", ") : "None"}
 
-Completed Interview Data:
+==================================================
+COMPLETED INTERVIEW DATA
+==================================================
+
 ${JSON.stringify(questions, null, 2)}
 
-Your task is to analyze the complete interview and produce a fair final report.
+==================================================
+FINAL EVALUATION
+==================================================
 
-Evaluation requirements:
+Produce a fair final report based ONLY on the completed interview data.
 
 1. Overall Score
-- Give an overall score from 0 to 10.
-- Consider the candidate's performance across the questions that were actually answered.
+- Give a score from 0 to 10.
+- Consider the candidate's actual evaluated answers.
 - Consider correctness, clarity, relevance, communication, and technical depth.
-- Respect the candidate's interview level and selected difficulty.
+- Respect the candidate's interview level and question difficulty.
 
 2. Section Scores
-- Provide scores only for sections that were actually tested.
-- Do not invent scores for sections that were not tested.
-- Each section score must be from 0 to 10.
+- Score ONLY sections that were actually tested.
+- Do not invent scores for untested sections.
+- Each score must be from 0 to 10.
 
 Possible sections:
 - dsa
@@ -59,40 +69,48 @@ Possible sections:
 - behavioral
 
 3. Strengths
-- Identify 3 to 5 concrete strengths demonstrated during the interview.
-- Base them on the actual answers and evaluations.
+- Identify 3 to 5 concrete strengths.
+- Base them on actual answers and evaluations.
 - Do not invent strengths.
 
 4. Weaknesses
-- Identify 3 to 5 concrete areas that need improvement.
-- Base them on actual mistakes, missing concepts, weak explanations, or communication issues.
+- Identify 3 to 5 concrete weaknesses or improvement areas.
+- Base them on actual mistakes, missing concepts, weak reasoning,
+  weak explanations, or communication issues.
 - Do not invent weaknesses.
 
 5. Recommendations
 - Provide exactly 5 actionable recommendations.
-- Recommendations should directly address the candidate's weaknesses.
-- Make them practical for interview preparation.
+- Recommendations must directly address observed weaknesses.
+- Keep them practical for interview preparation.
 
 6. Summary
-- Write an 80 to 120 word professional summary.
-- Explain the candidate's overall performance.
-- Mention important strengths and areas requiring improvement.
-- Keep the summary objective and useful for future preparation.
+- Write an objective professional summary of 80 to 120 words.
+- Mention meaningful strengths and improvement areas.
+- Base the summary only on the evidence in the interview.
 
-Important rules:
+==================================================
+IMPORTANT RULES
+==================================================
 
-- Evaluate only the information present in the completed interview data.
+- Evaluate only information present in the interview data.
 - Do not assume knowledge that was not demonstrated.
-- Do not punish a candidate for questions that were skipped or not asked.
 - Do not create scores for untested sections.
-- Use the individual evaluations as evidence, but make the final assessment based on the complete interview.
+- Do not punish the candidate for questions that were not answered.
+- Use individual evaluations as evidence.
+- Consider the complete interview rather than one answer alone.
 - Keep the report appropriate for the candidate's interview level.
-- Do not make claims about the candidate beyond the evidence in the interview.
-- Do not include markdown.
+- Do not make claims beyond the evidence.
+- Do not use Markdown.
+- Do not add additional fields.
+
+==================================================
+OUTPUT FORMAT
+==================================================
 
 Return ONLY valid JSON.
 
-Use exactly this structure:
+Use exactly:
 
 {
   "overallScore": 0,
@@ -103,16 +121,19 @@ Use exactly this structure:
   "summary": ""
 }
 
-Output rules:
+==================================================
+OUTPUT RULES
+==================================================
 
-- overallScore must be a number from 0 to 10.
-- sectionScores must contain only tested sections.
-- Every section score must be a number from 0 to 10.
-- strengths must contain 3 to 5 strings.
-- weaknesses must contain 3 to 5 strings.
-- recommendations must contain exactly 5 strings.
-- summary must contain 80 to 120 words.
-- Do not add any fields outside the specified JSON structure.
+- overallScore: number from 0 to 10
+- sectionScores: only actually tested sections
+- every section score: number from 0 to 10
+- strengths: 3 to 5 strings
+- weaknesses: 3 to 5 strings
+- recommendations: exactly 5 strings
+- summary: 80 to 120 words
+
+Return ONLY the JSON object.
 `;
 };
 

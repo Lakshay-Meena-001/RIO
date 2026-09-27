@@ -1,72 +1,64 @@
 import * as interviewService from "../services/interview.service.js";
 
-/*
- * ---------------------------------------------------------
- * START INTERVIEW
- * ---------------------------------------------------------
- */
+const getUserId = (req) => {
+  const userId = req.headers["x-user-id"];
+
+  if (!userId) {
+    const error = new Error("User authentication required.");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  return userId;
+};
+
 export const startInterview = async (req, res, next) => {
   try {
-    const userId =req.headers["x-user-id"];
+    const userId = getUserId(req);
 
-    const result = await interviewService.startInterview(
-      userId,
-      req.body,
-    );
+    const interview = await interviewService.startInterview(userId, req.body);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      data: result,
+      message: "Interview started successfully.",
+      data: interview,
     });
   } catch (error) {
     next(error);
   }
 };
 
-/*
- * ---------------------------------------------------------
- * SUBMIT ANSWER
- * ---------------------------------------------------------
- */
 export const submitAnswer = async (req, res, next) => {
   try {
-    const userId = req.headers["x-user-id"];
-
+    const userId = getUserId(req);
     const { interviewId, answer } = req.body;
 
-    const result = await interviewService.submitAnswer(
+    const interview = await interviewService.submitAnswer(
       userId,
       interviewId,
       answer,
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      data: result,
+      message: "Answer submitted successfully.",
+      data: interview,
     });
   } catch (error) {
     next(error);
   }
 };
 
-/*
- * ---------------------------------------------------------
- * GET NEXT QUESTION
- * ---------------------------------------------------------
- */
 export const getNextQuestion = async (req, res, next) => {
   try {
-    const userId = req.headers["x-user-id"];
-
+    const userId = getUserId(req);
     const { interviewId } = req.params;
 
-    const result = await interviewService.getNextQuestion(
-      userId,
-      interviewId,
-    );
+    const result = await interviewService.getNextQuestion(userId, interviewId);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
+      message: "Next question generated successfully.",
       data: result,
     });
   } catch (error) {
@@ -74,149 +66,110 @@ export const getNextQuestion = async (req, res, next) => {
   }
 };
 
-/*
- * ---------------------------------------------------------
- * GET INTERVIEW
- * ---------------------------------------------------------
- */
 export const getInterview = async (req, res, next) => {
   try {
-    const userId = req.headers["x-user-id"];
-
+    const userId = getUserId(req);
     const { interviewId } = req.params;
 
-    const result = await interviewService.getInterview(
-      userId,
-      interviewId,
-    );
+    const interview = await interviewService.getInterview(userId, interviewId);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      data: result,
+      data: interview,
     });
   } catch (error) {
     next(error);
   }
 };
 
-/*
- * ---------------------------------------------------------
- * PAUSE INTERVIEW
- * ---------------------------------------------------------
- */
-export const pauseInterview = async (req, res, next) => {
-  try {
-    const userId = req.headers["x-user-id"];
-
-    const { interviewId } = req.params;
-
-    const result = await interviewService.pauseInterview(
-      userId,
-      interviewId,
-    );
-
-    res.status(200).json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/*
- * ---------------------------------------------------------
- * RESUME INTERVIEW
- * ---------------------------------------------------------
- */
-export const resumeInterview = async (req, res, next) => {
-  try {
-    const userId =req.headers["x-user-id"];
-
-    const { interviewId } = req.params;
-
-    const result = await interviewService.resumeInterview(
-      userId,
-      interviewId,
-    );
-
-    res.status(200).json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/*
- * ---------------------------------------------------------
- * QUIT INTERVIEW
- * ---------------------------------------------------------
- */
-export const quitInterview = async (req, res, next) => {
-  try {
-    const userId = req.headers["x-user-id"];
-
-    const { interviewId } = req.params;
-
-    const result = await interviewService.quitInterview(
-      userId,
-      interviewId,
-    );
-
-    res.status(200).json({
-      success: true,
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/*
- * ---------------------------------------------------------
- * INTERVIEW HISTORY
- * ---------------------------------------------------------
- */
 export const getInterviewHistory = async (req, res, next) => {
   try {
-    const userId = req.headers["x-user-id"];
+    const userId = getUserId(req);
 
-    const result =
-      await interviewService.getInterviewHistory(userId);
+    const interviews = await interviewService.getInterviewHistory(userId);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      data: result,
+      data: interviews,
     });
   } catch (error) {
     next(error);
   }
 };
 
-/*
- * ---------------------------------------------------------
- * ADD MORE QUESTIONS
- * ---------------------------------------------------------
- */
-export const addMoreQuestions = async (req, res, next) => {
+export const pauseInterview = async (req, res, next) => {
   try {
-    const userId =req.headers["x-user-id"];
-
+    const userId = getUserId(req);
     const { interviewId } = req.params;
 
-    const count = req.body.count ?? 5;
+    const interview = await interviewService.pauseInterview(
+      userId,
+      interviewId,
+    );
 
-    const result = await interviewService.addMoreQuestions(
+    return res.status(200).json({
+      success: true,
+      message: "Interview paused successfully.",
+      data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resumeInterview = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+
+    const interview = await interviewService.resumeInterview(
+      userId,
+      interviewId,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Interview resumed successfully.",
+      data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const quitInterview = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+
+    const interview = await interviewService.quitInterview(userId, interviewId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Interview quit successfully.",
+      data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const addMoreQuestions = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+    const { count } = req.body;
+
+    const interview = await interviewService.addMoreQuestions(
       userId,
       interviewId,
       count,
     );
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      data: result,
+      message: "More questions added successfully.",
+      data: interview,
     });
   } catch (error) {
     next(error);

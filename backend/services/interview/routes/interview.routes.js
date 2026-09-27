@@ -3,12 +3,12 @@ import express from "express";
 import {
   startInterview,
   submitAnswer,
-  getNextQuestion,
   getInterview,
+  getInterviewHistory,
+  getNextQuestion,
   pauseInterview,
   resumeInterview,
   quitInterview,
-  getInterviewHistory,
   addMoreQuestions,
 } from "../controllers/interview.controller.js";
 
@@ -23,70 +23,56 @@ import {
 const router = express.Router();
 
 /*
- * ---------------------------------------------------------
- * Start Interview
- * ---------------------------------------------------------
- */
+|--------------------------------------------------------------------------
+| Interview Creation
+|--------------------------------------------------------------------------
+*/
+
 router.post("/start", validate(startInterviewSchema), startInterview);
 
 /*
- * ---------------------------------------------------------
- * Submit Answer
- * ---------------------------------------------------------
- */
+|--------------------------------------------------------------------------
+| Answer Submission
+|--------------------------------------------------------------------------
+*/
+
 router.post("/answer", validate(submitAnswerSchema), submitAnswer);
 
 /*
- * ---------------------------------------------------------
- * Get Interview History
- * ---------------------------------------------------------
- */
+|--------------------------------------------------------------------------
+| Interview History
+|--------------------------------------------------------------------------
+| Keep this before "/:interviewId" so "history" is not treated as an ID.
+*/
+
 router.get("/history", getInterviewHistory);
 
 /*
- * ---------------------------------------------------------
- * Get Single Interview
- * ---------------------------------------------------------
- */
-router.get("/:interviewId", getInterview);
+|--------------------------------------------------------------------------
+| Interview Actions
+|--------------------------------------------------------------------------
+*/
 
-/*
- * ---------------------------------------------------------
- * Get Next Question
- * ---------------------------------------------------------
- */
 router.post("/:interviewId/next", getNextQuestion);
 
-/*
- * ---------------------------------------------------------
- * Pause Interview
- * ---------------------------------------------------------
- */
 router.patch("/:interviewId/pause", pauseInterview);
 
-/*
- * ---------------------------------------------------------
- * Resume Interview
- * ---------------------------------------------------------
- */
 router.patch("/:interviewId/resume", resumeInterview);
 
-/*
- * ---------------------------------------------------------
- * Quit Interview
- * ---------------------------------------------------------
- */
 router.patch("/:interviewId/quit", quitInterview);
 
-/*
- * ---------------------------------------------------------
- * Add More Questions
- * ---------------------------------------------------------
- */
 router.post(
   "/:interviewId/more-questions",
   validate(addMoreQuestionsSchema),
   addMoreQuestions,
 );
+
+/*
+|--------------------------------------------------------------------------
+| Interview Details
+|--------------------------------------------------------------------------
+*/
+
+router.get("/:interviewId", getInterview);
 
 export default router;

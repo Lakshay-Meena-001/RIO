@@ -1,74 +1,75 @@
-import dns from "dns";
-import dotenv from "dotenv";
+import "dotenv/config";
+import dns from "node:dns";
 import express from "express";
 
 import { connectDB } from "./config/db.js";
 import interviewRoutes from "./routes/interview.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 
-dotenv.config();
-
-// Custom DNS servers help resolve MongoDB Atlas SRV records reliably.
-dns.setServers(["1.1.1.1", "8.8.8.8"]);
-
 const app = express();
+
 const PORT = process.env.PORT || 8003;
 
-/*
- * ---------------------------------------------------------
- * Global Middleware
- * ---------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// DNS
+// -----------------------------------------------------------------------------
 
-app.use(express.json());
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
-/*
- * ---------------------------------------------------------
- * Health Check
- * ---------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// Middlewares
+// -----------------------------------------------------------------------------
+
+app.use(express.json({ limit: "1mb" }));
+
+// -----------------------------------------------------------------------------
+// Health Check
+// -----------------------------------------------------------------------------
 
 app.get("/", (req, res) => {
-  res.status(200).json({
+  return res.status(200).json({
     success: true,
-    message: "Interview Service is running",
+    service: "interview-service",
+    status: "healthy",
   });
 });
 
-/*
- * ---------------------------------------------------------
- * Interview Routes
- * ---------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// Routes
+// -----------------------------------------------------------------------------
 
 app.use("/api/interview", interviewRoutes);
 
-/*
- * ---------------------------------------------------------
- * Global Error Handler
- * ---------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// 404 Handler
+// -----------------------------------------------------------------------------
+
+app.use((req, res) => {
+  return res.status(404).json({
+    success: false,
+    message: "Route not found.",
+  });
+});
+
+// -----------------------------------------------------------------------------
+// Global Error Handler
+// -----------------------------------------------------------------------------
 
 app.use(errorHandler);
 
-/*
- * ---------------------------------------------------------
- * Start Server
- * ---------------------------------------------------------
- */
+// -----------------------------------------------------------------------------
+// Server Startup
+// -----------------------------------------------------------------------------
 
 const startServer = async () => {
   try {
-    // Start the service only after a successful database connection.
     await connectDB();
 
     app.listen(PORT, () => {
-      console.log(`Interview service is running on port ${PORT}`);
+      console.log(`Interview service running on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Failed to start Interview service:", error);
-
-    // Prevent the service from running without its required database.
+    console.error("Interview service failed to start:", error);
     process.exit(1);
   }
 };

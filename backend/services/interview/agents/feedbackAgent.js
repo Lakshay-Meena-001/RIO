@@ -4,36 +4,43 @@ import { feedbackSchema } from "../validators/interview.schema.js";
 
 export const feedbackAgent = async (data) => {
   try {
-    // 1. Prompt prepare karo
+    // 1. Build prompt
     const prompt = feedbackPrompt(data);
 
-    // 2. LLM se evaluation lo
+    // 2. Ask LLM for evaluation
     const response = await llm.invoke(prompt);
 
-    // 3. LLM response ko string mein convert karo
+    // 3. Convert response to string
     const content =
       typeof response.content === "string"
         ? response.content
         : JSON.stringify(response.content);
 
-    // 4. Agar LLM markdown code block mein JSON de
-    //    to usko remove karo
+    // 4. Remove markdown JSON fences if present
     const cleaned = content
-      .replace(/```json/g, "")
+      .replace(/```json/gi, "")
       .replace(/```/g, "")
       .trim();
 
-    // 5. JSON string -> JavaScript object
+    // 5. Parse JSON
     const parsed = JSON.parse(cleaned);
 
-    // 6. Zod se validate karo
-    const validatedFeedback = feedbackSchema.parse(parsed);
+    // 6. Validate LLM output
+    const validatedFeedback =
+      feedbackSchema.parse(parsed);
 
-    // 7. Validated result return karo
+    // 7. Return only validated data
     return validatedFeedback;
   } catch (error) {
     console.error("Feedback Agent Error:", error);
 
-    throw new Error("Failed to evaluate interview answer.");
+    const agentError = new Error(
+      "Failed to evaluate interview answer.",
+    );
+
+    agentError.statusCode = 502;
+    agentError.cause = error;
+
+    throw agentError;
   }
 };
