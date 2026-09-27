@@ -17,6 +17,7 @@ import { validate } from "../middlewares/validate.js";
 import {
   startInterviewSchema,
   submitAnswerSchema,
+  addMoreQuestionsSchema,
 } from "../validators/interview.schema.js";
 
 const router = express.Router();
@@ -82,6 +83,10 @@ router.patch("/:interviewId/quit", quitInterview);
  * Add More Questions
  * ---------------------------------------------------------
  */
-router.post("/:interviewId/more-questions", addMoreQuestions);
+router.post(
+  "/:interviewId/more-questions",
+  validate(addMoreQuestionsSchema),
+  addMoreQuestions,
+);
 
 export default router;

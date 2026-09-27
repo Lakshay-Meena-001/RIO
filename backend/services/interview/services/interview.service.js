@@ -1,5 +1,7 @@
+import mongoose from "mongoose";
 import Interview from "../models/interview.model.js";
 import graph from "../graph/graph.js";
+import AppError from "../utils/error.js";
 
 /*
  * ---------------------------------------------------------
@@ -146,17 +148,21 @@ export const startInterview = async (userId, interviewData) => {
  * ---------------------------------------------------------
  */
 export const submitAnswer = async (userId, interviewId, answer) => {
+  if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+    throw new AppError("Invalid interview ID.", 400);
+  }
+
   const interview = await Interview.findOne({
     _id: interviewId,
     userId,
   });
 
   if (!interview) {
-    throw new Error("Interview not found");
+    throw new AppError("Interview not found.", 404);
   }
 
   if (interview.status !== "in-progress") {
-    throw new Error("Interview is not active");
+    throw new AppError("Interview is not active.", 400);
   }
 
   const currentQuestion = interview.questions[interview.currentQuestionIndex];
@@ -166,7 +172,10 @@ export const submitAnswer = async (userId, interviewId, answer) => {
   }
 
   if (currentQuestion.submittedAt) {
-    throw new Error("Answer already submitted for this question");
+    throw new AppError(
+      "Answer for this question has already been submitted.",
+      400,
+    );
   }
 
   /*
@@ -196,8 +205,8 @@ export const submitAnswer = async (userId, interviewId, answer) => {
 
   const evaluation = result.currentEvaluation;
 
-  if (!evaluation) {
-    throw new Error("Failed to evaluate answer");
+  if (!interview) {
+    throw new AppError("Interview not found.", 404);
   }
 
   /*
@@ -221,17 +230,20 @@ export const submitAnswer = async (userId, interviewId, answer) => {
  * ---------------------------------------------------------
  */
 export const getNextQuestion = async (userId, interviewId) => {
+  if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+    throw new AppError("Invalid interview ID.", 400);
+  }
   const interview = await Interview.findOne({
     _id: interviewId,
     userId,
   });
 
   if (!interview) {
-    throw new Error("Interview not found");
+    throw new AppError("Interview not found.", 404);
   }
 
   if (interview.status !== "in-progress") {
-    throw new Error("Interview is not active");
+    throw new AppError("Interview is not active.", 400);
   }
 
   /*
@@ -254,10 +266,9 @@ export const getNextQuestion = async (userId, interviewId) => {
 
   const question = result.currentQuestion;
 
-  if (!question) {
-    throw new Error("Failed to generate next question");
+  if (!interview) {
+    throw new AppError("Interview not found.", 404);
   }
-
   interview.questions.push(createQuestionRecord(question));
 
   interview.currentQuestionIndex = nextQuestionIndex;
@@ -277,13 +288,16 @@ export const getNextQuestion = async (userId, interviewId) => {
  * ---------------------------------------------------------
  */
 export const completeInterview = async (userId, interviewId) => {
+  if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+    throw new AppError("Invalid interview ID.", 400);
+  }
   const interview = await Interview.findOne({
     _id: interviewId,
     userId,
   });
 
   if (!interview) {
-    throw new Error("Interview not found");
+    throw new AppError("Interview not found.", 404);
   }
 
   const graphState = buildGraphState(interview, {
@@ -321,13 +335,17 @@ export const completeInterview = async (userId, interviewId) => {
  * ---------------------------------------------------------
  */
 export const getInterview = async (userId, interviewId) => {
+  if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+    throw new AppError("Invalid interview ID.", 400);
+  }
+
   const interview = await Interview.findOne({
     _id: interviewId,
     userId,
   });
 
   if (!interview) {
-    throw new Error("Interview not found");
+    throw new AppError("Interview not found.", 404);
   }
 
   return interview;
@@ -339,17 +357,20 @@ export const getInterview = async (userId, interviewId) => {
  * ---------------------------------------------------------
  */
 export const pauseInterview = async (userId, interviewId) => {
+  if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+    throw new AppError("Invalid interview ID.", 400);
+  }
   const interview = await Interview.findOne({
     _id: interviewId,
     userId,
   });
 
   if (!interview) {
-    throw new Error("Interview not found");
+    throw new AppError("Interview not found.", 404);
   }
 
   if (interview.status !== "in-progress") {
-    throw new Error("Only an active interview can be paused");
+    throw new AppError("Interview is not active.", 400);
   }
 
   interview.status = "paused";
@@ -365,13 +386,16 @@ export const pauseInterview = async (userId, interviewId) => {
  * ---------------------------------------------------------
  */
 export const resumeInterview = async (userId, interviewId) => {
+  if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+    throw new AppError("Invalid interview ID.", 400);
+  }
   const interview = await Interview.findOne({
     _id: interviewId,
     userId,
   });
 
   if (!interview) {
-    throw new Error("Interview not found");
+    throw new AppError("Interview not found.", 404);
   }
 
   if (interview.status !== "paused") {
@@ -391,13 +415,16 @@ export const resumeInterview = async (userId, interviewId) => {
  * ---------------------------------------------------------
  */
 export const quitInterview = async (userId, interviewId) => {
+  if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+    throw new AppError("Invalid interview ID.", 400);
+  }
   const interview = await Interview.findOne({
     _id: interviewId,
     userId,
   });
 
   if (!interview) {
-    throw new Error("Interview not found");
+    throw new AppError("Interview not found.", 404);
   }
 
   if (interview.status === "completed" || interview.status === "abandoned") {
@@ -430,17 +457,20 @@ export const getInterviewHistory = async (userId) => {
  * ---------------------------------------------------------
  */
 export const addMoreQuestions = async (userId, interviewId, count = 5) => {
+  if (!mongoose.Types.ObjectId.isValid(interviewId)) {
+    throw new AppError("Invalid interview ID.", 400);
+  }
   const interview = await Interview.findOne({
     _id: interviewId,
     userId,
   });
 
   if (!interview) {
-    throw new Error("Interview not found");
+    throw new AppError("Interview not found.", 404);
   }
 
   if (interview.status !== "in-progress") {
-    throw new Error("Interview is not active");
+    throw new AppError("Interview is not active.", 400);
   }
 
   if (!Number.isInteger(count) || count < 1) {

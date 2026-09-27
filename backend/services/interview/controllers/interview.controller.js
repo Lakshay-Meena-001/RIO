@@ -202,7 +202,7 @@ export const getInterviewHistory = async (req, res, next) => {
  */
 export const addMoreQuestions = async (req, res, next) => {
   try {
-    const userId =req.headers["x-user-id"]F;
+    const userId =req.headers["x-user-id"];
 
     const { interviewId } = req.params;
 

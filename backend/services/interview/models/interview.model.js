@@ -189,6 +189,11 @@ const interviewSchema = new mongoose.Schema(
       required: true,
     },
 
+    subjects: {
+      type: [String],
+      default: [],
+    },
+    
     language: {
       type: String,
       enum: ["english"],

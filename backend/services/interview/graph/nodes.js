@@ -1,6 +1,6 @@
-import { interviewAgent } from "../agents/interview.agent.js";
-import { feedbackAgent } from "../agents/feedback.agent.js";
-import { summaryAgent } from "../agents/summary.agent.js";
+import { interviewAgent } from "../agents/interviewAgent.js";
+import { feedbackAgent } from "../agents/feedbackAgent.js";
+import { summaryAgent } from "../agents/summaryAgent.js";
 
 // ==========================================
 // 1. INTERVIEW NODE

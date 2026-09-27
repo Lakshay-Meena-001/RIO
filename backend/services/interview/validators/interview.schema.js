@@ -162,3 +162,14 @@ export const summarySchema = z.object({
 
   summary: z.string(),
 });
+
+
+/*
+|--------------------------------------------------------------------------
+| Add more questions
+|--------------------------------------------------------------------------
+*/
+
+export const addMoreQuestionsSchema = z.object({
+  count: z.number().int().min(1).max(20).default(5),
+});
