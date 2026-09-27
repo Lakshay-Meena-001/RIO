@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import Interview from "../models/interview.model.js";
 import graph from "../graph/graph.js";
 import AppError from "../utils/error.js";
-
+import crypto from "node:crypto";
 /*
  * ---------------------------------------------------------
  * Build Graph State
@@ -73,7 +73,7 @@ function createQuestionRecord(question) {
   }
 
   return {
-    questionId: question.questionId,
+    questionId: crypto.randomUUID(),
     text: question.text,
     section: question.section,
     type: question.type || "primary",
@@ -563,6 +563,16 @@ export const addMoreQuestions = async (userId, interviewId, count = 5) => {
    * Keep this defensive check because the service may also
    * be called internally.
    */
+
+  const MAX_QUESTIONS = 50;
+
+  if (interview.questionCount + count > MAX_QUESTIONS) {
+    throw new AppError(
+      `Interview cannot have more than ${MAX_QUESTIONS} questions.`,
+      400,
+    );
+  }
+  
   if (!Number.isInteger(count) || count < 1 || count > 20) {
     throw new AppError(
       "Question count must be an integer between 1 and 20.",
