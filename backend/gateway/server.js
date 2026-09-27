@@ -13,8 +13,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL;
 const RESUME_SERVICE_URL = process.env.RESUME_SERVICE_URL;
+const INTERVIEW_SERVICE_URL = process.env.INTERVIEW_SERVICE_URL;
 
 // Basic request parsing and cookie support.
 app.use(express.json());
@@ -41,6 +43,9 @@ if (!AUTH_SERVICE_URL) {
 if (!RESUME_SERVICE_URL) {
   throw new Error("RESUME_SERVICE_URL is not defined");
 }
+if (!INTERVIEW_SERVICE_URL) {
+  throw new Error("INTERVIEW_SERVICE_URL is not defined");
+}
 
 // Gateway health check for monitoring and deployment systems.
 app.get("/health", (req, res) => {
@@ -56,6 +61,9 @@ app.use("/api/auth", proxy(AUTH_SERVICE_URL));
 
 // Forward authentication requests to the Resume microservice.
 app.use("/api/resume", isAuth, proxyWithHeaders(RESUME_SERVICE_URL));
+
+// Forward authentication requests to the Interview microservice.
+app.use("/api/interview", isAuth, proxyWithHeaders(INTERVIEW_SERVICE_URL));
 
 // Return the currently authenticated user from the session.
 app.get("/api/me", isAuth, getCurrentUser);

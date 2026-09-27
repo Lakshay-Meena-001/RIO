@@ -6,7 +6,7 @@ dotenv.config()
 const llm = new ChatGroq({
     model: "openai/gpt-oss-120b",
     temperature: 0.2,
-    maxTokens: 16000,
+    maxTokens: 8000,
     maxRetries: 2,
 })
 
