@@ -11,7 +11,6 @@ import {
   FiCheckCircle,
   FiClock,
   FiMenu,
-  FiMoreHorizontal,
   FiPlay,
   FiTarget,
   FiXCircle,
@@ -37,9 +36,6 @@ const MockInterview = ({ user, setUser }) => {
 
   const loadInterviewHistory = useCallback(async () => {
     try {
-      setError("");
-      setLoading(true);
-
       const result = await getInterviewHistory();
 
       if (!result?.success) {
@@ -47,6 +43,7 @@ const MockInterview = ({ user, setUser }) => {
       }
 
       setInterviews(Array.isArray(result.data) ? result.data : []);
+      setError("");
     } catch (err) {
       console.error("Failed to load interview history:", err);
 
@@ -61,45 +58,12 @@ const MockInterview = ({ user, setUser }) => {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const fetchHistory = async () => {
-      try {
-        const result = await getInterviewHistory();
-
-        if (!result?.success) {
-          throw new Error(
-            result?.message || "Failed to load interview history.",
-          );
-        }
-
-        if (cancelled) return;
-
-        setInterviews(Array.isArray(result.data) ? result.data : []);
-        setError("");
-      } catch (err) {
-        if (cancelled) return;
-
-        console.error("Failed to load interview history:", err);
-
-        setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Unable to load your interview history.",
-        );
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    const load = async () => {
+      await loadInterviewHistory();
     };
 
-    fetchHistory();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    load();
+  }, [loadInterviewHistory]);
   /*
    * ---------------------------------------------------------
    * Derived statistics
@@ -506,7 +470,7 @@ const MockInterview = ({ user, setUser }) => {
                             <div
                               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
                                 completed
-                                  ? "border-white/10 bg-white/[0.06] text-white"
+                                  ? "border-white/10 bg-white/6 text-white"
                                   : "border-white/[0.08] bg-white/[0.035] text-[#71717A]"
                               }`}
                             >
@@ -572,7 +536,8 @@ const MockInterview = ({ user, setUser }) => {
                                     : `/mock-interview/${interview._id}`,
                                 )
                               }
-                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[#A1A1AA] transition-colors hover:bg-white/[0.08] hover:text-white"
+                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 <bg-white />
+                              <4></4> text-[#A1A1AA] transition-colors hover:bg-white/[0.08] hover:text-white"
                               aria-label={
                                 completed
                                   ? "Review interview"
@@ -582,7 +547,7 @@ const MockInterview = ({ user, setUser }) => {
                               {completed ? (
                                 <FiArrowRight size={15} />
                               ) : (
-                                <FiMoreHorizontal size={16} />
+                               <FiArrowRight size={15} />
                               )}
                             </button>
                           </div>
@@ -624,9 +589,9 @@ const MockInterview = ({ user, setUser }) => {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
+                  <div className="rounded-2xl border border-white/10 bg-white/4.5 p-5 sm:p-6">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/6">
                         <FiTarget size={17} />
                       </div>
 

@@ -243,15 +243,32 @@ const InterviewReport = ({ user, setUser }) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#17191C] text-white">
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+      <div className="relative min-h-screen bg-[#17191C] text-white">
+        <div className="flex min-h-screen">
+          <Sidebar
+            mobileOpen={mobileOpen}
+            setMobileOpen={setMobileOpen}
+            user={user}
+            sidebarOpen={sidebarOpen}
+            setUser={setUser}
+            setSidebarOpen={setSidebarOpen}
+          />
 
-            <p className="text-xs text-[#71717A]">
-              Preparing your interview report...
-            </p>
-          </div>
+          <main
+            className={`min-w-0 flex-1 transition-[margin-left] duration-300 ${
+              sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
+            }`}
+          >
+            <div className="flex min-h-screen items-center justify-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+
+                <p className="text-xs text-[#71717A]">
+                  Preparing your interview report...
+                </p>
+              </div>
+            </div>
+          </main>
         </div>
       </div>
     );

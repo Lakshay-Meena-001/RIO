@@ -674,19 +674,4 @@ export const addMoreQuestions = async (userId, interviewId, count = 5) => {
   };
 };
 
-export const deleteInterview = async (req, res, next) => {
-  try {
-    const userId = getUserId(req);
-    const { interviewId } = req.params;
 
-    const result = await interviewService.deleteInterview(userId, interviewId);
-
-    return res.status(200).json({
-      success: true,
-      message: "Interview deleted successfully.",
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
