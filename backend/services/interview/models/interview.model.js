@@ -298,9 +298,38 @@ const interviewSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["created", "in-progress", "paused", "completed", "abandoned"],
+      enum: [
+        "created",
+        "in-progress",
+        "paused",
+        "completed",
+        "abandoned",
+        "failed",
+      ],
       default: "created",
       index: true,
+    },
+    
+    /*
+     * -----------------------------------------------------
+     * Interview Lifecycle
+     * -----------------------------------------------------
+     */
+
+    startedAt: {
+      type: Date,
+      default: null,
+    },
+
+    endedAt: {
+      type: Date,
+      default: null,
+    },
+
+    terminationReason: {
+      type: String,
+      enum: ["completed", "quit", "time-limit", "failed"],
+      default: null,
     },
 
     currentQuestionIndex: {

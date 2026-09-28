@@ -5,12 +5,18 @@ import { useDispatch } from "react-redux";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Scorer from "./pages/Scorer";
+import ResumeBuilder from "./pages/ResumeBuilder";
+
+// Mock Interview pages
+import MockInterview from "./pages/MockInterview";
+import NewInterview from "./pages/NewInterview";
+import Interview from "./pages/Interview";
+import InterviewReport from "./pages/InterviewReport";
 
 import { getCurrentUser } from "./api/user.api";
 import { getResume } from "./api/resume.api";
 
 import { setResume } from "./redux/resumeSlice";
-import ResumeBuilder from "./pages/ResumeBuilder";
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -18,14 +24,10 @@ const App = () => {
 
   const dispatch = useDispatch();
 
-  // -----------------------------
-  // 1. Get currently logged-in user
-  // -----------------------------
   useEffect(() => {
     const getUser = async () => {
       try {
         const data = await getCurrentUser();
-
         setUser(data?.user || null);
       } catch (error) {
         console.error("Failed to fetch current user:", error);
@@ -38,9 +40,6 @@ const App = () => {
     getUser();
   }, []);
 
-  // -----------------------------
-  // 2. Fetch user's existing resume
-  // -----------------------------
   useEffect(() => {
     if (!user) return;
 
@@ -59,9 +58,6 @@ const App = () => {
     getResumeData();
   }, [user, dispatch]);
 
-  // -----------------------------
-  // App loading
-  // -----------------------------
   if (loading) {
     return (
       <div className="min-h-screen bg-[#17191C] flex items-center justify-center">
@@ -75,7 +71,10 @@ const App = () => {
 
   return (
     <Routes>
-      {/* HOME */}
+      {/* -------------------------------------------------- */}
+      {/* Public / Home */}
+      {/* -------------------------------------------------- */}
+
       <Route
         path="/"
         element={
@@ -87,7 +86,10 @@ const App = () => {
         }
       />
 
-      {/* DASHBOARD */}
+      {/* -------------------------------------------------- */}
+      {/* Dashboard */}
+      {/* -------------------------------------------------- */}
+
       <Route
         path="/dashboard"
         element={
@@ -99,7 +101,10 @@ const App = () => {
         }
       />
 
-      {/* RESUME SCORER */}
+      {/* -------------------------------------------------- */}
+      {/* Resume Scorer */}
+      {/* -------------------------------------------------- */}
+
       <Route
         path="/scorer"
         element={
@@ -111,7 +116,10 @@ const App = () => {
         }
       />
 
-      {/* RESUME BUILDER */}
+      {/* -------------------------------------------------- */}
+      {/* Resume Builder */}
+      {/* -------------------------------------------------- */}
+
       <Route
         path="/builder"
         element={
@@ -123,7 +131,65 @@ const App = () => {
         }
       />
 
-      {/* Future routes will be added here */}
+      {/* -------------------------------------------------- */}
+      {/* Mock Interview */}
+      {/* -------------------------------------------------- */}
+
+      <Route
+        path="/mock-interview"
+        element={
+          isAuthenticated && isProfileComplete ? (
+            <MockInterview user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      {/* -------------------------------------------------- */}
+      {/* New Interview Configuration */}
+      {/* -------------------------------------------------- */}
+
+      <Route
+        path="/mock-interview/new"
+        element={
+          isAuthenticated && isProfileComplete ? (
+            <NewInterview user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      {/* -------------------------------------------------- */}
+      {/* Active Interview */}
+      {/* -------------------------------------------------- */}
+
+      <Route
+        path="/mock-interview/:interviewId"
+        element={
+          isAuthenticated && isProfileComplete ? (
+            <Interview user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      {/* -------------------------------------------------- */}
+      {/* Interview Report */}
+      {/* -------------------------------------------------- */}
+
+      <Route
+        path="/mock-interview/:interviewId/report"
+        element={
+          isAuthenticated && isProfileComplete ? (
+            <InterviewReport user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
     </Routes>
   );
 };

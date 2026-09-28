@@ -16,7 +16,6 @@ import {
   FiUser,
   FiX,
 } from "react-icons/fi";
-import { IoAddOutline } from "react-icons/io5";
 import { useNavigate, useLocation } from "react-router-dom";
 
 function Sidebar({
@@ -90,6 +89,11 @@ function Sidebar({
       label: "Resume Scorer",
       icon: FiStar,
       path: "/scorer",
+    },
+    {
+      label: "Mock Interview",
+      icon: FiBarChart2,
+      path: "/mock-interview",
     },
     {
       label: "Roadmap Builder",
@@ -525,17 +529,6 @@ function Sidebar({
       >
         {sidebarContent(sidebarOpen, true, true)}
       </aside>
-
-      {/* Floating Create Interview */}
-      <button
-        type="button"
-        onClick={() => handleNavigation("/interview")}
-        className="fixed bottom-6 right-6 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-white/[0.12] bg-white text-[#17191C] shadow-[0_12px_35px_rgba(0,0,0,0.28)] transition-transform duration-200 hover:scale-[1.04] md:h-13 md:w-13"
-        aria-label="Create Interview"
-        title="Create Interview"
-      >
-        <IoAddOutline size={24} strokeWidth={1.8} />
-      </button>
 
       {/* Mobile edge swipe area */}
       {!mobileOpen && (

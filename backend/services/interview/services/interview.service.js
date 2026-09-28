@@ -64,6 +64,51 @@ function validateInterviewId(interviewId) {
 
 /*
  * ---------------------------------------------------------
+ * Get Interview Deadline
+ * ---------------------------------------------------------
+ */
+
+function getInterviewDeadline(interview) {
+  if (!interview.startedAt) {
+    return null;
+  }
+
+  return new Date(
+    new Date(interview.startedAt).getTime() +
+      Number(interview.timeLimit || 30) * 60 * 1000,
+  );
+}
+
+/*
+ * ---------------------------------------------------------
+ * Expire Interview Deadline
+ * ---------------------------------------------------------
+ */
+async function expireInterviewIfNeeded(interview) {
+  if (
+    !interview.startedAt ||
+    !["in-progress", "paused"].includes(interview.status)
+  ) {
+    return false;
+  }
+
+  const deadline = getInterviewDeadline(interview);
+
+  if (!deadline || new Date() < deadline) {
+    return false;
+  }
+
+  interview.status = "completed";
+  interview.endedAt = new Date();
+  interview.terminationReason = "time-limit";
+
+  await interview.save();
+
+  return true;
+}
+
+/*
+ * ---------------------------------------------------------
  * Convert Graph Question
  * ---------------------------------------------------------
  */
@@ -123,6 +168,9 @@ export const startInterview = async (userId, interviewData) => {
     projectContext: interviewData.projectContext || null,
 
     status: "created",
+    startedAt: null,
+    endedAt: null,
+    terminationReason: null,
     currentQuestionIndex: 0,
 
     questions: [],
@@ -145,6 +193,10 @@ export const startInterview = async (userId, interviewData) => {
 
     interview.currentQuestionIndex = 0;
     interview.status = "in-progress";
+
+    interview.startedAt = new Date();
+    interview.endedAt = null;
+    interview.terminationReason = null;
 
     await interview.save();
 
@@ -398,6 +450,8 @@ export const completeInterview = async (userId, interviewId) => {
     interview.summary = result.summary || "";
 
     interview.status = "completed";
+    interview.endedAt = new Date();
+    interview.terminationReason = "completed";
 
     await interview.save();
 
@@ -518,6 +572,8 @@ export const quitInterview = async (userId, interviewId) => {
   }
 
   interview.status = "abandoned";
+  interview.endedAt = new Date();
+  interview.terminationReason = "quit";
 
   await interview.save();
 
@@ -535,6 +591,34 @@ export const getInterviewHistory = async (userId) => {
   }).sort({
     createdAt: -1,
   });
+};
+
+/*
+ * ---------------------------------------------------------
+ * DELETE INTERVIEW
+ * ---------------------------------------------------------
+ * Permanently deletes one interview belonging to the user.
+ */
+export const deleteInterview = async (userId, interviewId) => {
+  validateInterviewId(interviewId);
+
+  const interview = await Interview.findOne({
+    _id: interviewId,
+    userId,
+  });
+
+  if (!interview) {
+    throw new AppError("Interview not found.", 404);
+  }
+
+  await Interview.deleteOne({
+    _id: interviewId,
+    userId,
+  });
+
+  return {
+    interviewId,
+  };
 };
 
 /*
@@ -572,7 +656,7 @@ export const addMoreQuestions = async (userId, interviewId, count = 5) => {
       400,
     );
   }
-  
+
   if (!Number.isInteger(count) || count < 1 || count > 20) {
     throw new AppError(
       "Question count must be an integer between 1 and 20.",
@@ -588,4 +672,21 @@ export const addMoreQuestions = async (userId, interviewId, count = 5) => {
     interviewId: interview._id,
     questionCount: interview.questionCount,
   };
+};
+
+export const deleteInterview = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+
+    const result = await interviewService.deleteInterview(userId, interviewId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Interview deleted successfully.",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
 };

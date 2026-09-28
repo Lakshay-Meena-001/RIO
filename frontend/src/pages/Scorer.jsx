@@ -210,6 +210,7 @@ const Scorer = ({ user, setUser }) => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [coinNotification, setCoinNotification] = useState(null);
+  const [analyzingAnother, setAnalyzingAnother] = useState(false);
 
   const showCoinNotification = (type, data) => {
     setCoinNotification({ type, ...data });
@@ -325,6 +326,7 @@ const Scorer = ({ user, setUser }) => {
 
       // 5. Only show the result after both analysis and coin deduction succeed.
       dispatch(setResume(resumeData));
+      setAnalyzingAnother(false);
 
       showCoinNotification("success", {
         deducted: SCORER_COST,
@@ -350,7 +352,7 @@ const Scorer = ({ user, setUser }) => {
   };
 
   const handleAnalyzeAnother = () => {
-    dispatch(setResume(null));
+    setAnalyzingAnother(true);
     clearFile();
   };
 
@@ -465,7 +467,7 @@ const Scorer = ({ user, setUser }) => {
           >
             <div className="mx-auto w-full max-w-[1500px] min-w-0 px-3 pb-16 pt-[92px] sm:px-6 lg:px-8 lg:pt-9">
               <AnimatePresence mode="wait">
-                {!hasResult ? (
+                {!hasResult || analyzingAnother ? (
                   <UploadView
                     file={file}
                     loading={loading}
@@ -478,6 +480,10 @@ const Scorer = ({ user, setUser }) => {
                     handleDrop={handleDrop}
                     handleUpload={handleUpload}
                     coinBalance={Number(user?.coins ?? 0)}
+                    onBack={() => {
+                      setAnalyzingAnother(false);
+                      clearFile();
+                    }}
                   />
                 ) : (
                   <ResultView
@@ -514,7 +520,7 @@ const UploadView = ({
   handleDrop,
   handleUpload,
   coinBalance,
-  navigate,
+  onBack,
 }) => {
   return (
     <motion.section
@@ -528,11 +534,11 @@ const UploadView = ({
       {/* BACK TO RESUME SCORER DASHBOARD */}
       <button
         type="button"
-        onClick={() => navigate("/dashboard")}
+        onClick={onBack}
         className="mb-5 flex items-center gap-2 text-xs text-white/35 transition-colors hover:text-white"
       >
         <ArrowLeft className="h-3.5 w-3.5" />
-        Resume Scorer Dashboard
+        Resume Scorer
       </button>
 
       {/* HEADER */}
@@ -952,7 +958,7 @@ const ResultView = ({
         <div className="min-w-0">
           <button
             type="button"
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/scorer")}
             className="mb-5 flex items-center gap-2 text-xs text-white/30 transition-colors hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" />

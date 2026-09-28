@@ -10,6 +10,7 @@ import {
   resumeInterview,
   quitInterview,
   addMoreQuestions,
+  deleteInterview,
 } from "../controllers/interview.controller.js";
 
 import { validate } from "../middlewares/validate.js";
@@ -66,6 +67,14 @@ router.post(
   validate(addMoreQuestionsSchema),
   addMoreQuestions,
 );
+
+/*
+|--------------------------------------------------------------------------
+| Delete Interview
+|--------------------------------------------------------------------------
+*/
+
+router.delete("/:interviewId", deleteInterview);
 
 /*
 |--------------------------------------------------------------------------
