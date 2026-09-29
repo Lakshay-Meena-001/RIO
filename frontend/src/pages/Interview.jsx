@@ -9,7 +9,6 @@ import {
   FiPause,
   FiPlay,
   FiSend,
-  FiX,
 } from "react-icons/fi";
 
 import {
@@ -60,6 +59,9 @@ const Interview = () => {
 
       const data = result.data;
 
+      /*
+       * Completed interviews go directly to report.
+       */
       if (data.status === "completed") {
         navigate(`/mock-interview/${interviewId}/report`, {
           replace: true,
@@ -70,12 +72,23 @@ const Interview = () => {
 
       setInterview(data);
 
+      /*
+       * Set answer directly here.
+       *
+       * No useEffect is needed for answer synchronization.
+       */
+      const loadedQuestion = Array.isArray(data.questions)
+        ? data.questions[data.currentQuestionIndex]
+        : null;
+
+      setAnswer(loadedQuestion?.answer || "");
+
       if (data.status === "abandoned") {
-        setError("This interview has already been abandoned.");
+        setError("This interview has been abandoned.");
       }
     } catch (err) {
       console.error("Failed to load interview:", err);
-``
+
       setError(
         err?.response?.data?.message ||
           err?.message ||
@@ -86,8 +99,16 @@ const Interview = () => {
     }
   }, [interviewId, navigate]);
 
+  /*
+   * The timeout keeps the initial mount effect free from
+   * synchronous state-update warnings.
+   */
   useEffect(() => {
-    loadInterview();
+    const timer = window.setTimeout(() => {
+      loadInterview();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [loadInterview]);
 
   /*
@@ -106,7 +127,17 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
-   * Question progress
+   * Interview state
+   * ---------------------------------------------------------
+   */
+
+  const isPaused = interview?.status === "paused";
+  const isAbandoned = interview?.status === "abandoned";
+  const isCompleted = interview?.status === "completed";
+
+  /*
+   * ---------------------------------------------------------
+   * Progress
    * ---------------------------------------------------------
    */
 
@@ -131,69 +162,21 @@ const Interview = () => {
   const isCurrentQuestionSubmitted =
     currentQuestion?.answerStatus === "submitted";
 
-  /*
-   * ---------------------------------------------------------
-   * Sync answer with current question
-   * ---------------------------------------------------------
-   *
-   * Each question owns its own persisted answer.
-   *
-   * When navigation happens:
-   *
-   * Q1 -> Q2
-   * Q2 -> Q3
-   * Q3 -> Q1
-   *
-   * the textarea always reflects that question's answer.
-   */
+  const isLastQuestion = questionNumber === totalQuestions;
+
+  const canSubmitFinal =
+    totalQuestions > 0 && interview?.status === "in-progress";
 
   /*
    * ---------------------------------------------------------
    * Timer
    * ---------------------------------------------------------
-   *
-   * The backend remains the source of truth.
-   *
-   * This countdown is only a UI representation.
-   * Backend validates expiry independently.
-   */
-
-  useEffect(() => {
-    if (!interview) return;
-
-    if (interview.status !== "in-progress") {
-      return;
-    }
-
-    const startedAt = new Date(interview.startedAt).getTime();
-
-    if (Number.isNaN(startedAt)) {
-      return;
-    }
-
-    const totalSeconds = Number(interview.timeLimit || 30) * 60;
-
-    const updateTimer = () => {
-      const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
-
-      const remaining = Math.max(totalSeconds - elapsedSeconds, 0);
-
-      setRemainingSeconds(remaining);
-    };
-
-    const timer = window.setInterval(updateTimer, 1000);
-
-    return () => window.clearInterval(timer);
-  }, [interview]);
-
-  /*
-   * ---------------------------------------------------------
-   * Timer formatting
-   * ---------------------------------------------------------
    */
 
   const formatTime = (seconds) => {
-    if (seconds === null) return "--:--";
+    if (seconds === null) {
+      return "--:--";
+    }
 
     const safeSeconds = Math.max(0, seconds);
 
@@ -206,9 +189,39 @@ const Interview = () => {
     )}`;
   };
 
+  useEffect(() => {
+    if (!interview?.startedAt || isAbandoned || isCompleted) {
+      const timer = window.setTimeout(() => {
+        setRemainingSeconds(null);
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    const updateTimer = () => {
+      const startedAt = new Date(interview.startedAt).getTime();
+
+      const duration = Number(interview.timeLimit || 30) * 60 * 1000;
+
+      const deadline = startedAt + duration;
+
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+
+      setRemainingSeconds(remaining);
+    };
+
+    updateTimer();
+
+    const interval = window.setInterval(updateTimer, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [interview?.startedAt, interview?.timeLimit, isAbandoned, isCompleted]);
+
   /*
    * ---------------------------------------------------------
-   * Navigate to question
+   * Refresh interview
    * ---------------------------------------------------------
    */
 
@@ -229,6 +242,12 @@ const Interview = () => {
 
     setInterview(result.data);
 
+    const refreshedQuestion = Array.isArray(result.data.questions)
+      ? result.data.questions[result.data.currentQuestionIndex]
+      : null;
+
+    setAnswer(refreshedQuestion?.answer || "");
+
     return result.data;
   };
 
@@ -239,11 +258,7 @@ const Interview = () => {
    */
 
   const handleNextQuestion = async () => {
-    if (!interview || navigating || isPaused || isAbandoned) {
-      return;
-    }
-
-    if (questionNumber >= totalQuestions) {
+    if (!interview || navigating || isPaused || isAbandoned || isLastQuestion) {
       return;
     }
 
@@ -253,17 +268,21 @@ const Interview = () => {
 
       const result = await getNextQuestion(interviewId);
 
-      if (!result?.success) {
+      if (!result?.success || !result?.data) {
         throw new Error(
           result?.message || "Unable to move to the next question.",
         );
       }
 
-      if (result.data) {
-        setInterview(result.data);
-      } else {
-        await refreshInterview();
-      }
+      const updatedInterview = result.data;
+
+      setInterview(updatedInterview);
+
+      const nextQuestion = Array.isArray(updatedInterview.questions)
+        ? updatedInterview.questions[updatedInterview.currentQuestionIndex]
+        : null;
+
+      setAnswer(nextQuestion?.answer || "");
     } catch (err) {
       console.error("Failed to move to next question:", err);
 
@@ -284,11 +303,13 @@ const Interview = () => {
    */
 
   const handlePreviousQuestion = async () => {
-    if (!interview || navigating || isPaused || isAbandoned) {
-      return;
-    }
-
-    if (questionNumber <= 1) {
+    if (
+      !interview ||
+      navigating ||
+      isPaused ||
+      isAbandoned ||
+      questionNumber <= 1
+    ) {
       return;
     }
 
@@ -298,17 +319,21 @@ const Interview = () => {
 
       const result = await getPreviousQuestion(interviewId);
 
-      if (!result?.success) {
+      if (!result?.success || !result?.data) {
         throw new Error(
           result?.message || "Unable to move to the previous question.",
         );
       }
 
-      if (result.data) {
-        setInterview(result.data);
-      } else {
-        await refreshInterview();
-      }
+      const updatedInterview = result.data;
+
+      setInterview(updatedInterview);
+
+      const previousQuestion = Array.isArray(updatedInterview.questions)
+        ? updatedInterview.questions[updatedInterview.currentQuestionIndex]
+        : null;
+
+      setAnswer(previousQuestion?.answer || "");
     } catch (err) {
       console.error("Failed to move to previous question:", err);
 
@@ -324,71 +349,39 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
-   * Jump to a specific question
+   * Jump to question
    * ---------------------------------------------------------
    */
 
-  const handleQuestionJump = async (index) => {
+  const handleQuestionJump = (index) => {
     if (
       !interview ||
       navigating ||
       isPaused ||
       isAbandoned ||
-      index === interview.currentQuestionIndex
+      index === interview.currentQuestionIndex ||
+      index < 0 ||
+      index >= interview.questions.length
     ) {
       return;
     }
 
-    try {
-      setNavigating(true);
-      setError("");
+    setError("");
 
-      /*
-       * Backend currently exposes only next/previous navigation.
-       *
-       * Therefore move step-by-step until the requested index.
-       */
+    const jumpedQuestion = interview.questions[index];
 
-      let currentIndex = interview.currentQuestionIndex;
+    setInterview((previous) => ({
+      ...previous,
+      currentQuestionIndex: index,
+    }));
 
-      while (currentIndex !== index) {
-        const movingForward = currentIndex < index;
-
-        const result = movingForward
-          ? await getNextQuestion(interviewId)
-          : await getPreviousQuestion(interviewId);
-
-        if (!result?.success || !result?.data) {
-          throw new Error("Unable to navigate to that question.");
-        }
-
-        const updatedInterview = result.data;
-
-        setInterview(updatedInterview);
-
-        currentIndex = updatedInterview.currentQuestionIndex;
-      }
-    } catch (err) {
-      console.error("Failed to navigate to question:", err);
-
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Unable to navigate to that question.",
-      );
-    } finally {
-      setNavigating(false);
-    }
+    setAnswer(jumpedQuestion?.answer || "");
   };
 
   /*
    * ---------------------------------------------------------
    * Submit current answer
    * ---------------------------------------------------------
-   *
-   * This ONLY submits the current question.
-   *
-   * It does NOT navigate automatically.
    */
 
   const handleSubmitAnswer = async () => {
@@ -397,12 +390,9 @@ const Interview = () => {
       !currentQuestion ||
       submitting ||
       isPaused ||
-      isAbandoned
+      isAbandoned ||
+      isCurrentQuestionSubmitted
     ) {
-      return;
-    }
-
-    if (isCurrentQuestionSubmitted) {
       return;
     }
 
@@ -425,13 +415,14 @@ const Interview = () => {
         throw new Error(result?.message || "Unable to submit your answer.");
       }
 
-      /*
-       * Backend returns the updated interview/question state.
-       * Refreshing guarantees that the frontend uses persisted data.
-       */
-
       if (result?.data) {
         setInterview(result.data);
+
+        const submittedQuestion = Array.isArray(result.data.questions)
+          ? result.data.questions[result.data.currentQuestionIndex]
+          : null;
+
+        setAnswer(submittedQuestion?.answer || answer);
       } else {
         await refreshInterview();
       }
@@ -450,7 +441,7 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
-   * Final Submit Interview
+   * Final submit
    * ---------------------------------------------------------
    */
 
@@ -468,6 +459,14 @@ const Interview = () => {
       return;
     }
 
+    const confirmed = window.confirm(
+      "Submit this interview? Any remaining questions will be evaluated and the interview will be finalized.",
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
     try {
       setFinalSubmitting(true);
       setError("");
@@ -477,10 +476,6 @@ const Interview = () => {
       if (!result?.success) {
         throw new Error(result?.message || "Unable to submit the interview.");
       }
-
-      /*
-       * Successful final submission means the report is ready.
-       */
 
       if (
         result?.data?.status === "completed" ||
@@ -492,11 +487,6 @@ const Interview = () => {
 
         return;
       }
-
-      /*
-       * Fallback:
-       * refresh persisted backend state.
-       */
 
       const refreshed = await refreshInterview();
 
@@ -510,6 +500,7 @@ const Interview = () => {
 
       setError(
         err?.response?.data?.message ||
+          err?.message ||
           "Unable to submit the interview. Please try again.",
       );
     } finally {
@@ -519,12 +510,14 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
-   * Pause interview
+   * Pause
    * ---------------------------------------------------------
    */
 
   const handlePause = async () => {
-    if (!interview) return;
+    if (!interview || isAbandoned || isPaused) {
+      return;
+    }
 
     try {
       setPausing(true);
@@ -552,12 +545,14 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
-   * Resume interview
+   * Resume
    * ---------------------------------------------------------
    */
 
   const handleResume = async () => {
-    if (!interview) return;
+    if (!interview || isAbandoned) {
+      return;
+    }
 
     try {
       setPausing(true);
@@ -585,7 +580,7 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
-   * Quit interview
+   * Quit
    * ---------------------------------------------------------
    */
 
@@ -618,7 +613,44 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
-   * Loading screen
+   * Browser Back protection
+   *
+   * Back never silently leaves an active interview.
+   * It opens the quit confirmation instead.
+   * ---------------------------------------------------------
+   */
+
+  useEffect(() => {
+    if (!interview || isAbandoned || isCompleted) {
+      return;
+    }
+
+    const handlePopState = () => {
+      window.history.pushState(
+        { interviewGuard: true },
+        "",
+        window.location.href,
+      );
+
+      setShowQuitModal(true);
+    };
+
+    window.history.pushState(
+      { interviewGuard: true },
+      "",
+      window.location.href,
+    );
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [interview, isAbandoned, isCompleted]);
+
+  /*
+   * ---------------------------------------------------------
+   * Loading
    * ---------------------------------------------------------
    */
 
@@ -658,7 +690,10 @@ const Interview = () => {
 
           <button
             type="button"
-            onClick={loadInterview}
+            onClick={() => {
+              setLoading(true);
+              loadInterview();
+            }}
             className="mt-5 rounded-xl bg-white px-5 py-2.5 text-xs font-semibold text-[#17191C]"
           >
             Try again
@@ -670,27 +705,52 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
-   * Interview state
+   * Abandoned screen
+   *
+   * No resume.
+   * No navigation.
+   * No submit.
+   * No quit.
    * ---------------------------------------------------------
    */
 
-  const isPaused = interview.status === "paused";
-  const isAbandoned = interview.status === "abandoned";
+  if (isAbandoned) {
+    return (
+      <div className="min-h-screen bg-[#111315] px-5 py-10 text-white">
+        <div className="mx-auto flex min-h-[80vh] max-w-2xl items-center justify-center">
+          <div className="w-full rounded-2xl border border-white/10 bg-white/[0.045] p-7 text-center sm:p-10">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-red-400/20 bg-red-400/[0.06] text-red-300">
+              <FiAlertCircle size={20} />
+            </div>
 
-  const isLastQuestion = questionNumber === totalQuestions;
+            <h1 className="mt-5 text-xl font-semibold">Interview abandoned</h1>
 
-  const canSubmitFinal =
-    totalQuestions > 0 && interview.status === "in-progress";
+            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#71717A]">
+              This interview has ended and cannot be resumed.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => navigate(`/mock-interview/${interviewId}/report`)}
+              className="mt-6 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C]"
+            >
+              View Report
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#111315] text-white">
       {/* =====================================================
-          TOP BAR
+          FIXED TOP BAR
       ====================================================== */}
 
-      <header className="border-b border-white/[0.08] bg-[#111315]/95 backdrop-blur-xl">
+      <header className="fixed inset-x-0 top-0 z-40 border-b border-white/[0.08] bg-[#111315]/95 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-[1400px] items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-4">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="hidden h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] sm:flex">
               <FiPlay size={15} />
             </div>
@@ -700,60 +760,79 @@ const Interview = () => {
                 {interview.role || "Mock Interview"}
               </p>
 
-              <p className="mt-0.5 text-[10px] uppercase tracking-[0.12em] text-[#71717A]">
+              <p className="mt-0.5 truncate text-[10px] uppercase tracking-[0.12em] text-[#71717A]">
                 {interview.interviewType || "Interview"}
               </p>
             </div>
           </div>
 
-          {/* Timer */}
-          <div
-            className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
-              remainingSeconds !== null && remainingSeconds <= 60
-                ? "border-red-400/25 bg-red-400/[0.06] text-red-300"
-                : "border-white/10 bg-white/[0.04] text-[#D4D4D8]"
-            }`}
-          >
-            <FiClock size={14} />
+          <div className="flex items-center gap-2">
+            <div
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${
+                remainingSeconds !== null && remainingSeconds <= 60
+                  ? "border-red-400/25 bg-red-400/[0.06] text-red-300"
+                  : "border-white/10 bg-white/[0.04] text-[#D4D4D8]"
+              }`}
+            >
+              <FiClock size={14} />
 
-            <span className="font-mono text-sm font-medium">
-              {formatTime(remainingSeconds)}
-            </span>
+              <span className="font-mono text-sm font-medium">
+                {formatTime(remainingSeconds)}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={isPaused ? handleResume : handlePause}
+              disabled={
+                pausing ||
+                navigating ||
+                submitting ||
+                finalSubmitting ||
+                quitting
+              }
+              aria-label={isPaused ? "Resume interview" : "Pause interview"}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[#D4D4D8] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {isPaused ? <FiPlay size={14} /> : <FiPause size={14} />}
+            </button>
           </div>
         </div>
       </header>
 
       {/* =====================================================
-          PROGRESS
+          FIXED PROGRESS BAR
       ====================================================== */}
 
-      <div className="border-b border-white/[0.06] bg-[#111315]">
-        <div className="mx-auto max-w-[1400px] px-4 py-3 sm:px-6 lg:px-8">
+      <div className="fixed inset-x-0 top-16 z-40 border-b border-white/[0.06] bg-[#111315]/95 backdrop-blur-xl">
+        <div className="mx-auto max-w-[1400px] px-4 py-2 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.12em] text-[#71717A]">
             <span>
               Question {questionNumber} of {totalQuestions}
             </span>
 
             <span>
-              {submittedQuestions}/{totalQuestions} submitted
+              {questionNumber}/{totalQuestions}
             </span>
           </div>
 
-          <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/[0.07]">
+          <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-white/[0.07]">
             <div
               className="h-full rounded-full bg-white transition-[width] duration-300"
-              style={{ width: `${progress}%` }}
+              style={{
+                width: `${progress}%`,
+              }}
             />
           </div>
         </div>
       </div>
 
-      <main className="mx-auto flex min-h-[calc(100vh-105px)] max-w-[1100px] flex-col px-4 pb-8 pt-6 sm:px-6 lg:px-8 lg:pt-10">
+      <main className="mx-auto min-h-screen max-w-[1100px] px-4 pb-52 pt-32 sm:px-6 lg:px-8">
         {/* ===================================================
-            QUESTION NAVIGATOR
+            DESKTOP QUESTION NAVIGATOR
         ==================================================== */}
 
-        <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+        <section className="hidden rounded-2xl border border-white/10 bg-white/[0.045] p-4 md:block">
           <div className="flex items-center justify-between">
             <p className="text-xs font-medium text-[#A1A1AA]">Questions</p>
 
@@ -804,6 +883,16 @@ const Interview = () => {
         )}
 
         {/* ===================================================
+            PAUSED NOTICE
+        ==================================================== */}
+
+        {isPaused && (
+          <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-400/[0.05] px-4 py-3 text-xs text-amber-200">
+            Interview paused. Use the play button in the top bar to resume.
+          </div>
+        )}
+
+        {/* ===================================================
             QUESTION
         ==================================================== */}
 
@@ -848,7 +937,7 @@ const Interview = () => {
             ANSWER
         ==================================================== */}
 
-        <section className="mt-4 flex flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.045]">
+        <section className="mt-4 rounded-2xl border border-white/10 bg-white/[0.045]">
           <div className="border-b border-white/[0.07] px-5 py-4">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs font-medium text-[#A1A1AA]">Your answer</p>
@@ -883,7 +972,6 @@ const Interview = () => {
               quitting ||
               finalSubmitting ||
               isPaused ||
-              isAbandoned ||
               isCurrentQuestionSubmitted
             }
             placeholder={
@@ -893,20 +981,21 @@ const Interview = () => {
                   ? "This answer has been submitted."
                   : "Type your answer here..."
             }
-            className="min-h-[260px] flex-1 resize-none bg-transparent px-5 py-5 text-sm leading-7 text-white outline-none placeholder:text-[#52525B] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[320px] sm:px-6"
+            className="min-h-[280px] w-full resize-none bg-transparent px-5 py-5 text-sm leading-7 text-white outline-none placeholder:text-[#52525B] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[340px] sm:px-6"
           />
 
           <div className="border-t border-white/[0.07] px-5 py-3 text-[10px] text-[#52525B] sm:px-6">
             {answer.trim().length} characters
           </div>
         </section>
+      </main>
 
-        {/* ===================================================
-            NAVIGATION + SUBMIT
-        ==================================================== */}
+      {/* =====================================================
+          FIXED BOTTOM BAR
+      ====================================================== */}
 
-        <div className="mt-4 flex flex-col gap-3">
-          {/* Question navigation */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-4 py-3 backdrop-blur-xl sm:px-6">
+        <div className="mx-auto max-w-[1100px]">
           <div className="flex items-center justify-between gap-3">
             <button
               type="button"
@@ -918,13 +1007,13 @@ const Interview = () => {
                 pausing ||
                 quitting ||
                 isPaused ||
-                isAbandoned ||
                 questionNumber <= 1
               }
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-medium text-[#D4D4D8] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-[#D4D4D8] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
             >
               <FiChevronLeft size={14} />
-              Previous
+
+              <span className="hidden sm:inline">Previous</span>
             </button>
 
             <span className="text-[10px] uppercase tracking-[0.12em] text-[#52525B]">
@@ -941,130 +1030,78 @@ const Interview = () => {
                 pausing ||
                 quitting ||
                 isPaused ||
-                isAbandoned ||
                 isLastQuestion
               }
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-medium text-[#D4D4D8] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-[#D4D4D8] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Next
+              <span className="hidden sm:inline">Next</span>
+
               <FiChevronRight size={14} />
             </button>
           </div>
 
-          {/* Main controls */}
-          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex gap-2">
-              {isPaused ? (
-                <button
-                  type="button"
-                  onClick={handleResume}
-                  disabled={pausing || quitting}
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-xs font-medium text-white transition-colors hover:bg-white/[0.09] disabled:opacity-50"
-                >
-                  <FiPlay size={14} />
-
-                  {pausing ? "Resuming..." : "Resume"}
-                </button>
+          {!isCurrentQuestionSubmitted && (
+            <button
+              type="button"
+              onClick={handleSubmitAnswer}
+              disabled={
+                submitting ||
+                navigating ||
+                pausing ||
+                quitting ||
+                finalSubmitting ||
+                isPaused ||
+                !answer.trim()
+              }
+              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] transition-transform hover:scale-[1.005] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {submitting ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#52525E] border-t-[#17191C]" />
+                  Evaluating...
+                </>
               ) : (
-                <button
-                  type="button"
-                  onClick={handlePause}
-                  disabled={
-                    pausing ||
-                    submitting ||
-                    finalSubmitting ||
-                    navigating ||
-                    quitting ||
-                    isAbandoned
-                  }
-                  className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-3 text-xs font-medium text-[#D4D4D8] transition-colors hover:bg-white/[0.09] disabled:opacity-50"
-                >
-                  <FiPause size={14} />
-
-                  {pausing ? "Pausing..." : "Pause"}
-                </button>
+                <>
+                  <FiSend size={14} />
+                  Submit Answer
+                </>
               )}
+            </button>
+          )}
 
-              <button
-                type="button"
-                onClick={() => setShowQuitModal(true)}
-                disabled={
-                  quitting || submitting || finalSubmitting || navigating
-                }
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs font-medium text-[#A1A1AA] transition-colors hover:bg-white/[0.07] hover:text-white disabled:opacity-50"
-              >
-                <FiX size={14} />
-                Quit
-              </button>
-            </div>
-
-            <div className="flex flex-col gap-2 sm:flex-row">
-              {/* Individual answer submit */}
-              {!isCurrentQuestionSubmitted && (
-                <button
-                  type="button"
-                  onClick={handleSubmitAnswer}
-                  disabled={
-                    submitting ||
-                    navigating ||
-                    pausing ||
-                    quitting ||
-                    finalSubmitting ||
-                    isPaused ||
-                    isAbandoned ||
-                    !answer.trim()
-                  }
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] transition-transform hover:scale-[1.01] disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {submitting ? (
-                    <>
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#52525E] border-t-[#17191C]" />
-                      Evaluating...
-                    </>
-                  ) : (
-                    <>
-                      <FiSend size={14} />
-                      Submit Answer
-                    </>
-                  )}
-                </button>
+          {isLastQuestion && (
+            <button
+              type="button"
+              onClick={handleSubmitInterview}
+              disabled={
+                !canSubmitFinal ||
+                finalSubmitting ||
+                submitting ||
+                navigating ||
+                pausing ||
+                quitting ||
+                isPaused
+              }
+              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.08] px-5 py-3 text-xs font-semibold text-white transition-colors hover:bg-white/[0.13] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {finalSubmitting ? (
+                <>
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  Submitting Interview...
+                </>
+              ) : (
+                <>
+                  <FiCheck size={14} />
+                  Submit Interview
+                </>
               )}
-
-              {/* Final interview submit */}
-              <button
-                type="button"
-                onClick={handleSubmitInterview}
-                disabled={
-                  !canSubmitFinal ||
-                  finalSubmitting ||
-                  submitting ||
-                  navigating ||
-                  pausing ||
-                  quitting ||
-                  isPaused ||
-                  isAbandoned
-                }
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.08] px-5 py-3 text-xs font-semibold text-white transition-colors hover:bg-white/[0.13] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {finalSubmitting ? (
-                  <>
-                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                    Submitting Interview...
-                  </>
-                ) : (
-                  <>
-                    <FiCheck size={14} />
-                    Submit Interview
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+            </button>
+          )}
         </div>
-      </main>
+      </div>
 
       {/* =====================================================
-          QUIT CONFIRMATION MODAL
+          QUIT CONFIRMATION
       ====================================================== */}
 
       {showQuitModal && (
@@ -1077,8 +1114,8 @@ const Interview = () => {
             <h2 className="mt-5 text-lg font-semibold">Quit this interview?</h2>
 
             <p className="mt-2 text-sm leading-6 text-[#71717A]">
-              Your submitted answers will be preserved, but this attempt will be
-              marked as abandoned.
+              Leaving this interview will permanently abandon this attempt. You
+              will not be able to resume it later.
             </p>
 
             <div className="mt-6 flex gap-2">
@@ -1088,7 +1125,7 @@ const Interview = () => {
                 disabled={quitting}
                 className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-medium text-white hover:bg-white/[0.08] disabled:opacity-50"
               >
-                Continue
+                Stay
               </button>
 
               <button

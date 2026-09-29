@@ -269,6 +269,143 @@ async function abandonForServerError(interview) {
   await interview.save();
 }
 
+function generateFallbackReport(interview) {
+  const evaluatedQuestions = interview.questions.filter(
+    (question) =>
+      question.answerStatus === "submitted" &&
+      question.submittedAt &&
+      question.evaluation,
+  );
+
+  /*
+   * No answers were evaluated.
+   */
+  if (evaluatedQuestions.length === 0) {
+    return {
+      overallScore: 0,
+      sectionScores: {},
+      strengths: [],
+      weaknesses: ["No interview answers were evaluated."],
+      recommendations: [
+        "Attempt the interview questions to receive performance feedback.",
+        "Provide complete answers before submitting future interviews.",
+        "Focus on explaining your reasoning clearly.",
+        "Review the topics covered in the interview.",
+        "Practice answering technical questions under time constraints.",
+      ],
+      summary:
+        "The interview was submitted without any evaluated answers. The unanswered questions were preserved as Not Answered and were not included in the performance evaluation.",
+    };
+  }
+
+  /*
+   * Calculate fallback overall score from already
+   * evaluated answers.
+   */
+  const scores = evaluatedQuestions
+    .map((question) => Number(question.evaluation?.score))
+    .filter((score) => Number.isFinite(score));
+
+  const overallScore =
+    scores.length > 0
+      ? Number(
+          (
+            scores.reduce((total, score) => total + score, 0) / scores.length
+          ).toFixed(2),
+        )
+      : 0;
+
+  /*
+   * Calculate section scores only from sections
+   * that actually have evaluated answers.
+   */
+  const sectionData = {};
+
+  for (const question of evaluatedQuestions) {
+    const section = question.section;
+    const score = Number(question.evaluation?.score);
+
+    if (!section || !Number.isFinite(score)) {
+      continue;
+    }
+
+    if (!sectionData[section]) {
+      sectionData[section] = [];
+    }
+
+    sectionData[section].push(score);
+  }
+
+  const sectionScores = Object.fromEntries(
+    Object.entries(sectionData).map(([section, values]) => [
+      section,
+      Number(
+        (
+          values.reduce((total, score) => total + score, 0) / values.length
+        ).toFixed(2),
+      ),
+    ]),
+  );
+
+  /*
+   * Reuse information already produced by individual
+   * answer evaluations.
+   */
+  const strengths = [
+    ...new Set(
+      evaluatedQuestions.flatMap(
+        (question) => question.evaluation?.strengths || [],
+      ),
+    ),
+  ].slice(0, 5);
+
+  const weaknesses = [
+    ...new Set(
+      evaluatedQuestions.flatMap(
+        (question) => question.evaluation?.weaknesses || [],
+      ),
+    ),
+  ].slice(0, 5);
+
+  const recommendations = [
+    ...new Set(
+      evaluatedQuestions.flatMap(
+        (question) => question.evaluation?.recommendations || [],
+      ),
+    ),
+  ].slice(0, 5);
+
+  /*
+   * Keep the report structure populated even when
+   * individual evaluations contain fewer items.
+   */
+  while (strengths.length < 3) {
+    strengths.push("Continue building consistency in technical explanations.");
+  }
+
+  while (weaknesses.length < 3) {
+    weaknesses.push("Continue improving depth and clarity of explanations.");
+  }
+
+  while (recommendations.length < 5) {
+    recommendations.push(
+      "Practice explaining technical concepts clearly and concisely.",
+    );
+  }
+
+  return {
+    overallScore,
+    sectionScores,
+    strengths,
+    weaknesses,
+    recommendations,
+    summary:
+      `The interview contained ${evaluatedQuestions.length} evaluated ` +
+      `answer(s). The remaining unanswered questions were preserved as ` +
+      `"Not Answered" and were not included in the performance evaluation.`,
+  };
+}
+
 /*
  * =========================================================
  * GENERATE FINAL SUMMARY
@@ -276,29 +413,41 @@ async function abandonForServerError(interview) {
  */
 
 async function generateInterviewSummary(interview) {
-  const graphState = buildGraphState(interview, {
-    action: "summary",
-  });
+  try {
+    const graphState = buildGraphState(interview, {
+      action: "summary",
+    });
 
-  const result = await graph.invoke(graphState);
+    const result = await graph.invoke(graphState);
 
-  if (result.overallScore === undefined) {
-    throw new AppError("Failed to generate interview summary.", 502);
+    if (result.overallScore === undefined) {
+      throw new Error("Summary result is incomplete.");
+    }
+
+    return {
+      overallScore: result.overallScore ?? 0,
+      sectionScores: result.sectionScores || {},
+      strengths: result.strengths || [],
+      weaknesses: result.weaknesses || [],
+      recommendations: result.recommendations || [],
+      summary: result.summary || "",
+    };
+  } catch (error) {
+    /*
+     * Summary LLM failure must NOT prevent interview
+     * completion.
+     *
+     * Example:
+     * Groq 429 / timeout / malformed summary response
+     *
+     * We already have individual answer evaluations,
+     * so create a deterministic fallback report from
+     * those evaluations.
+     */
+    console.error("Summary generation failed. Using fallback report:", error);
+
+    return generateFallbackReport(interview);
   }
-
-  return {
-    overallScore: result.overallScore ?? 0,
-
-    sectionScores: result.sectionScores || {},
-
-    strengths: result.strengths || [],
-
-    weaknesses: result.weaknesses || [],
-
-    recommendations: result.recommendations || [],
-
-    summary: result.summary || "",
-  };
 }
 
 /*
@@ -368,23 +517,6 @@ async function finalizeInterviewWithCharge(
         }
 
         throw new AppError("Interview cannot be finalized.", 400);
-      }
-
-      /*
-       * -----------------------------------------------------
-       * Make sure every question has been submitted.
-       * -----------------------------------------------------
-       */
-      const incompleteQuestion = interview.questions.find(
-        (question) =>
-          question.answerStatus !== "submitted" || !question.submittedAt,
-      );
-
-      if (incompleteQuestion) {
-        throw new AppError(
-          "All interview questions must be evaluated before completion.",
-          400,
-        );
       }
 
       /*
@@ -717,34 +849,14 @@ export const getNextQuestion = async (userId, interviewId) => {
   const nextIndex = interview.currentQuestionIndex + 1;
 
   if (nextIndex >= interview.questions.length) {
-    return {
-      interviewId: interview._id,
-
-      currentQuestionIndex: interview.currentQuestionIndex,
-
-      question: interview.questions[interview.currentQuestionIndex],
-
-      isFirst: false,
-
-      isLast: true,
-    };
+    return interview;
   }
 
   interview.currentQuestionIndex = nextIndex;
 
   await interview.save();
 
-  return {
-    interviewId: interview._id,
-
-    currentQuestionIndex: nextIndex,
-
-    question: interview.questions[nextIndex],
-
-    isFirst: false,
-
-    isLast: nextIndex === interview.questions.length - 1,
-  };
+  return interview;
 };
 
 /*
@@ -768,36 +880,15 @@ export const getPreviousQuestion = async (userId, interviewId) => {
   const previousIndex = interview.currentQuestionIndex - 1;
 
   if (previousIndex < 0) {
-    return {
-      interviewId: interview._id,
-
-      currentQuestionIndex: 0,
-
-      question: interview.questions[0],
-
-      isFirst: true,
-
-      isLast: interview.questions.length === 1,
-    };
+    return interview;
   }
 
   interview.currentQuestionIndex = previousIndex;
 
   await interview.save();
 
-  return {
-    interviewId: interview._id,
-
-    currentQuestionIndex: previousIndex,
-
-    question: interview.questions[previousIndex],
-
-    isFirst: previousIndex === 0,
-
-    isLast: previousIndex === interview.questions.length - 1,
-  };
+  return interview;
 };
-
 /*
  * =========================================================
  * SUBMIT ENTIRE INTERVIEW
@@ -823,27 +914,26 @@ export const submitInterview = async (userId, interviewId) => {
 
   /*
    * -------------------------------------------------------
-   * Idempotent final submission.
+   * Already completed
    * -------------------------------------------------------
+   *
+   * Final submission is idempotent.
+   *
+   * If the frontend submits again after completion,
+   * return the existing report instead of throwing
+   * "Interview is not active."
    */
   if (interview.status === "completed" && interview.finalizedAt) {
     return {
       interviewId: interview._id,
-
       status: interview.status,
-
+      terminationReason: interview.terminationReason,
       overallScore: interview.overallScore,
-
       sectionScores: interview.sectionScores,
-
       strengths: interview.strengths,
-
       weaknesses: interview.weaknesses,
-
       recommendations: interview.recommendations,
-
       summary: interview.summary,
-
       alreadyFinalized: true,
     };
   }
@@ -854,60 +944,51 @@ export const submitInterview = async (userId, interviewId) => {
 
   /*
    * -------------------------------------------------------
-   * Time check.
-   *
-   * Final submission at/after deadline follows the
-   * time-limit path.
+   * Time check
    * -------------------------------------------------------
    */
   const deadline = getInterviewDeadline(interview);
 
   const isTimeExpired = deadline && new Date() >= deadline;
 
-  /*
-   * -------------------------------------------------------
-   * Find only questions that still need evaluation.
-   * -------------------------------------------------------
-   */
-  const pendingQuestions = interview.questions.filter(
-    (question) =>
-      question.answerStatus !== "submitted" && !question.submittedAt,
-  );
-
   try {
     /*
      * -----------------------------------------------------
-     * Evaluate only remaining questions.
+     * Evaluate ONLY answered questions.
+     *
+     * Unanswered questions remain:
+     *
+     * answerStatus = "not-submitted"
+     * submittedAt = null
+     *
+     * They are NOT sent to the LLM.
      * -----------------------------------------------------
      */
-    for (const question of pendingQuestions) {
-      /*
-       * Empty answers are still evaluated as unanswered.
-       *
-       * The feedback agent receives an explicit fallback
-       * answer so final submission can process the entire
-       * configured interview.
-       */
-      if (typeof question.answer !== "string" || !question.answer.trim()) {
-        question.answer = "No answer provided.";
-      }
+    const pendingAnsweredQuestions = interview.questions.filter(
+      (question) =>
+        question.answerStatus !== "submitted" &&
+        !question.submittedAt &&
+        typeof question.answer === "string" &&
+        question.answer.trim(),
+    );
 
+    for (const question of pendingAnsweredQuestions) {
       const { evaluation } = await evaluateQuestion(interview, question);
 
       markQuestionSubmitted(question, evaluation);
 
       /*
-       * Persist after EVERY successful question.
+       * Persist after every successful evaluation.
        *
-       * If Q4 fails after Q1-Q3 succeeded, Q1-Q3 remain
-       * submitted and will never be evaluated again.
+       * If a later question fails, earlier successful
+       * evaluations remain preserved.
        */
       await interview.save();
     }
 
     /*
      * -----------------------------------------------------
-     * Reload the latest MongoDB document before summary.
+     * Reload latest interview before report generation.
      * -----------------------------------------------------
      */
     interview = await Interview.findOne({
@@ -921,31 +1002,35 @@ export const submitInterview = async (userId, interviewId) => {
 
     /*
      * -----------------------------------------------------
-     * Verify every question is now submitted.
+     * IMPORTANT:
+     *
+     * We DO NOT require every question to be submitted.
+     *
+     * Example:
+     *
+     * Q1 submitted
+     * Q2 submitted
+     * Q3 not answered
+     * Q4 not answered
+     * Q5 not answered
+     *
+     * This is a valid completed interview.
      * -----------------------------------------------------
      */
-    const incompleteQuestion = interview.questions.find(
-      (question) =>
-        question.answerStatus !== "submitted" || !question.submittedAt,
-    );
-
-    if (incompleteQuestion) {
-      throw new AppError("Not all interview questions were evaluated.", 502);
-    }
 
     /*
      * -----------------------------------------------------
      * Generate final report.
+     *
+     * If the LLM summary fails, generateInterviewSummary()
+     * automatically creates a deterministic fallback report.
      * -----------------------------------------------------
      */
     const report = await generateInterviewSummary(interview);
 
     /*
      * -----------------------------------------------------
-     * Finalize interview + charge coins atomically.
-     *
-     * Time-limit is still a successful completion if all
-     * answers were successfully processed.
+     * Finalize interview + charge coins.
      * -----------------------------------------------------
      */
     const terminationReason = isTimeExpired ? "time-limit" : "completed";
@@ -959,57 +1044,44 @@ export const submitInterview = async (userId, interviewId) => {
 
     return {
       interviewId: finalizedInterview._id,
-
       status: finalizedInterview.status,
-
       terminationReason: finalizedInterview.terminationReason,
-
       overallScore: finalizedInterview.overallScore,
-
       sectionScores: finalizedInterview.sectionScores,
-
       strengths: finalizedInterview.strengths,
-
       weaknesses: finalizedInterview.weaknesses,
-
       recommendations: finalizedInterview.recommendations,
-
       summary: finalizedInterview.summary,
-
       coinsCharged: INTERVIEW_COMPLETION_COST,
-
       alreadyFinalized: false,
     };
   } catch (error) {
     /*
      * -----------------------------------------------------
-     * Server/LLM failure.
-     *
-     * Already submitted questions stay preserved.
-     * No completion.
-     * No coin charge.
+     * Business errors
      * -----------------------------------------------------
+     *
+     * Insufficient coins, invalid state, etc. should not
+     * automatically turn the interview into server-error.
      */
     if (
       error instanceof AppError &&
       error.statusCode >= 400 &&
       error.statusCode < 500
     ) {
-      /*
-       * Validation/business errors such as insufficient
-       * coins should not automatically abandon the
-       * interview.
-       */
-      if (error.message === "Not enough coins to complete the interview.") {
-        throw error;
-      }
-
       throw error;
     }
 
     /*
-     * Mark interview abandoned only for actual processing/
-     * infrastructure/LLM failures.
+     * -----------------------------------------------------
+     * Actual evaluation/server failure
+     * -----------------------------------------------------
+     *
+     * Successful evaluations remain preserved.
+     *
+     * IMPORTANT:
+     * Summary failures are already handled by the fallback
+     * report and therefore should normally never reach here.
      */
     try {
       const currentInterview = await Interview.findOne({
@@ -1064,14 +1136,9 @@ async function expireInterviewIfNeeded(interview) {
      * Evaluate every remaining question.
      * -----------------------------------------------------
      */
-    const pendingQuestions = interview.questions.filter(
-      (question) =>
-        question.answerStatus !== "submitted" && !question.submittedAt,
-    );
-
     for (const question of pendingQuestions) {
       if (typeof question.answer !== "string" || !question.answer.trim()) {
-        question.answer = "No answer provided.";
+        continue;
       }
 
       const { evaluation } = await evaluateQuestion(interview, question);
@@ -1090,18 +1157,6 @@ async function expireInterviewIfNeeded(interview) {
 
     if (!latestInterview) {
       throw new AppError("Interview not found.", 404);
-    }
-
-    const incompleteQuestion = latestInterview.questions.find(
-      (question) =>
-        question.answerStatus !== "submitted" || !question.submittedAt,
-    );
-
-    if (incompleteQuestion) {
-      throw new AppError(
-        "Failed to evaluate all questions before time-limit completion.",
-        502,
-      );
     }
 
     /*
