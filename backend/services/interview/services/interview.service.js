@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 import crypto from "node:crypto";
 
 import Interview from "../models/interview.model.js";
-import User from "../../auth/models/user.model.js";
 
 import graph from "../graph/graph.js";
 import AppError from "../utils/error.js";
@@ -14,6 +13,9 @@ import AppError from "../utils/error.js";
  */
 
 const INTERVIEW_COMPLETION_COST = 10;
+
+const AUTH_SERVICE_URL =
+  process.env.AUTH_SERVICE_URL || "http://localhost:8001";
 
 /*
  * =========================================================
@@ -452,6 +454,83 @@ async function generateInterviewSummary(interview) {
 
 /*
  * =========================================================
+ * DEDUCT INTERVIEW COINS THROUGH AUTH SERVICE
+ * =========================================================
+ *
+ * Interview Service does not access the Auth User model
+ * directly.
+ *
+ * Auth Service owns:
+ * - User
+ * - coins
+ * - coin deduction
+ */
+async function deductInterviewCoins(userId, interviewId) {
+  let response;
+
+  try {
+    response = await fetch(`${AUTH_SERVICE_URL}/internal/user-coins`, {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": userId.toString(),
+      },
+
+      body: JSON.stringify({
+        coin: INTERVIEW_COMPLETION_COST,
+        action: `interview-completion:${interviewId.toString()}`,
+      }),
+    });
+  } catch (error) {
+    console.error("Auth Service coin request failed:", error);
+
+    throw new AppError(
+      "Unable to charge interview coins right now. Please try again.",
+      503,
+    );
+  }
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  /*
+   * Auth Service returned a business error.
+   *
+   * Example:
+   * - insufficient coins
+   * - user not found
+   */
+  if (!response.ok) {
+    const message = data?.message || "Unable to charge interview coins.";
+
+    /*
+     * Preserve expected 4xx business errors.
+     *
+     * submitInterview() will NOT abandon the interview
+     * automatically for these errors.
+     */
+    if (response.status >= 400 && response.status < 500) {
+      throw new AppError(message, response.status);
+    }
+
+    throw new AppError(message, 502);
+  }
+
+  if (!data?.success) {
+    throw new AppError("Unable to charge interview coins.", 502);
+  }
+
+  return data;
+}
+
+/*
+ * =========================================================
  * FINALIZE + CHARGE
  * =========================================================
  *
@@ -476,114 +555,86 @@ async function finalizeInterviewWithCharge(
   report,
   terminationReason = "completed",
 ) {
-  const session = await mongoose.startSession();
+  /*
+   * ---------------------------------------------------------
+   * Load the interview.
+   * ---------------------------------------------------------
+   */
+  const interview = await Interview.findOne({
+    _id: interviewId,
+    userId,
+  });
 
-  try {
-    let finalizedInterview;
-
-    await session.withTransaction(async () => {
-      /*
-       * -----------------------------------------------------
-       * Lock the interview lifecycle logically.
-       *
-       * Only an active interview with no finalizedAt can
-       * perform finalization.
-       * -----------------------------------------------------
-       */
-      const interview = await Interview.findOne({
-        _id: interviewId,
-        userId,
-        status: "in-progress",
-        finalizedAt: null,
-      }).session(session);
-
-      if (!interview) {
-        /*
-         * It may already have been finalized by another
-         * request.
-         */
-        const existingInterview = await Interview.findOne({
-          _id: interviewId,
-          userId,
-        }).session(session);
-
-        if (
-          existingInterview &&
-          existingInterview.status === "completed" &&
-          existingInterview.finalizedAt
-        ) {
-          finalizedInterview = existingInterview;
-          return;
-        }
-
-        throw new AppError("Interview cannot be finalized.", 400);
-      }
-
-      /*
-       * -----------------------------------------------------
-       * Deduct exactly 10 coins atomically.
-       * -----------------------------------------------------
-       */
-      const updatedUser = await User.findOneAndUpdate(
-        {
-          _id: userId,
-
-          coins: {
-            $gte: INTERVIEW_COMPLETION_COST,
-          },
-        },
-        {
-          $inc: {
-            coins: -INTERVIEW_COMPLETION_COST,
-          },
-        },
-        {
-          new: true,
-          session,
-          runValidators: true,
-        },
-      );
-
-      if (!updatedUser) {
-        throw new AppError("Not enough coins to complete the interview.", 400);
-      }
-
-      /*
-       * -----------------------------------------------------
-       * Save final report.
-       * -----------------------------------------------------
-       */
-      interview.overallScore = report.overallScore;
-
-      interview.sectionScores = report.sectionScores;
-
-      interview.strengths = report.strengths;
-
-      interview.weaknesses = report.weaknesses;
-
-      interview.recommendations = report.recommendations;
-
-      interview.summary = report.summary;
-
-      interview.status = "completed";
-
-      interview.endedAt = new Date();
-
-      interview.terminationReason = terminationReason;
-
-      interview.finalizedAt = new Date();
-
-      await interview.save({ session });
-
-      finalizedInterview = interview;
-    });
-
-    return finalizedInterview;
-  } finally {
-    await session.endSession();
+  if (!interview) {
+    throw new AppError("Interview not found.", 404);
   }
-}
 
+  /*
+   * ---------------------------------------------------------
+   * Idempotent retry.
+   *
+   * If another request already completed the interview,
+   * return the existing report.
+   *
+   * Do NOT charge again here.
+   * ---------------------------------------------------------
+   */
+  if (interview.status === "completed" && interview.finalizedAt) {
+    return interview;
+  }
+
+  if (interview.status !== "in-progress") {
+    throw new AppError("Interview cannot be finalized.", 400);
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * Charge coins through Auth Service.
+   * ---------------------------------------------------------
+   *
+   * Interview Service does NOT touch the User model.
+   *
+   * Auth Service:
+   *
+   * Interview Service
+   *       ↓
+   * POST /internal/user-coins
+   *       ↓
+   * Auth Service
+   *       ↓
+   * User MongoDB
+   */
+  await deductInterviewCoins(userId, interviewId);
+
+  /*
+   * ---------------------------------------------------------
+   * Save final report.
+   * ---------------------------------------------------------
+   */
+  interview.overallScore = report.overallScore;
+
+  interview.sectionScores = report.sectionScores;
+
+  interview.strengths = report.strengths;
+
+  interview.weaknesses = report.weaknesses;
+
+  interview.recommendations = report.recommendations;
+
+  interview.summary = report.summary;
+
+  interview.status = "completed";
+
+  interview.endedAt = new Date();
+
+  interview.terminationReason = terminationReason;
+
+  interview.finalizedAt = new Date();
+
+  await interview.save();
+
+  return interview;
+}
 /*
  * =========================================================
  * START INTERVIEW
@@ -1026,7 +1077,17 @@ export const submitInterview = async (userId, interviewId) => {
      * automatically creates a deterministic fallback report.
      * -----------------------------------------------------
      */
-    const report = await generateInterviewSummary(interview);
+    const evaluatedAnswerCount = interview.questions.filter(
+      (question) =>
+        question.answerStatus === "submitted" &&
+        question.submittedAt &&
+        question.evaluation,
+    ).length;
+
+    const report =
+      evaluatedAnswerCount === 0
+        ? generateFallbackReport(interview)
+        : await generateInterviewSummary(interview);
 
     /*
      * -----------------------------------------------------
@@ -1056,6 +1117,7 @@ export const submitInterview = async (userId, interviewId) => {
       alreadyFinalized: false,
     };
   } catch (error) {
+    console.error("FINAL SUBMIT ROOT ERROR:", error);
     /*
      * -----------------------------------------------------
      * Business errors
@@ -1133,20 +1195,19 @@ async function expireInterviewIfNeeded(interview) {
   try {
     /*
      * -----------------------------------------------------
-     * Evaluate every remaining question.
+     * Evaluate only answered questions that have not
+     * already been submitted.
+     *
+     * Unanswered questions remain Not Answered.
      * -----------------------------------------------------
      */
-    for (const question of pendingQuestions) {
-      if (typeof question.answer !== "string" || !question.answer.trim()) {
-        continue;
-      }
-
-      const { evaluation } = await evaluateQuestion(interview, question);
-
-      markQuestionSubmitted(question, evaluation);
-
-      await interview.save();
-    }
+    const pendingQuestions = interview.questions.filter(
+      (question) =>
+        question.answerStatus !== "submitted" &&
+        !question.submittedAt &&
+        typeof question.answer === "string" &&
+        question.answer.trim(),
+    );
 
     /*
      * -----------------------------------------------------
@@ -1164,7 +1225,17 @@ async function expireInterviewIfNeeded(interview) {
      * Generate report.
      * -----------------------------------------------------
      */
-    const report = await generateInterviewSummary(latestInterview);
+    const evaluatedAnswerCount = latestInterview.questions.filter(
+      (question) =>
+        question.answerStatus === "submitted" &&
+        question.submittedAt &&
+        question.evaluation,
+    ).length;
+
+    const report =
+      evaluatedAnswerCount === 0
+        ? generateFallbackReport(latestInterview)
+        : await generateInterviewSummary(latestInterview);
 
     /*
      * -----------------------------------------------------

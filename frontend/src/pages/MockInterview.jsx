@@ -460,6 +460,7 @@ const MockInterview = ({ user, setUser }) => {
                       const totalQuestions = getQuestionCount(interview);
 
                       const completed = interview.status === "completed";
+                      const abandoned = interview.status === "abandoned";
 
                       return (
                         <div
@@ -531,7 +532,7 @@ const MockInterview = ({ user, setUser }) => {
                               type="button"
                               onClick={() =>
                                 navigate(
-                                  completed
+                                  completed || abandoned
                                     ? `/mock-interview/${interview._id}/report`
                                     : `/mock-interview/${interview._id}`,
                                 )
@@ -547,7 +548,7 @@ const MockInterview = ({ user, setUser }) => {
                               {completed ? (
                                 <FiArrowRight size={15} />
                               ) : (
-                               <FiArrowRight size={15} />
+                                <FiArrowRight size={15} />
                               )}
                             </button>
                           </div>

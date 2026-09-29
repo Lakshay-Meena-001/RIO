@@ -19,9 +19,10 @@ authRouter.patch("/profile", completeProfile);
 // Destroy Redis session and clear authentication cookie.
 authRouter.post("/logout", logout);
 
-// Deduct coins from the authenticated user's balance.
+// Public authenticated-user coin deduction.
 authRouter.post("/user-coins", useCoins);
 
+// Internal service-to-service coin deduction.
 authRouter.post("/internal/user-coins", deductCoinsInternal);
 
 export default authRouter;

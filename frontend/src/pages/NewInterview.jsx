@@ -8,7 +8,6 @@ import {
   FiCheck,
   FiClock,
   FiCode,
-  FiDollarSign,
   FiFileText,
   FiLayers,
   FiMenu,
@@ -455,8 +454,8 @@ const NewInterview = ({ user, setUser }) => {
                   </div>
 
                   <div className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 lg:flex">
-                    <FiDollarSign size={15} className="text-[#A1A1AA]" />
-                    <span className="text-sm font-medium">₹10 / interview</span>
+                    <span className="text-sm font-medium">INR(₹)</span>
+                    <span className="text-sm font-medium">10 / interview</span>
                   </div>
                 </div>
               </div>
@@ -844,8 +843,8 @@ const NewInterview = ({ user, setUser }) => {
                       </div>
 
                       <div className="mt-2 flex items-center gap-2">
-                        <FiDollarSign size={15} />
-                        <span className="text-sm font-semibold">₹10</span>
+                        <span className="text-sm font-semibold">INR(₹)</span>
+                        <span className="text-sm font-semibold">10</span>
                         <span className="text-xs text-[#71717A]">
                           per interview
                         </span>
@@ -895,7 +894,7 @@ const NewInterview = ({ user, setUser }) => {
           ) : (
             <>
               <FiPlay size={15} />
-              Start Interview · ₹10
+              Start Interview · 10 INR
               <FiArrowRight size={15} />
             </>
           )}

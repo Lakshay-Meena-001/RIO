@@ -513,11 +513,20 @@ export const useCoins = async (req, res) => {
 
 export const deductCoinsInternal = async (req, res) => {
   try {
+    /*
+     * Interview Service se authenticated internal request.
+     * Gateway/user session yahan browser cookie ke through nahi aati,
+     * isliye user identity x-user-id header se receive hogi.
+     */
     const userId = req.headers["x-user-id"];
+
     const { coin, action } = req.body;
 
     const coinAmount = Number(coin);
 
+    /*
+     * User identity required.
+     */
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -525,6 +534,9 @@ export const deductCoinsInternal = async (req, res) => {
       });
     }
 
+    /*
+     * Coin amount must be a positive integer.
+     */
     if (!Number.isInteger(coinAmount) || coinAmount <= 0) {
       return res.status(400).json({
         success: false,
@@ -532,10 +544,21 @@ export const deductCoinsInternal = async (req, res) => {
       });
     }
 
+    /*
+     * Atomic MongoDB deduction.
+     *
+     * Important:
+     * coins >= coinAmount
+     *
+     * This guarantees that coins cannot become negative
+     * because of a normal concurrent deduction.
+     */
     const updatedUser = await User.findOneAndUpdate(
       {
         _id: userId,
-        coins: { $gte: coinAmount },
+        coins: {
+          $gte: coinAmount,
+        },
       },
       {
         $inc: {
@@ -548,6 +571,12 @@ export const deductCoinsInternal = async (req, res) => {
       },
     );
 
+    /*
+     * No document means either:
+     *
+     * 1. User does not exist
+     * 2. User does not have enough coins
+     */
     if (!updatedUser) {
       const currentUser = await User.findById(userId).select("coins");
 
@@ -565,6 +594,9 @@ export const deductCoinsInternal = async (req, res) => {
       });
     }
 
+    /*
+     * MongoDB is the authoritative source for the balance.
+     */
     return res.status(200).json({
       success: true,
       message: "Coins deducted successfully.",
