@@ -2,7 +2,10 @@ import api from "../utils/axios";
 
 /*
  * Start a new mock interview.
-
+ *
+ * All interview questions are generated together
+ * when the interview starts.
+ *
  * POST /api/interview/start
  */
 export const startInterview = async (interviewData) => {
@@ -12,13 +15,17 @@ export const startInterview = async (interviewData) => {
 };
 
 /*
- * Submit the candidate's answer for the cuarrent question.
-
+ * Submit the candidate's answer for a specific question.
+ *
  * POST /api/interview/answer
+ *
+ * The questionId is required because the candidate can
+ * submit questions in any order.
  */
-export const submitAnswer = async (interviewId, answer) => {
+export const submitAnswer = async (interviewId, questionId, answer) => {
   const response = await api.post("/api/interview/answer", {
     interviewId,
+    questionId,
     answer,
   });
 
@@ -26,8 +33,11 @@ export const submitAnswer = async (interviewId, answer) => {
 };
 
 /*
- * Generate/get the next question.
-
+ * Move to the next question.
+ *
+ * This is navigation only.
+ * It does NOT generate a new question.
+ *
  * POST /api/interview/:interviewId/next
  */
 export const getNextQuestion = async (interviewId) => {
@@ -37,8 +47,37 @@ export const getNextQuestion = async (interviewId) => {
 };
 
 /*
- * Get one complete interview attempt.
+ * Move to the previous question.
+ *
+ * This is navigation only.
+ *
+ * POST /api/interview/:interviewId/previous
+ */
+export const getPreviousQuestion = async (interviewId) => {
+  const response = await api.post(`/api/interview/${interviewId}/previous`);
 
+  return response.data;
+};
+
+/*
+ * Submit the complete interview.
+ *
+ * The backend evaluates all remaining unsubmitted
+ * questions and generates the final interview report.
+ *
+ * Already submitted questions are not re-evaluated.
+ *
+ * POST /api/interview/:interviewId/submit
+ */
+export const submitInterview = async (interviewId) => {
+  const response = await api.post(`/api/interview/${interviewId}/submit`);
+
+  return response.data;
+};
+
+/*
+ * Get one complete interview attempt.
+ *
  * GET /api/interview/:interviewId
  */
 export const getInterview = async (interviewId) => {
@@ -60,7 +99,7 @@ export const getInterviewHistory = async () => {
 
 /*
  * Pause an active interview.
-
+ *
  * PATCH /api/interview/:interviewId/pause
  */
 export const pauseInterview = async (interviewId) => {
@@ -71,7 +110,7 @@ export const pauseInterview = async (interviewId) => {
 
 /*
  * Resume a paused interview.
-
+ *
  * PATCH /api/interview/:interviewId/resume
  */
 export const resumeInterview = async (interviewId) => {
@@ -82,27 +121,11 @@ export const resumeInterview = async (interviewId) => {
 
 /*
  * Quit the current interview.
- 
+ *
  * PATCH /api/interview/:interviewId/quit
  */
 export const quitInterview = async (interviewId) => {
   const response = await api.patch(`/api/interview/${interviewId}/quit`);
-
-  return response.data;
-};
-
-/*
- * Add more questions to an active interview.
- 
- * POST /api/interview/:interviewId/more-questions
- */
-export const addMoreQuestions = async (interviewId, count) => {
-  const response = await api.post(
-    `/api/interview/${interviewId}/more-questions`,
-    {
-      count,
-    },
-  );
 
   return response.data;
 };

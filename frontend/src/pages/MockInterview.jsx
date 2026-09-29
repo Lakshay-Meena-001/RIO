@@ -455,7 +455,7 @@ const MockInterview = ({ user, setUser }) => {
                 {/* History list */}
                 {!loading && !error && interviews.length > 0 && (
                   <div className="divide-y divide-white/[0.07]">
-                    {interviews.map((interview) => {
+                    {interviews.slice(0, 3).map((interview) => {
                       const answered = getAnsweredCount(interview);
                       const totalQuestions = getQuestionCount(interview);
 

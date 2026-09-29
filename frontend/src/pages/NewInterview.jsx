@@ -778,10 +778,6 @@ const NewInterview = ({ user, setUser }) => {
 
                   <div className="grid gap-5 lg:grid-cols-3">
                     <div>
-                      <label className="mb-2 block text-xs text-[#A1A1AA]">
-                        Difficulty
-                      </label>
-
                       <CustomSelect
                         label="Difficulty"
                         value={form.difficulty}
@@ -796,10 +792,6 @@ const NewInterview = ({ user, setUser }) => {
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-xs text-[#A1A1AA]">
-                        Time limit
-                      </label>
-
                       <CustomSelect
                         label="Time limit"
                         value={form.timeLimit}
@@ -817,10 +809,6 @@ const NewInterview = ({ user, setUser }) => {
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-xs text-[#A1A1AA]">
-                        Questions
-                      </label>
-
                       <CustomSelect
                         label="Questions"
                         value={form.questionCount}

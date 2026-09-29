@@ -1,5 +1,3 @@
-import React from "react";
-
 const formatDateRange = (startDate, endDate) => {
   if (!startDate && !endDate) return "";
   if (startDate && endDate) return `${startDate} – ${endDate}`;
@@ -16,28 +14,32 @@ const hasItems = (value) => Array.isArray(value) && value.length > 0;
   Basic template visual system:
   - A4 page
   - Computer Modern / Latin Modern style serif typography
-  - compact LaTeX-like spacing
-  - black text on white paper
-  - section heading + horizontal rule
-  - no cards, no modern UI styling
+  - LaTeX-inspired resume structure
+  - Large, readable typography
+  - Black text on white paper
+  - Clear section hierarchy
+  - Horizontal rule below every section heading
+  - No cards / shadows / modern UI decoration
 */
+
 const pageStyle = {
   width: "210mm",
   minHeight: "297mm",
-  padding: "8mm 12mm 10mm 14mm",
+  padding: "8mm 12mm 9mm 13mm",
+  boxSizing: "border-box",
   fontFamily:
     '"Latin Modern Roman", "Computer Modern", "CMU Serif", "Times New Roman", serif',
-  fontSize: "8.8pt",
-  lineHeight: 1.22,
+  fontSize: "10.5pt",
+  lineHeight: 1.28,
   color: "#000",
   background: "#fff",
 };
 
 const sectionTitleStyle = {
   margin: 0,
-  paddingBottom: "1px",
+  paddingBottom: "2px",
   borderBottom: "1px solid #000",
-  fontSize: "10.5pt",
+  fontSize: "13pt",
   lineHeight: 1.05,
   fontWeight: 700,
   letterSpacing: "0.025em",
@@ -48,23 +50,33 @@ const sectionTitleStyle = {
 function Section({ title, children, className = "" }) {
   return (
     <section
-      className={`break-inside-avoid ${className}`}
-      style={{ marginBottom: "9px" }}
+      className={className}
+      style={{
+        marginBottom: "9px",
+      }}
     >
       <h2 style={sectionTitleStyle}>{title}</h2>
-      <div style={{ marginTop: "4px" }}>{children}</div>
+
+      <div
+        style={{
+          marginTop: "4px",
+        }}
+      >
+        {children}
+      </div>
     </section>
   );
 }
 
 function BulletList({ items }) {
   const cleanItems = (items || []).filter(hasValue);
+
   if (!cleanItems.length) return null;
 
   return (
     <ul
       style={{
-        margin: "1px 0 0 14px",
+        margin: "2px 0 0 17px",
         padding: 0,
         listStyleType: "disc",
       }}
@@ -73,8 +85,9 @@ function BulletList({ items }) {
         <li
           key={index}
           style={{
-            paddingLeft: "1px",
-            marginBottom: "0.5px",
+            paddingLeft: "2px",
+            marginBottom: "1px",
+            lineHeight: 1.28,
           }}
         >
           {item}
@@ -89,14 +102,14 @@ function Header({ profile }) {
     <header
       className="break-inside-avoid"
       style={{
-        marginBottom: "7px",
+        marginBottom: "10px",
       }}
     >
       <div
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1fr) auto",
-          columnGap: "16px",
+          columnGap: "20px",
           alignItems: "start",
         }}
       >
@@ -105,7 +118,7 @@ function Header({ profile }) {
             <h1
               style={{
                 margin: 0,
-                fontSize: "16.5pt",
+                fontSize: "22pt",
                 lineHeight: 1,
                 fontWeight: 700,
               }}
@@ -115,19 +128,37 @@ function Header({ profile }) {
           )}
 
           {hasValue(profile.phone) && (
-            <p style={{ margin: "2px 0 0", fontSize: "8.2pt" }}>
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: "9.8pt",
+                lineHeight: 1.2,
+              }}
+            >
               {profile.phone}
             </p>
           )}
 
           {hasValue(profile.location) && (
-            <p style={{ margin: "0.5px 0 0", fontSize: "8.2pt" }}>
+            <p
+              style={{
+                margin: "1px 0 0",
+                fontSize: "9.5pt",
+                lineHeight: 1.2,
+              }}
+            >
               {profile.location}
             </p>
           )}
 
           {hasValue(profile.portfolio) && (
-            <p style={{ margin: "0.5px 0 0", fontSize: "8.2pt" }}>
+            <p
+              style={{
+                margin: "1px 0 0",
+                fontSize: "9.5pt",
+                lineHeight: 1.2,
+              }}
+            >
               {profile.portfolio}
             </p>
           )}
@@ -137,8 +168,8 @@ function Header({ profile }) {
           style={{
             minWidth: 0,
             textAlign: "right",
-            fontSize: "8.2pt",
-            lineHeight: 1.25,
+            fontSize: "9.5pt",
+            lineHeight: 1.35,
           }}
         >
           {hasValue(profile.email) && <div>{profile.email}</div>}
@@ -158,25 +189,41 @@ function EducationSection({ education }) {
     <Section title="Education">
       <div>
         {education.map((item, index) => {
-          const dateRange = formatDateRange(item.startDate, item.endDate);
+          const dateRange = formatDateRange(
+            item.startDate,
+            item.endDate
+          );
 
           return (
             <div
               key={index}
               className="break-inside-avoid"
-              style={{ marginBottom: index === education.length - 1 ? 0 : "3px" }}
+              style={{
+                marginBottom:
+                  index === education.length - 1 ? 0 : "5px",
+              }}
             >
               <div
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "baseline",
-                  gap: "12px",
+                  gap: "16px",
                 }}
               >
-                <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    minWidth: 0,
+                    fontSize: "10.5pt",
+                  }}
+                >
                   {hasValue(item.degree) || hasValue(item.field) ? (
-                    <div style={{ fontWeight: 700 }}>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        lineHeight: 1.2,
+                      }}
+                    >
                       {[item.degree, item.field]
                         .filter(hasValue)
                         .join(" in ")}
@@ -184,7 +231,14 @@ function EducationSection({ education }) {
                   ) : null}
 
                   {hasValue(item.institution) && (
-                    <div style={{ fontStyle: "italic", fontSize: "8.2pt" }}>
+                    <div
+                      style={{
+                        marginTop: "1px",
+                        fontStyle: "italic",
+                        fontSize: "10pt",
+                        lineHeight: 1.2,
+                      }}
+                    >
                       {item.institution}
                     </div>
                   )}
@@ -195,7 +249,8 @@ function EducationSection({ education }) {
                     style={{
                       flexShrink: 0,
                       textAlign: "right",
-                      fontSize: "8pt",
+                      fontSize: "9.2pt",
+                      lineHeight: 1.2,
                     }}
                   >
                     {dateRange}
@@ -206,9 +261,10 @@ function EducationSection({ education }) {
               {hasValue(item.description) && (
                 <p
                   style={{
-                    margin: "1px 0 0",
+                    margin: "2px 0 0",
                     whiteSpace: "pre-line",
-                    fontSize: "8.2pt",
+                    fontSize: "10.2pt",
+                    lineHeight: 1.27,
                   }}
                 >
                   {item.description}
@@ -232,17 +288,29 @@ function ProjectsSection({ projects }) {
           <div
             key={index}
             className="break-inside-avoid"
-            style={{ marginBottom: index === projects.length - 1 ? 0 : "4px" }}
+            style={{
+              marginBottom:
+                index === projects.length - 1 ? 0 : "6px",
+            }}
           >
-            <div style={{ fontWeight: 700 }}>
-              {hasValue(project.title) && project.title}
-            </div>
+            {hasValue(project.title) && (
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: "10.8pt",
+                  lineHeight: 1.2,
+                }}
+              >
+                {project.title}
+              </div>
+            )}
 
             {hasValue(project.description) && (
               <div
                 style={{
-                  marginTop: "0.5px",
-                  fontSize: "8.2pt",
+                  marginTop: "1px",
+                  fontSize: "10.2pt",
+                  lineHeight: 1.27,
                   fontStyle: "italic",
                 }}
               >
@@ -253,16 +321,22 @@ function ProjectsSection({ projects }) {
             <BulletList
               items={[
                 ...(hasItems(project.technologies)
-                  ? [`Technology Used: ${project.technologies.join(", ")}`]
+                  ? [
+                      `Technology Used: ${project.technologies.join(
+                        ", "
+                      )}`,
+                    ]
                   : []),
               ]}
             />
 
-            {(hasValue(project.url) || hasValue(project.githubUrl)) && (
+            {(hasValue(project.url) ||
+              hasValue(project.githubUrl)) && (
               <div
                 style={{
-                  marginTop: "0.5px",
-                  fontSize: "7.7pt",
+                  marginTop: "1px",
+                  fontSize: "9pt",
+                  lineHeight: 1.2,
                 }}
               >
                 {[project.url, project.githubUrl]
@@ -284,26 +358,41 @@ function ExperienceSection({ experience }) {
     <Section title="Experience">
       <div>
         {experience.map((item, index) => {
-          const dateRange = formatDateRange(item.startDate, item.endDate);
+          const dateRange = formatDateRange(
+            item.startDate,
+            item.endDate
+          );
 
           return (
             <div
               key={index}
               className="break-inside-avoid"
-              style={{ marginBottom: index === experience.length - 1 ? 0 : "4px" }}
+              style={{
+                marginBottom:
+                  index === experience.length - 1 ? 0 : "6px",
+              }}
             >
               <div
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "baseline",
-                  gap: "12px",
+                  gap: "16px",
                 }}
               >
-                <div style={{ minWidth: 0 }}>
+                <div
+                  style={{
+                    minWidth: 0,
+                    fontSize: "10.7pt",
+                    lineHeight: 1.2,
+                  }}
+                >
                   {hasValue(item.role) && (
-                    <span style={{ fontWeight: 700 }}>{item.role}</span>
+                    <span style={{ fontWeight: 700 }}>
+                      {item.role}
+                    </span>
                   )}
+
                   {hasValue(item.company) && (
                     <span>
                       {hasValue(item.role) ? " — " : ""}
@@ -317,7 +406,8 @@ function ExperienceSection({ experience }) {
                     style={{
                       flexShrink: 0,
                       textAlign: "right",
-                      fontSize: "8pt",
+                      fontSize: "9.2pt",
+                      lineHeight: 1.2,
                       fontStyle: "italic",
                     }}
                   >
@@ -327,19 +417,41 @@ function ExperienceSection({ experience }) {
               </div>
 
               {hasValue(item.location) && (
-                <div style={{ fontSize: "8pt", fontStyle: "italic" }}>
+                <div
+                  style={{
+                    marginTop: "1px",
+                    fontSize: "9.5pt",
+                    lineHeight: 1.2,
+                    fontStyle: "italic",
+                  }}
+                >
                   {item.location}
                 </div>
               )}
 
               {hasValue(item.description) && (
-                <div style={{ marginTop: "1px", whiteSpace: "pre-line" }}>
-                  <BulletList items={item.description.split(/\n+/)} />
+                <div
+                  style={{
+                    marginTop: "2px",
+                    whiteSpace: "pre-line",
+                    fontSize: "10.2pt",
+                    lineHeight: 1.28,
+                  }}
+                >
+                  <BulletList
+                    items={item.description.split(/\n+/)}
+                  />
                 </div>
               )}
 
               {hasItems(item.technologies) && (
-                <div style={{ marginTop: "1px", fontSize: "8pt" }}>
+                <div
+                  style={{
+                    marginTop: "2px",
+                    fontSize: "9.8pt",
+                    lineHeight: 1.25,
+                  }}
+                >
                   <strong>Technologies Used:</strong>{" "}
                   {item.technologies.join(", ")}
                 </div>
@@ -357,7 +469,12 @@ function SkillsSection({ skills }) {
 
   return (
     <Section title="Technical Skills and Interests">
-      <div style={{ fontSize: "8.2pt", lineHeight: 1.2 }}>
+      <div
+        style={{
+          fontSize: "10.3pt",
+          lineHeight: 1.3,
+        }}
+      >
         <div>
           <strong>Skills:</strong> {skills.join(", ")}
         </div>
@@ -380,10 +497,12 @@ export default function BasicTemplate({ data }) {
     >
       <Header profile={profile} />
 
-      {/* The supplied LaTeX template uses this compact order. */}
       <EducationSection education={education} />
+
       <ProjectsSection projects={projects} />
+
       <ExperienceSection experience={experience} />
+
       <SkillsSection skills={skills} />
 
       {hasItems(data?.certifications) && (
@@ -400,7 +519,15 @@ export default function BasicTemplate({ data }) {
 
       {hasItems(data?.languages) && (
         <Section title="Languages">
-          <p style={{ margin: 0 }}>{data.languages.join(", ")}</p>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "10.3pt",
+              lineHeight: 1.3,
+            }}
+          >
+            {data.languages.join(", ")}
+          </p>
         </Section>
       )}
     </article>
