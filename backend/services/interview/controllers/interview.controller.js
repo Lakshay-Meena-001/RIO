@@ -12,6 +12,12 @@ const getUserId = (req) => {
   return userId;
 };
 
+/*
+|--------------------------------------------------------------------------
+| Start Interview
+|--------------------------------------------------------------------------
+*/
+
 export const startInterview = async (req, res, next) => {
   try {
     const userId = getUserId(req);
@@ -28,26 +34,44 @@ export const startInterview = async (req, res, next) => {
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| Submit Individual Answer
+|--------------------------------------------------------------------------
+*/
+
 export const submitAnswer = async (req, res, next) => {
   try {
     const userId = getUserId(req);
-    const { interviewId, answer } = req.body;
 
-    const interview = await interviewService.submitAnswer(
+    const { interviewId, questionId, answer } = req.body;
+
+    const result = await interviewService.submitAnswer(
       userId,
       interviewId,
+      questionId,
       answer,
     );
 
     return res.status(200).json({
       success: true,
       message: "Answer submitted successfully.",
-      data: interview,
+      data: result,
     });
   } catch (error) {
     next(error);
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| Next Question
+|--------------------------------------------------------------------------
+|
+| Navigation only.
+| No question generation happens here.
+|
+*/
 
 export const getNextQuestion = async (req, res, next) => {
   try {
@@ -58,13 +82,76 @@ export const getNextQuestion = async (req, res, next) => {
 
     return res.status(200).json({
       success: true,
-      message: "Next question generated successfully.",
+      message: "Moved to next question.",
       data: result,
     });
   } catch (error) {
     next(error);
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| Previous Question
+|--------------------------------------------------------------------------
+|
+| Navigation only.
+| No LLM call happens here.
+|
+*/
+
+export const getPreviousQuestion = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+
+    const result = await interviewService.getPreviousQuestion(
+      userId,
+      interviewId,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Moved to previous question.",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| Final Submit Interview
+|--------------------------------------------------------------------------
+|
+| Evaluates all remaining unsubmitted questions and
+| generates the final interview report.
+|
+*/
+
+export const submitInterview = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+
+    const result = await interviewService.submitInterview(userId, interviewId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Interview submitted successfully.",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| Get Interview
+|--------------------------------------------------------------------------
+*/
 
 export const getInterview = async (req, res, next) => {
   try {
@@ -82,6 +169,12 @@ export const getInterview = async (req, res, next) => {
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| Interview History
+|--------------------------------------------------------------------------
+*/
+
 export const getInterviewHistory = async (req, res, next) => {
   try {
     const userId = getUserId(req);
@@ -96,6 +189,12 @@ export const getInterviewHistory = async (req, res, next) => {
     next(error);
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| Pause Interview
+|--------------------------------------------------------------------------
+*/
 
 export const pauseInterview = async (req, res, next) => {
   try {
@@ -117,6 +216,12 @@ export const pauseInterview = async (req, res, next) => {
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| Resume Interview
+|--------------------------------------------------------------------------
+*/
+
 export const resumeInterview = async (req, res, next) => {
   try {
     const userId = getUserId(req);
@@ -137,6 +242,12 @@ export const resumeInterview = async (req, res, next) => {
   }
 };
 
+/*
+|--------------------------------------------------------------------------
+| Quit Interview
+|--------------------------------------------------------------------------
+*/
+
 export const quitInterview = async (req, res, next) => {
   try {
     const userId = getUserId(req);
@@ -147,28 +258,6 @@ export const quitInterview = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Interview quit successfully.",
-      data: interview,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const addMoreQuestions = async (req, res, next) => {
-  try {
-    const userId = getUserId(req);
-    const { interviewId } = req.params;
-    const { count } = req.body;
-
-    const interview = await interviewService.addMoreQuestions(
-      userId,
-      interviewId,
-      count,
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "More questions added successfully.",
       data: interview,
     });
   } catch (error) {

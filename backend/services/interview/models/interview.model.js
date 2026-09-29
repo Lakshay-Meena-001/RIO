@@ -77,7 +77,11 @@ const evaluationSchema = new mongoose.Schema(
  * ---------------------------------------------------------
  * Question Schema
  * ---------------------------------------------------------
- * Stores every question asked during one interview.
+ * Stores every question belonging to one interview.
+ *
+ * IMPORTANT:
+ * Questions are generated when the interview is created.
+ * Navigation between questions is independent of submission.
  */
 const questionSchema = new mongoose.Schema(
   {
@@ -123,7 +127,14 @@ const questionSchema = new mongoose.Schema(
     },
 
     /*
-     * Candidate's answer.
+     * -----------------------------------------------------
+     * Candidate Answer
+     * -----------------------------------------------------
+     *
+     * This stores the candidate's current answer/draft.
+     *
+     * submittedAt is the source of truth for whether
+     * evaluation has been successfully completed.
      */
     answer: {
       type: String,
@@ -131,7 +142,22 @@ const questionSchema = new mongoose.Schema(
     },
 
     /*
-     * When question was generated/shown.
+     * Explicit question submission state.
+     *
+     * not-submitted:
+     *   Candidate has not successfully submitted this question.
+     *
+     * submitted:
+     *   Evaluation succeeded and the question is locked.
+     */
+    answerStatus: {
+      type: String,
+      enum: ["not-submitted", "submitted"],
+      default: "not-submitted",
+    },
+
+    /*
+     * When the question was generated/shown.
      */
     askedAt: {
       type: Date,
@@ -139,10 +165,9 @@ const questionSchema = new mongoose.Schema(
     },
 
     /*
-     * Set only after evaluation succeeds.
+     * Set ONLY after evaluation succeeds.
      *
-     * This distinction allows us to preserve the answer
-     * if the LLM temporarily fails.
+     * This remains null if evaluation/server processing fails.
      */
     submittedAt: {
       type: Date,
@@ -309,7 +334,7 @@ const interviewSchema = new mongoose.Schema(
       default: "created",
       index: true,
     },
-    
+
     /*
      * -----------------------------------------------------
      * Interview Lifecycle
@@ -326,12 +351,25 @@ const interviewSchema = new mongoose.Schema(
       default: null,
     },
 
+    /*
+     * Why the interview ended.
+     */
     terminationReason: {
       type: String,
-      enum: ["completed", "quit", "time-limit", "failed"],
+      enum: ["completed", "quit", "time-limit", "server-error", "failed"],
       default: null,
     },
 
+    /*
+     * -----------------------------------------------------
+     * Navigation
+     * -----------------------------------------------------
+     *
+     * This is ONLY the currently viewed question.
+     *
+     * It is NOT used to determine which question should
+     * be generated next.
+     */
     currentQuestionIndex: {
       type: Number,
       min: 0,
@@ -340,13 +378,31 @@ const interviewSchema = new mongoose.Schema(
 
     /*
      * -----------------------------------------------------
-     * Interview Conversation
+     * Interview Questions
      * -----------------------------------------------------
+     *
+     * All configured questions belong to the interview.
      */
-
     questions: {
       type: [questionSchema],
       default: [],
+    },
+
+    /*
+     * -----------------------------------------------------
+     * Finalization
+     * -----------------------------------------------------
+     *
+     * finalizedAt is set when the interview successfully
+     * reaches its final completed state.
+     *
+     * This helps make finalization idempotent and gives us
+     * a reliable lifecycle timestamp separate from the
+     * general endedAt field.
+     */
+    finalizedAt: {
+      type: Date,
+      default: null,
     },
 
     /*

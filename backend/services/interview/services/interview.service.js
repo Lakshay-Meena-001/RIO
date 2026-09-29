@@ -1,30 +1,53 @@
 import mongoose from "mongoose";
+import crypto from "node:crypto";
+
 import Interview from "../models/interview.model.js";
+import User from "../../auth/models/user.model.js";
+
 import graph from "../graph/graph.js";
 import AppError from "../utils/error.js";
-import crypto from "node:crypto";
+
 /*
- * ---------------------------------------------------------
- * Build Graph State
- * ---------------------------------------------------------
- * Converts MongoDB interview data into the state expected
- * by LangGraph.
+ * =========================================================
+ * CONSTANTS
+ * =========================================================
+ */
+
+const INTERVIEW_COMPLETION_COST = 10;
+
+/*
+ * =========================================================
+ * BUILD GRAPH STATE
+ * =========================================================
+ *
+ * Converts the MongoDB interview document into the state
+ * expected by LangGraph.
+ *
+ * currentQuestion / currentAnswer / currentEvaluation are
+ * temporary values used by the feedback node.
  */
 function buildGraphState(interview, extraState = {}) {
   return {
     userId: interview.userId.toString(),
 
     role: interview.role,
+
     experienceLevel: interview.experienceLevel,
+
     interviewLevel: interview.interviewLevel,
+
     interviewType: interview.interviewType,
 
     subjects: interview.subjects || [],
+
     techStack: interview.techStack || [],
+
     language: interview.language,
 
     difficulty: interview.difficulty,
+
     timeLimit: interview.timeLimit,
+
     questionCount: interview.questionCount,
 
     projectContext: interview.projectContext || null,
@@ -32,30 +55,41 @@ function buildGraphState(interview, extraState = {}) {
     status: interview.status,
 
     currentQuestionIndex: interview.currentQuestionIndex,
+
     currentQuestion: extraState.currentQuestion || null,
+
     currentAnswer: extraState.currentAnswer || "",
+
     currentEvaluation: extraState.currentEvaluation || null,
 
     questions: interview.questions || [],
 
     overallScore: interview.overallScore,
+
     sectionScores: interview.sectionScores,
+
     strengths: interview.strengths,
+
     weaknesses: interview.weaknesses,
+
     recommendations: interview.recommendations,
+
     summary: interview.summary,
 
     action: extraState.action || null,
+
     completed: false,
+
     error: null,
   };
 }
 
 /*
- * ---------------------------------------------------------
- * Validate Interview ID
- * ---------------------------------------------------------
+ * =========================================================
+ * VALIDATE INTERVIEW ID
+ * =========================================================
  */
+
 function validateInterviewId(interviewId) {
   if (!mongoose.Types.ObjectId.isValid(interviewId)) {
     throw new AppError("Invalid interview ID.", 400);
@@ -63,9 +97,9 @@ function validateInterviewId(interviewId) {
 }
 
 /*
- * ---------------------------------------------------------
- * Get Interview Deadline
- * ---------------------------------------------------------
+ * =========================================================
+ * GET INTERVIEW DEADLINE
+ * =========================================================
  */
 
 function getInterviewDeadline(interview) {
@@ -80,37 +114,14 @@ function getInterviewDeadline(interview) {
 }
 
 /*
- * ---------------------------------------------------------
- * Expire Interview Deadline
- * ---------------------------------------------------------
- */
-async function expireInterviewIfNeeded(interview) {
-  if (
-    !interview.startedAt ||
-    !["in-progress", "paused"].includes(interview.status)
-  ) {
-    return false;
-  }
-
-  const deadline = getInterviewDeadline(interview);
-
-  if (!deadline || new Date() < deadline) {
-    return false;
-  }
-
-  interview.status = "completed";
-  interview.endedAt = new Date();
-  interview.terminationReason = "time-limit";
-
-  await interview.save();
-
-  return true;
-}
-
-/*
- * ---------------------------------------------------------
- * Convert Graph Question
- * ---------------------------------------------------------
+ * =========================================================
+ * CREATE QUESTION RECORD
+ * =========================================================
+ *
+ * The AI generates the question.
+ *
+ * MongoDB creates the interview-specific questionId so
+ * the client can safely identify and submit any question.
  */
 function createQuestionRecord(question) {
   if (!question) {
@@ -119,13 +130,21 @@ function createQuestionRecord(question) {
 
   return {
     questionId: crypto.randomUUID(),
+
     text: question.text,
+
     section: question.section,
+
     type: question.type || "primary",
+
     difficulty: question.difficulty,
 
     answer: "",
+
+    answerStatus: "not-submitted",
+
     askedAt: new Date(),
+
     submittedAt: null,
 
     evaluation: {
@@ -144,33 +163,343 @@ function createQuestionRecord(question) {
 }
 
 /*
- * ---------------------------------------------------------
+ * =========================================================
+ * GET USER INTERVIEW
+ * =========================================================
+ */
+
+async function findUserInterview(userId, interviewId) {
+  const interview = await Interview.findOne({
+    _id: interviewId,
+    userId,
+  });
+
+  if (!interview) {
+    throw new AppError("Interview not found.", 404);
+  }
+
+  return interview;
+}
+
+/*
+ * =========================================================
+ * EVALUATE ONE QUESTION
+ * =========================================================
+ *
+ * This is the ONLY place where an individual answer goes
+ * through LangGraph/LLM evaluation.
+ *
+ * Navigation never calls this function.
+ */
+async function evaluateQuestion(interview, question) {
+  if (!question) {
+    throw new AppError("Interview question not found.", 400);
+  }
+
+  if (question.answerStatus === "submitted" || question.submittedAt) {
+    return {
+      alreadySubmitted: true,
+      evaluation: question.evaluation,
+    };
+  }
+
+  if (!question.answer || !question.answer.trim()) {
+    throw new AppError("Answer is required before submission.", 400);
+  }
+
+  const graphState = buildGraphState(interview, {
+    action: "submit-answer",
+
+    currentQuestion: {
+      questionId: question.questionId,
+      text: question.text,
+      section: question.section,
+      type: question.type,
+      difficulty: question.difficulty,
+    },
+
+    currentAnswer: question.answer,
+  });
+
+  const result = await graph.invoke(graphState);
+
+  const evaluation = result.currentEvaluation;
+
+  if (!evaluation) {
+    throw new AppError("Failed to evaluate interview answer.", 502);
+  }
+
+  return {
+    alreadySubmitted: false,
+    evaluation,
+  };
+}
+
+/*
+ * =========================================================
+ * MARK QUESTION SUBMITTED
+ * =========================================================
+ */
+
+function markQuestionSubmitted(question, evaluation) {
+  question.evaluation = evaluation;
+
+  question.answerStatus = "submitted";
+
+  question.submittedAt = new Date();
+}
+
+/*
+ * =========================================================
+ * ABANDON INTERVIEW ON SERVER ERROR
+ * =========================================================
+ *
+ * Already submitted questions remain preserved.
+ *
+ * No completion.
+ * No coin deduction.
+ */
+async function abandonForServerError(interview) {
+  interview.status = "abandoned";
+
+  interview.endedAt = new Date();
+
+  interview.terminationReason = "server-error";
+
+  await interview.save();
+}
+
+/*
+ * =========================================================
+ * GENERATE FINAL SUMMARY
+ * =========================================================
+ */
+
+async function generateInterviewSummary(interview) {
+  const graphState = buildGraphState(interview, {
+    action: "summary",
+  });
+
+  const result = await graph.invoke(graphState);
+
+  if (result.overallScore === undefined) {
+    throw new AppError("Failed to generate interview summary.", 502);
+  }
+
+  return {
+    overallScore: result.overallScore ?? 0,
+
+    sectionScores: result.sectionScores || {},
+
+    strengths: result.strengths || [],
+
+    weaknesses: result.weaknesses || [],
+
+    recommendations: result.recommendations || [],
+
+    summary: result.summary || "",
+  };
+}
+
+/*
+ * =========================================================
+ * FINALIZE + CHARGE
+ * =========================================================
+ *
+ * IMPORTANT:
+ *
+ * Interview completion and coin deduction happen inside the
+ * SAME MongoDB transaction.
+ *
+ * This prevents:
+ *
+ * completed interview + no coins deducted
+ *
+ * or
+ *
+ * coins deducted + interview not completed
+ *
+ * from being committed independently.
+ */
+async function finalizeInterviewWithCharge(
+  userId,
+  interviewId,
+  report,
+  terminationReason = "completed",
+) {
+  const session = await mongoose.startSession();
+
+  try {
+    let finalizedInterview;
+
+    await session.withTransaction(async () => {
+      /*
+       * -----------------------------------------------------
+       * Lock the interview lifecycle logically.
+       *
+       * Only an active interview with no finalizedAt can
+       * perform finalization.
+       * -----------------------------------------------------
+       */
+      const interview = await Interview.findOne({
+        _id: interviewId,
+        userId,
+        status: "in-progress",
+        finalizedAt: null,
+      }).session(session);
+
+      if (!interview) {
+        /*
+         * It may already have been finalized by another
+         * request.
+         */
+        const existingInterview = await Interview.findOne({
+          _id: interviewId,
+          userId,
+        }).session(session);
+
+        if (
+          existingInterview &&
+          existingInterview.status === "completed" &&
+          existingInterview.finalizedAt
+        ) {
+          finalizedInterview = existingInterview;
+          return;
+        }
+
+        throw new AppError("Interview cannot be finalized.", 400);
+      }
+
+      /*
+       * -----------------------------------------------------
+       * Make sure every question has been submitted.
+       * -----------------------------------------------------
+       */
+      const incompleteQuestion = interview.questions.find(
+        (question) =>
+          question.answerStatus !== "submitted" || !question.submittedAt,
+      );
+
+      if (incompleteQuestion) {
+        throw new AppError(
+          "All interview questions must be evaluated before completion.",
+          400,
+        );
+      }
+
+      /*
+       * -----------------------------------------------------
+       * Deduct exactly 10 coins atomically.
+       * -----------------------------------------------------
+       */
+      const updatedUser = await User.findOneAndUpdate(
+        {
+          _id: userId,
+
+          coins: {
+            $gte: INTERVIEW_COMPLETION_COST,
+          },
+        },
+        {
+          $inc: {
+            coins: -INTERVIEW_COMPLETION_COST,
+          },
+        },
+        {
+          new: true,
+          session,
+          runValidators: true,
+        },
+      );
+
+      if (!updatedUser) {
+        throw new AppError("Not enough coins to complete the interview.", 400);
+      }
+
+      /*
+       * -----------------------------------------------------
+       * Save final report.
+       * -----------------------------------------------------
+       */
+      interview.overallScore = report.overallScore;
+
+      interview.sectionScores = report.sectionScores;
+
+      interview.strengths = report.strengths;
+
+      interview.weaknesses = report.weaknesses;
+
+      interview.recommendations = report.recommendations;
+
+      interview.summary = report.summary;
+
+      interview.status = "completed";
+
+      interview.endedAt = new Date();
+
+      interview.terminationReason = terminationReason;
+
+      interview.finalizedAt = new Date();
+
+      await interview.save({ session });
+
+      finalizedInterview = interview;
+    });
+
+    return finalizedInterview;
+  } finally {
+    await session.endSession();
+  }
+}
+
+/*
+ * =========================================================
  * START INTERVIEW
- * ---------------------------------------------------------
+ * =========================================================
+ *
+ * IMPORTANT:
+ *
+ * All questions are generated in ONE interview-start
+ * operation.
+ *
+ * No question is generated from Next/Previous.
  */
 export const startInterview = async (userId, interviewData) => {
+  const questionCount = Number(interviewData.questionCount || 10);
+
   const interview = await Interview.create({
     userId,
 
     role: interviewData.role,
+
     experienceLevel: interviewData.experienceLevel,
+
     interviewLevel: interviewData.interviewLevel,
+
     interviewType: interviewData.interviewType,
 
     subjects: interviewData.subjects || [],
+
     language: interviewData.language || "english",
 
     difficulty: interviewData.difficulty || "easy",
+
     timeLimit: interviewData.timeLimit || 30,
-    questionCount: interviewData.questionCount || 10,
+
+    questionCount,
 
     techStack: interviewData.techStack || [],
+
     projectContext: interviewData.projectContext || null,
 
     status: "created",
+
     startedAt: null,
+
     endedAt: null,
+
     terminationReason: null,
+
     currentQuestionIndex: 0,
 
     questions: [],
@@ -183,33 +512,52 @@ export const startInterview = async (userId, interviewData) => {
 
     const result = await graph.invoke(graphState);
 
-    const question = result.currentQuestion;
-
-    if (!question) {
-      throw new AppError("Failed to generate interview question.", 502);
+    if (!result?.questions || result.questions.length === 0) {
+      throw new AppError("Failed to generate interview questions.", 502);
     }
 
-    interview.questions.push(createQuestionRecord(question));
+    /*
+     * The model/prompt must generate exactly the configured
+     * number of questions.
+     */
+    if (result.questions.length !== questionCount) {
+      throw new AppError(
+        "Generated question count does not match the interview configuration.",
+        502,
+      );
+    }
+
+    const questionRecords = result.questions.map(createQuestionRecord);
+
+    interview.questions = questionRecords;
 
     interview.currentQuestionIndex = 0;
+
     interview.status = "in-progress";
 
     interview.startedAt = new Date();
+
     interview.endedAt = null;
+
     interview.terminationReason = null;
 
     await interview.save();
 
     return {
       interviewId: interview._id,
+
       status: interview.status,
+
       currentQuestionIndex: interview.currentQuestionIndex,
-      question: interview.questions[0],
+
+      questionCount: interview.questions.length,
+
+      questions: interview.questions,
     };
   } catch (error) {
     /*
-     * The interview document remains available in `created`
-     * state instead of silently disappearing.
+     * The interview remains in created state if generation
+     * fails before the interview starts.
      */
     if (error instanceof AppError) {
       throw error;
@@ -220,299 +568,629 @@ export const startInterview = async (userId, interviewData) => {
 };
 
 /*
- * ---------------------------------------------------------
- * SUBMIT ANSWER
- * ---------------------------------------------------------
+ * =========================================================
+ * SUBMIT ONE ANSWER
+ * =========================================================
+ *
+ * Candidate can submit ANY question.
+ *
+ * questionId identifies the question.
+ *
+ * Already submitted questions are immutable.
  */
-export const submitAnswer = async (userId, interviewId, answer) => {
+export const submitAnswer = async (userId, interviewId, questionId, answer) => {
   validateInterviewId(interviewId);
 
-  const interview = await Interview.findOne({
-    _id: interviewId,
-    userId,
-  });
+  if (!questionId) {
+    throw new AppError("Question ID is required.", 400);
+  }
 
-  if (!interview) {
-    throw new AppError("Interview not found.", 404);
+  if (typeof answer !== "string" || !answer.trim()) {
+    throw new AppError("Answer is required.", 400);
+  }
+
+  const interview = await findUserInterview(userId, interviewId);
+
+  /*
+   * -------------------------------------------------------
+   * Handle time expiry before processing answer.
+   * -------------------------------------------------------
+   */
+  if (
+    interview.status === "in-progress" &&
+    getInterviewDeadline(interview) &&
+    new Date() >= getInterviewDeadline(interview)
+  ) {
+    await expireInterviewIfNeeded(interview);
+
+    throw new AppError("Interview time has expired.", 400);
   }
 
   if (interview.status !== "in-progress") {
     throw new AppError("Interview is not active.", 400);
   }
 
-  const currentQuestion = interview.questions[interview.currentQuestionIndex];
+  const question = interview.questions.find(
+    (item) => item.questionId === questionId,
+  );
 
-  if (!currentQuestion) {
-    throw new AppError("Current question not found.", 400);
-  }
-
-  if (currentQuestion.submittedAt) {
-    throw new AppError(
-      "Answer for this question has already been submitted.",
-      400,
-    );
+  if (!question) {
+    throw new AppError("Interview question not found.", 404);
   }
 
   /*
-   * Save answer first.
+   * -------------------------------------------------------
+   * Idempotent duplicate submission.
    *
-   * Important:
-   * If the LLM fails, the candidate's answer is not lost.
-   * submittedAt remains null so the answer can be retried.
+   * Never run the LLM again.
+   * -------------------------------------------------------
    */
-  currentQuestion.answer = answer;
+  if (question.answerStatus === "submitted" || question.submittedAt) {
+    return {
+      interviewId: interview._id,
+
+      questionId: question.questionId,
+
+      evaluation: question.evaluation,
+
+      answerStatus: "submitted",
+
+      currentQuestionIndex: interview.currentQuestionIndex,
+    };
+  }
+
+  /*
+   * Save answer before evaluation.
+   *
+   * If evaluation fails, answer remains available but
+   * submittedAt remains null.
+   */
+  question.answer = answer;
 
   await interview.save();
 
-  /*
-   * Ask LangGraph to evaluate the answer.
-   */
   try {
-    const graphState = buildGraphState(interview, {
-      action: "submit-answer",
+    const { evaluation } = await evaluateQuestion(interview, question);
 
-      currentQuestion: {
-        questionId: currentQuestion.questionId,
-        text: currentQuestion.text,
-        section: currentQuestion.section,
-        type: currentQuestion.type,
-        difficulty: currentQuestion.difficulty,
-      },
-
-      currentAnswer: answer,
-    });
-
-    const result = await graph.invoke(graphState);
-
-    const evaluation = result.currentEvaluation;
-
-    if (!evaluation) {
-      throw new AppError("Failed to evaluate interview answer.", 502);
-    }
-
-    /*
-     * Evaluation succeeded.
-     * Now mark the answer as submitted.
-     */
-    currentQuestion.evaluation = evaluation;
-    currentQuestion.submittedAt = new Date();
+    markQuestionSubmitted(question, evaluation);
 
     await interview.save();
 
     return {
       interviewId: interview._id,
-      questionId: currentQuestion.questionId,
+
+      questionId: question.questionId,
+
       evaluation,
+
+      answerStatus: question.answerStatus,
+
       currentQuestionIndex: interview.currentQuestionIndex,
     };
   } catch (error) {
-    if (error instanceof AppError) {
-      throw error;
+    try {
+      const currentInterview = await Interview.findOne({
+        _id: interviewId,
+        userId,
+      });
+
+      if (currentInterview && currentInterview.status === "in-progress") {
+        await abandonForServerError(currentInterview);
+      }
+    } catch (abandonError) {
+      console.error("Failed to mark interview as abandoned:", abandonError);
     }
 
-    throw new AppError("Failed to evaluate interview answer.", 502);
+    throw new AppError(
+      "We couldn't evaluate your answer due to a server error. Your interview has been ended.",
+      502,
+    );
   }
 };
 
 /*
- * ---------------------------------------------------------
+ * =========================================================
  * NEXT QUESTION
- * ---------------------------------------------------------
+ * =========================================================
+ *
+ * Navigation ONLY.
+ *
+ * No LLM call.
  */
 export const getNextQuestion = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await Interview.findOne({
-    _id: interviewId,
-    userId,
-  });
+  const interview = await findUserInterview(userId, interviewId);
 
-  if (!interview) {
-    throw new AppError("Interview not found.", 404);
+  if (interview.status !== "in-progress") {
+    throw new AppError("Interview is not active.", 400);
+  }
+
+  const deadline = getInterviewDeadline(interview);
+
+  if (deadline && new Date() >= deadline) {
+    await expireInterviewIfNeeded(interview);
+
+    throw new AppError("Interview time has expired.", 400);
+  }
+
+  const nextIndex = interview.currentQuestionIndex + 1;
+
+  if (nextIndex >= interview.questions.length) {
+    return {
+      interviewId: interview._id,
+
+      currentQuestionIndex: interview.currentQuestionIndex,
+
+      question: interview.questions[interview.currentQuestionIndex],
+
+      isFirst: false,
+
+      isLast: true,
+    };
+  }
+
+  interview.currentQuestionIndex = nextIndex;
+
+  await interview.save();
+
+  return {
+    interviewId: interview._id,
+
+    currentQuestionIndex: nextIndex,
+
+    question: interview.questions[nextIndex],
+
+    isFirst: false,
+
+    isLast: nextIndex === interview.questions.length - 1,
+  };
+};
+
+/*
+ * =========================================================
+ * PREVIOUS QUESTION
+ * =========================================================
+ *
+ * Navigation ONLY.
+ *
+ * No LLM call.
+ */
+export const getPreviousQuestion = async (userId, interviewId) => {
+  validateInterviewId(interviewId);
+
+  const interview = await findUserInterview(userId, interviewId);
+
+  if (interview.status !== "in-progress") {
+    throw new AppError("Interview is not active.", 400);
+  }
+
+  const previousIndex = interview.currentQuestionIndex - 1;
+
+  if (previousIndex < 0) {
+    return {
+      interviewId: interview._id,
+
+      currentQuestionIndex: 0,
+
+      question: interview.questions[0],
+
+      isFirst: true,
+
+      isLast: interview.questions.length === 1,
+    };
+  }
+
+  interview.currentQuestionIndex = previousIndex;
+
+  await interview.save();
+
+  return {
+    interviewId: interview._id,
+
+    currentQuestionIndex: previousIndex,
+
+    question: interview.questions[previousIndex],
+
+    isFirst: previousIndex === 0,
+
+    isLast: previousIndex === interview.questions.length - 1,
+  };
+};
+
+/*
+ * =========================================================
+ * SUBMIT ENTIRE INTERVIEW
+ * =========================================================
+ *
+ * This is the final submission.
+ *
+ * Already submitted questions:
+ *     NEVER evaluated again.
+ *
+ * Remaining questions:
+ *     evaluated one by one.
+ *
+ * If any remaining evaluation fails:
+ *     interview becomes abandoned/server-error.
+ *
+ * Already successful evaluations remain saved.
+ */
+export const submitInterview = async (userId, interviewId) => {
+  validateInterviewId(interviewId);
+
+  let interview = await findUserInterview(userId, interviewId);
+
+  /*
+   * -------------------------------------------------------
+   * Idempotent final submission.
+   * -------------------------------------------------------
+   */
+  if (interview.status === "completed" && interview.finalizedAt) {
+    return {
+      interviewId: interview._id,
+
+      status: interview.status,
+
+      overallScore: interview.overallScore,
+
+      sectionScores: interview.sectionScores,
+
+      strengths: interview.strengths,
+
+      weaknesses: interview.weaknesses,
+
+      recommendations: interview.recommendations,
+
+      summary: interview.summary,
+
+      alreadyFinalized: true,
+    };
   }
 
   if (interview.status !== "in-progress") {
     throw new AppError("Interview is not active.", 400);
   }
 
-  const currentQuestion = interview.questions[interview.currentQuestionIndex];
+  /*
+   * -------------------------------------------------------
+   * Time check.
+   *
+   * Final submission at/after deadline follows the
+   * time-limit path.
+   * -------------------------------------------------------
+   */
+  const deadline = getInterviewDeadline(interview);
+
+  const isTimeExpired = deadline && new Date() >= deadline;
 
   /*
-   * Candidate must answer the current question
-   * before moving to the next one.
+   * -------------------------------------------------------
+   * Find only questions that still need evaluation.
+   * -------------------------------------------------------
    */
-  if (currentQuestion && !currentQuestion.submittedAt) {
-    throw new AppError(
-      "Submit the current answer before requesting the next question.",
-      400,
-    );
-  }
-
-  /*
-   * All configured questions completed.
-   */
-  if (interview.questions.length >= interview.questionCount) {
-    return completeInterview(userId, interviewId);
-  }
-
-  const nextQuestionIndex = interview.questions.length;
+  const pendingQuestions = interview.questions.filter(
+    (question) =>
+      question.answerStatus !== "submitted" && !question.submittedAt,
+  );
 
   try {
-    const graphState = buildGraphState(interview, {
-      action: "start",
+    /*
+     * -----------------------------------------------------
+     * Evaluate only remaining questions.
+     * -----------------------------------------------------
+     */
+    for (const question of pendingQuestions) {
+      /*
+       * Empty answers are still evaluated as unanswered.
+       *
+       * The feedback agent receives an explicit fallback
+       * answer so final submission can process the entire
+       * configured interview.
+       */
+      if (typeof question.answer !== "string" || !question.answer.trim()) {
+        question.answer = "No answer provided.";
+      }
+
+      const { evaluation } = await evaluateQuestion(interview, question);
+
+      markQuestionSubmitted(question, evaluation);
+
+      /*
+       * Persist after EVERY successful question.
+       *
+       * If Q4 fails after Q1-Q3 succeeded, Q1-Q3 remain
+       * submitted and will never be evaluated again.
+       */
+      await interview.save();
+    }
+
+    /*
+     * -----------------------------------------------------
+     * Reload the latest MongoDB document before summary.
+     * -----------------------------------------------------
+     */
+    interview = await Interview.findOne({
+      _id: interviewId,
+      userId,
     });
 
-    graphState.currentQuestionIndex = nextQuestionIndex;
+    if (!interview) {
+      throw new AppError("Interview not found.", 404);
+    }
 
-    const result = await graph.invoke(graphState);
+    /*
+     * -----------------------------------------------------
+     * Verify every question is now submitted.
+     * -----------------------------------------------------
+     */
+    const incompleteQuestion = interview.questions.find(
+      (question) =>
+        question.answerStatus !== "submitted" || !question.submittedAt,
+    );
 
-    const question = result.currentQuestion;
+    if (incompleteQuestion) {
+      throw new AppError("Not all interview questions were evaluated.", 502);
+    }
 
-    if (!question) {
+    /*
+     * -----------------------------------------------------
+     * Generate final report.
+     * -----------------------------------------------------
+     */
+    const report = await generateInterviewSummary(interview);
+
+    /*
+     * -----------------------------------------------------
+     * Finalize interview + charge coins atomically.
+     *
+     * Time-limit is still a successful completion if all
+     * answers were successfully processed.
+     * -----------------------------------------------------
+     */
+    const terminationReason = isTimeExpired ? "time-limit" : "completed";
+
+    const finalizedInterview = await finalizeInterviewWithCharge(
+      userId,
+      interviewId,
+      report,
+      terminationReason,
+    );
+
+    return {
+      interviewId: finalizedInterview._id,
+
+      status: finalizedInterview.status,
+
+      terminationReason: finalizedInterview.terminationReason,
+
+      overallScore: finalizedInterview.overallScore,
+
+      sectionScores: finalizedInterview.sectionScores,
+
+      strengths: finalizedInterview.strengths,
+
+      weaknesses: finalizedInterview.weaknesses,
+
+      recommendations: finalizedInterview.recommendations,
+
+      summary: finalizedInterview.summary,
+
+      coinsCharged: INTERVIEW_COMPLETION_COST,
+
+      alreadyFinalized: false,
+    };
+  } catch (error) {
+    /*
+     * -----------------------------------------------------
+     * Server/LLM failure.
+     *
+     * Already submitted questions stay preserved.
+     * No completion.
+     * No coin charge.
+     * -----------------------------------------------------
+     */
+    if (
+      error instanceof AppError &&
+      error.statusCode >= 400 &&
+      error.statusCode < 500
+    ) {
+      /*
+       * Validation/business errors such as insufficient
+       * coins should not automatically abandon the
+       * interview.
+       */
+      if (error.message === "Not enough coins to complete the interview.") {
+        throw error;
+      }
+
+      throw error;
+    }
+
+    /*
+     * Mark interview abandoned only for actual processing/
+     * infrastructure/LLM failures.
+     */
+    try {
+      const currentInterview = await Interview.findOne({
+        _id: interviewId,
+        userId,
+      });
+
+      if (currentInterview && currentInterview.status === "in-progress") {
+        await abandonForServerError(currentInterview);
+      }
+    } catch (abandonError) {
+      console.error("Failed to mark interview as abandoned:", abandonError);
+    }
+
+    throw new AppError(
+      "We couldn't complete your interview due to a server error. Your interview has been ended without charging coins.",
+      502,
+    );
+  }
+};
+
+/*
+ * =========================================================
+ * EXPIRE INTERVIEW
+ * =========================================================
+ *
+ * Backend is the source of truth for time.
+ *
+ * Remaining questions are evaluated automatically.
+ */
+async function expireInterviewIfNeeded(interview) {
+  if (
+    !interview.startedAt ||
+    !["in-progress", "paused"].includes(interview.status)
+  ) {
+    return false;
+  }
+
+  const deadline = getInterviewDeadline(interview);
+
+  if (!deadline || new Date() < deadline) {
+    return false;
+  }
+
+  /*
+   * A paused interview is also expired once its original
+   * deadline has passed.
+   */
+  try {
+    /*
+     * -----------------------------------------------------
+     * Evaluate every remaining question.
+     * -----------------------------------------------------
+     */
+    const pendingQuestions = interview.questions.filter(
+      (question) =>
+        question.answerStatus !== "submitted" && !question.submittedAt,
+    );
+
+    for (const question of pendingQuestions) {
+      if (typeof question.answer !== "string" || !question.answer.trim()) {
+        question.answer = "No answer provided.";
+      }
+
+      const { evaluation } = await evaluateQuestion(interview, question);
+
+      markQuestionSubmitted(question, evaluation);
+
+      await interview.save();
+    }
+
+    /*
+     * -----------------------------------------------------
+     * Reload latest data.
+     * -----------------------------------------------------
+     */
+    const latestInterview = await Interview.findById(interview._id);
+
+    if (!latestInterview) {
+      throw new AppError("Interview not found.", 404);
+    }
+
+    const incompleteQuestion = latestInterview.questions.find(
+      (question) =>
+        question.answerStatus !== "submitted" || !question.submittedAt,
+    );
+
+    if (incompleteQuestion) {
       throw new AppError(
-        "Failed to generate the next interview question.",
+        "Failed to evaluate all questions before time-limit completion.",
         502,
       );
     }
 
-    interview.questions.push(createQuestionRecord(question));
+    /*
+     * -----------------------------------------------------
+     * Generate report.
+     * -----------------------------------------------------
+     */
+    const report = await generateInterviewSummary(latestInterview);
 
-    interview.currentQuestionIndex = nextQuestionIndex;
-
-    await interview.save();
-
-    return {
-      interviewId: interview._id,
-      currentQuestionIndex: nextQuestionIndex,
-      question: interview.questions[nextQuestionIndex],
-    };
-  } catch (error) {
-    if (error instanceof AppError) {
-      throw error;
-    }
-
-    throw new AppError("Failed to generate the next interview question.", 502);
-  }
-};
-
-/*
- * ---------------------------------------------------------
- * COMPLETE INTERVIEW
- * ---------------------------------------------------------
- */
-export const completeInterview = async (userId, interviewId) => {
-  validateInterviewId(interviewId);
-
-  const interview = await Interview.findOne({
-    _id: interviewId,
-    userId,
-  });
-
-  if (!interview) {
-    throw new AppError("Interview not found.", 404);
-  }
-
-  if (interview.status !== "in-progress") {
-    throw new AppError("Only an active interview can be completed.", 400);
-  }
-
-  /*
-   * Every generated question must have an answer/evaluation
-   * before the final summary is generated.
-   */
-  const incompleteQuestion = interview.questions.find(
-    (question) => !question.submittedAt,
-  );
-
-  if (incompleteQuestion) {
-    throw new AppError(
-      "All interview questions must be answered before completion.",
-      400,
+    /*
+     * -----------------------------------------------------
+     * Finalize + charge exactly once.
+     * -----------------------------------------------------
+     */
+    await finalizeInterviewWithCharge(
+      latestInterview.userId,
+      latestInterview._id,
+      report,
+      "time-limit",
     );
-  }
 
-  try {
-    const graphState = buildGraphState(interview, {
-      action: "summary",
-    });
-
-    const result = await graph.invoke(graphState);
-
-    if (result.overallScore === undefined) {
-      throw new AppError("Failed to generate interview summary.", 502);
-    }
-
-    interview.overallScore = result.overallScore ?? 0;
-    interview.sectionScores = result.sectionScores || {};
-    interview.strengths = result.strengths || [];
-    interview.weaknesses = result.weaknesses || [];
-    interview.recommendations = result.recommendations || [];
-    interview.summary = result.summary || "";
-
-    interview.status = "completed";
-    interview.endedAt = new Date();
-    interview.terminationReason = "completed";
-
-    await interview.save();
-
-    return {
-      interviewId: interview._id,
-      status: interview.status,
-      overallScore: interview.overallScore,
-      sectionScores: interview.sectionScores,
-      strengths: interview.strengths,
-      weaknesses: interview.weaknesses,
-      recommendations: interview.recommendations,
-      summary: interview.summary,
-    };
+    return true;
   } catch (error) {
-    if (error instanceof AppError) {
-      throw error;
+    /*
+     * Time-limit processing failed.
+     *
+     * Preserve whatever was already successfully evaluated.
+     * Do NOT charge coins.
+     */
+    try {
+      const currentInterview = await Interview.findById(interview._id);
+
+      if (currentInterview && currentInterview.status === "in-progress") {
+        await abandonForServerError(currentInterview);
+      }
+    } catch (abandonError) {
+      console.error("Failed to abandon expired interview:", abandonError);
     }
 
-    throw new AppError("Failed to complete interview.", 502);
+    return true;
   }
-};
+}
 
 /*
- * ---------------------------------------------------------
+ * =========================================================
  * GET INTERVIEW
- * ---------------------------------------------------------
+ * =========================================================
  */
+
 export const getInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await Interview.findOne({
+  const interview = await findUserInterview(userId, interviewId);
+
+  /*
+   * If the request happens after the deadline,
+   * process expiration before returning state.
+   */
+  if (interview.status === "in-progress" || interview.status === "paused") {
+    await expireInterviewIfNeeded(interview);
+  }
+
+  return Interview.findOne({
     _id: interviewId,
     userId,
   });
-
-  if (!interview) {
-    throw new AppError("Interview not found.", 404);
-  }
-
-  return interview;
 };
 
 /*
- * ---------------------------------------------------------
+ * =========================================================
  * PAUSE INTERVIEW
- * ---------------------------------------------------------
+ * =========================================================
  */
+
 export const pauseInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await Interview.findOne({
-    _id: interviewId,
-    userId,
-  });
-
-  if (!interview) {
-    throw new AppError("Interview not found.", 404);
-  }
+  const interview = await findUserInterview(userId, interviewId);
 
   if (interview.status !== "in-progress") {
     throw new AppError("Interview is not active.", 400);
+  }
+
+  const deadline = getInterviewDeadline(interview);
+
+  if (deadline && new Date() >= deadline) {
+    await expireInterviewIfNeeded(interview);
+
+    throw new AppError("Interview time has expired.", 400);
   }
 
   interview.status = "paused";
@@ -523,24 +1201,26 @@ export const pauseInterview = async (userId, interviewId) => {
 };
 
 /*
- * ---------------------------------------------------------
+ * =========================================================
  * RESUME INTERVIEW
- * ---------------------------------------------------------
+ * =========================================================
  */
+
 export const resumeInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await Interview.findOne({
-    _id: interviewId,
-    userId,
-  });
-
-  if (!interview) {
-    throw new AppError("Interview not found.", 404);
-  }
+  const interview = await findUserInterview(userId, interviewId);
 
   if (interview.status !== "paused") {
     throw new AppError("Only a paused interview can be resumed.", 400);
+  }
+
+  const deadline = getInterviewDeadline(interview);
+
+  if (deadline && new Date() >= deadline) {
+    await expireInterviewIfNeeded(interview);
+
+    throw new AppError("Interview time has expired.", 400);
   }
 
   interview.status = "in-progress";
@@ -551,28 +1231,24 @@ export const resumeInterview = async (userId, interviewId) => {
 };
 
 /*
- * ---------------------------------------------------------
+ * =========================================================
  * QUIT INTERVIEW
- * ---------------------------------------------------------
+ * =========================================================
  */
+
 export const quitInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await Interview.findOne({
-    _id: interviewId,
-    userId,
-  });
-
-  if (!interview) {
-    throw new AppError("Interview not found.", 404);
-  }
+  const interview = await findUserInterview(userId, interviewId);
 
   if (interview.status === "completed" || interview.status === "abandoned") {
     throw new AppError("Interview is already closed.", 400);
   }
 
   interview.status = "abandoned";
+
   interview.endedAt = new Date();
+
   interview.terminationReason = "quit";
 
   await interview.save();
@@ -581,10 +1257,11 @@ export const quitInterview = async (userId, interviewId) => {
 };
 
 /*
- * ---------------------------------------------------------
+ * =========================================================
  * INTERVIEW HISTORY
- * ---------------------------------------------------------
+ * =========================================================
  */
+
 export const getInterviewHistory = async (userId) => {
   return Interview.find({
     userId,
@@ -594,25 +1271,18 @@ export const getInterviewHistory = async (userId) => {
 };
 
 /*
- * ---------------------------------------------------------
+ * =========================================================
  * DELETE INTERVIEW
- * ---------------------------------------------------------
- * Permanently deletes one interview belonging to the user.
+ * =========================================================
  */
+
 export const deleteInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await Interview.findOne({
-    _id: interviewId,
-    userId,
-  });
-
-  if (!interview) {
-    throw new AppError("Interview not found.", 404);
-  }
+  const interview = await findUserInterview(userId, interviewId);
 
   await Interview.deleteOne({
-    _id: interviewId,
+    _id: interview._id,
     userId,
   });
 
@@ -620,58 +1290,3 @@ export const deleteInterview = async (userId, interviewId) => {
     interviewId,
   };
 };
-
-/*
- * ---------------------------------------------------------
- * ADD MORE QUESTIONS
- * ---------------------------------------------------------
- */
-export const addMoreQuestions = async (userId, interviewId, count = 5) => {
-  validateInterviewId(interviewId);
-
-  const interview = await Interview.findOne({
-    _id: interviewId,
-    userId,
-  });
-
-  if (!interview) {
-    throw new AppError("Interview not found.", 404);
-  }
-
-  if (interview.status !== "in-progress") {
-    throw new AppError("Interview is not active.", 400);
-  }
-
-  /*
-   * Zod already validates this at the API boundary.
-   * Keep this defensive check because the service may also
-   * be called internally.
-   */
-
-  const MAX_QUESTIONS = 50;
-
-  if (interview.questionCount + count > MAX_QUESTIONS) {
-    throw new AppError(
-      `Interview cannot have more than ${MAX_QUESTIONS} questions.`,
-      400,
-    );
-  }
-
-  if (!Number.isInteger(count) || count < 1 || count > 20) {
-    throw new AppError(
-      "Question count must be an integer between 1 and 20.",
-      400,
-    );
-  }
-
-  interview.questionCount += count;
-
-  await interview.save();
-
-  return {
-    interviewId: interview._id,
-    questionCount: interview.questionCount,
-  };
-};
-
-

@@ -510,3 +510,73 @@ export const useCoins = async (req, res) => {
     });
   }
 };
+
+export const deductCoinsInternal = async (req, res) => {
+  try {
+    const userId = req.headers["x-user-id"];
+    const { coin, action } = req.body;
+
+    const coinAmount = Number(coin);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    if (!Number.isInteger(coinAmount) || coinAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Coin amount must be a positive integer.",
+      });
+    }
+
+    const updatedUser = await User.findOneAndUpdate(
+      {
+        _id: userId,
+        coins: { $gte: coinAmount },
+      },
+      {
+        $inc: {
+          coins: -coinAmount,
+        },
+      },
+      {
+        new: true,
+        runValidators: true,
+      },
+    );
+
+    if (!updatedUser) {
+      const currentUser = await User.findById(userId).select("coins");
+
+      if (!currentUser) {
+        return res.status(404).json({
+          success: false,
+          message: "User account not found.",
+        });
+      }
+
+      return res.status(400).json({
+        success: false,
+        message: "Not enough coins.",
+        coins: Number(currentUser.coins) || 0,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Coins deducted successfully.",
+      action: action || null,
+      coins: Number(updatedUser.coins) || 0,
+    });
+  } catch (error) {
+    console.error("Internal coin deduction failed:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update coins. Please try again.",
+    });
+  }
+};

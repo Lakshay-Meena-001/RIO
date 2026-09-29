@@ -49,44 +49,46 @@ const Interview = () => {
    */
 
   const loadInterview = useCallback(async () => {
-  try {
-    setError("");
+    try {
+      setError("");
 
-    const result = await getInterview(interviewId);
+      const result = await getInterview(interviewId);
 
-    if (!result?.success || !result?.data) {
-      throw new Error(
-        result?.message || "Unable to load this interview.",
+      if (!result?.success || !result?.data) {
+        throw new Error(result?.message || "Unable to load this interview.");
+      }
+
+      const data = result.data;
+
+      if (data.status === "completed") {
+        navigate(`/mock-interview/${interviewId}/report`, {
+          replace: true,
+        });
+
+        return;
+      }
+
+      setInterview(data);
+
+      if (data.status === "abandoned") {
+        setError("This interview has already been abandoned.");
+      }
+    } catch (err) {
+      console.error("Failed to load interview:", err);
+``
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to load this interview.",
       );
+    } finally {
+      setLoading(false);
     }
+  }, [interviewId, navigate]);
 
-    const data = result.data;
-
-    if (data.status === "completed") {
-      navigate(`/mock-interview/${interviewId}/report`, {
-        replace: true,
-      });
-
-      return;
-    }
-
-    setInterview(data);
-
-    if (data.status === "abandoned") {
-      setError("This interview has already been abandoned.");
-    }
-  } catch (err) {
-    console.error("Failed to load interview:", err);
-
-    setError(
-      err?.response?.data?.message ||
-        err?.message ||
-        "Unable to load this interview.",
-    );
-  } finally {
-    setLoading(false);
-  }
-}, [interviewId, navigate]);
+  useEffect(() => {
+    loadInterview();
+  }, [loadInterview]);
 
   /*
    * ---------------------------------------------------------
@@ -144,7 +146,6 @@ const Interview = () => {
    *
    * the textarea always reflects that question's answer.
    */
-
 
   /*
    * ---------------------------------------------------------

@@ -6,10 +6,10 @@ import { summaryAgent } from "../agents/summaryAgent.js";
  * ========================================================
  * INTERVIEW NODE
  * ========================================================
- * Generates exactly one interview question.
+ * Generates the complete interview question set.
  */
 export async function interviewNode(state) {
-  const question = await interviewAgent({
+  const result = await interviewAgent({
     role: state.role,
     experienceLevel: state.experienceLevel,
     interviewLevel: state.interviewLevel,
@@ -23,17 +23,21 @@ export async function interviewNode(state) {
 
     difficulty: state.difficulty,
 
-    currentQuestionIndex: state.currentQuestionIndex ?? 0,
-
-    questions: state.questions || [],
+    questionCount: state.questionCount,
   });
 
+  if (!result?.questions || result.questions.length === 0) {
+    throw new Error("Interview question set could not be generated.");
+  }
+
   return {
-    currentQuestion: question,
+    questions: result.questions,
+
+    currentQuestion: null,
     currentAnswer: "",
     currentEvaluation: null,
 
-    action: "question-generated",
+    action: "questions-generated",
   };
 }
 
@@ -41,7 +45,7 @@ export async function interviewNode(state) {
  * ========================================================
  * FEEDBACK NODE
  * ========================================================
- * Evaluates the candidate's answer.
+ * Evaluates the candidate's selected answer.
  */
 export async function feedbackNode(state) {
   if (!state.currentQuestion) {

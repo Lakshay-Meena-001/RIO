@@ -5,6 +5,7 @@ import {
   completeProfile,
   logout,
   useCoins,
+  deductCoinsInternal,
 } from "../controllers/auth.controller.js";
 
 const authRouter = express.Router();
@@ -20,5 +21,7 @@ authRouter.post("/logout", logout);
 
 // Deduct coins from the authenticated user's balance.
 authRouter.post("/user-coins", useCoins);
+
+authRouter.post("/internal/user-coins", deductCoinsInternal);
 
 export default authRouter;

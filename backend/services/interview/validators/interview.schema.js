@@ -87,10 +87,16 @@ export const startInterviewSchema = z.object({
 |--------------------------------------------------------------------------
 | Submit Answer Request
 |--------------------------------------------------------------------------
+|
+| A candidate can submit ANY question.
+| Therefore questionId is required.
+|
 */
 
 export const submitAnswerSchema = z.object({
   interviewId: z.string().trim().min(1, "Interview ID is required"),
+
+  questionId: z.string().trim().min(1, "Question ID is required"),
 
   answer: z.string().trim().min(1, "Answer is required"),
 });
@@ -111,6 +117,20 @@ export const interviewQuestionSchema = z.object({
   type: z.enum(["primary"]).default("primary"),
 
   difficulty: z.enum(["easy", "medium", "hard"]),
+});
+
+/*
+|--------------------------------------------------------------------------
+| Complete Interview Question Set
+|--------------------------------------------------------------------------
+|
+| The interview agent generates the complete question set
+| at interview start.
+|
+*/
+
+export const interviewQuestionsSchema = z.object({
+  questions: z.array(interviewQuestionSchema).min(1),
 });
 
 /*
@@ -159,14 +179,4 @@ export const summarySchema = z.object({
   recommendations: z.array(z.string()).length(5),
 
   summary: z.string(),
-});
-
-/*
-|--------------------------------------------------------------------------
-| Add More Questions
-|--------------------------------------------------------------------------
-*/
-
-export const addMoreQuestionsSchema = z.object({
-  count: z.number().int().min(1).max(20).default(5),
 });

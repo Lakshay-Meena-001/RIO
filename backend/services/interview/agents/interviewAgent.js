@@ -1,6 +1,6 @@
 import llm from "../config/llm.js";
 import interviewPrompt from "../prompts/interview.prompt.js";
-import { interviewQuestionSchema } from "../validators/interview.schema.js";
+import { interviewQuestionsSchema } from "../validators/interview.schema.js";
 
 export const interviewAgent = async (data) => {
   try {
@@ -25,15 +25,15 @@ export const interviewAgent = async (data) => {
     // 5. Parse JSON
     const parsed = JSON.parse(cleaned);
 
-    // 6. Validate LLM output
-    const validatedQuestion = interviewQuestionSchema.parse(parsed);
+    // 6. Validate complete question set
+    const validatedQuestions = interviewQuestionsSchema.parse(parsed);
 
     // 7. Return only validated data
-    return validatedQuestion;
+    return validatedQuestions;
   } catch (error) {
     console.error("Interview Agent Error:", error);
 
-    const agentError = new Error("Failed to generate interview question.");
+    const agentError = new Error("Failed to generate interview questions.");
 
     agentError.statusCode = 502;
     agentError.cause = error;

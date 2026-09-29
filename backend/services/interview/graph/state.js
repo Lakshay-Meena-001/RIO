@@ -39,8 +39,16 @@ const InterviewState = Annotation.Root({
 
   status: Annotation(),
 
+  /*
+   * Navigation cursor.
+   * It represents which question the candidate is currently viewing.
+   */
   currentQuestionIndex: Annotation(),
 
+  /*
+   * Used by feedbackNode for the question currently
+   * being evaluated.
+   */
   currentQuestion: Annotation(),
 
   currentAnswer: Annotation(),
@@ -51,6 +59,10 @@ const InterviewState = Annotation.Root({
    * ========================================================
    * INTERVIEW HISTORY
    * ========================================================
+   *
+   * All questions are generated at interview start.
+   * Answers and evaluations are stored inside each question
+   * as the interview progresses.
    */
 
   questions: Annotation(),
