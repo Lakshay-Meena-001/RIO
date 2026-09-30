@@ -500,9 +500,25 @@ export const useCoins = async (req, res) => {
 
     /*
      * MongoDB update succeeded.
-     * Now synchronize Redis with the NEW authoritative balance.
+     * Now synchronize every active Redis session
+     * with the new authoritative balance.
      */
-    await saveSession(sessionId, updatedUser);
+    const sessionIds = await redis.smembers(
+      getUserSessionsKey(sessionData.userId),
+    );
+
+    const sessionDataJson = JSON.stringify(buildSessionData(updatedUser));
+
+    await Promise.all(
+      sessionIds.map((activeSessionId) =>
+        redis.set(
+          getSessionKey(activeSessionId),
+          sessionDataJson,
+          "EX",
+          SESSION_TTL,
+        ),
+      ),
+    );
 
     return res.status(200).json({
       success: true,
