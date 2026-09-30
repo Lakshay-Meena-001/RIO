@@ -624,10 +624,12 @@ async function finalizeInterviewWithCharge(
     return interview;
   }
 
-  if (interview.status !== "in-progress") {
-    throw new AppError("Interview cannot be finalized.", 400);
-  }
-
+  if (
+  interview.status !== "in-progress" &&
+  interview.status !== "expired"
+) {
+  throw new AppError("Interview is not active.", 400);
+}
   /*
    * ---------------------------------------------------------
    * Charge coins through Auth Service.
@@ -1023,7 +1025,12 @@ export const getPreviousQuestion = async (userId, interviewId) => {
  *
  * Already successful evaluations remain saved.
  */
-export const submitInterview = async (userId, interviewId) => {
+export const submitInterview = async (
+  userId,
+  interviewId,
+  draftQuestionId = null,
+  draftAnswer = "",
+) => {
   validateInterviewId(interviewId);
 
   let interview = await findUserInterview(userId, interviewId);
@@ -1056,6 +1063,39 @@ export const submitInterview = async (userId, interviewId) => {
 
   if (interview.status !== "in-progress") {
     throw new AppError("Interview is not active.", 400);
+  }
+
+  /*
+   * -------------------------------------------------------
+   * Persist the current frontend draft before finalization.
+   *
+   * This is intentionally NOT submitAnswer().
+   *
+   * Timer expiry must be able to capture the textarea draft
+   * without passing through the normal active-answer endpoint.
+   * -------------------------------------------------------
+   */
+  if (
+    draftQuestionId &&
+    typeof draftAnswer === "string" &&
+    draftAnswer.trim()
+  ) {
+    const draftQuestion = interview.questions.find(
+      (question) => question.questionId === draftQuestionId,
+    );
+
+    if (!draftQuestion) {
+      throw new AppError("Interview question not found.", 404);
+    }
+
+    if (
+      draftQuestion.answerStatus !== "submitted" &&
+      !draftQuestion.submittedAt
+    ) {
+      draftQuestion.answer = draftAnswer.trim();
+
+      await interview.save();
+    }
   }
 
   /*
@@ -1148,6 +1188,31 @@ export const submitInterview = async (userId, interviewId) => {
         question.submittedAt &&
         question.evaluation,
     ).length;
+
+    /*
+     * If the timer expired and the candidate never attempted
+     * any answer, this is an abandoned/expired interview.
+     *
+     * It must NOT:
+     * - generate a report
+     * - charge interview coins
+     * - become a completed interview
+     * - appear as completed history
+     */
+    if (isTimeExpired && evaluatedAnswerCount === 0) {
+      interview.status = "abandoned";
+      interview.terminationReason = "time-limit";
+      interview.endedAt = new Date();
+
+      await interview.save();
+
+      return {
+        status: "abandoned",
+        terminationReason: "time-limit",
+        report: null,
+        coinsDeducted: 0,
+      };
+    }
 
     const report =
       evaluatedAnswerCount === 0
@@ -1273,6 +1338,14 @@ async function expireInterviewIfNeeded(interview) {
         typeof question.answer === "string" &&
         question.answer.trim(),
     );
+
+    for (const question of pendingQuestions) {
+      await evaluateQuestion(interview, question);
+    }
+
+    if (pendingQuestions.length > 0) {
+      await interview.save();
+    }
 
     /*
      * -----------------------------------------------------

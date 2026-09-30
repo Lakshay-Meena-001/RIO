@@ -446,21 +446,11 @@ const Interview = () => {
         setFinalSubmitting(true);
         setError("");
 
-        if (currentQuestion && !isCurrentQuestionSubmitted && answer.trim()) {
-          const answerResult = await submitAnswer(
-            interviewId,
-            currentQuestion.questionId,
-            answer.trim(),
-          );
-
-          if (!answerResult?.success) {
-            throw new Error(
-              answerResult?.message || "Unable to save your current answer.",
-            );
-          }
-        }
-
-        const result = await submitInterview(interviewId);
+        const result = await submitInterview(
+          interviewId,
+          currentQuestion?.questionId ?? null,
+          answer,
+        );
 
         if (!result?.success) {
           throw new Error(result?.message || "Unable to submit the interview.");
@@ -519,10 +509,7 @@ const Interview = () => {
       isCompleted,
       interviewId,
       navigate,
-      refreshInterview,
-      answer,
-      currentQuestion,
-      isCurrentQuestionSubmitted,
+      refreshInterview,answer,currentQuestion,
     ],
   );
 

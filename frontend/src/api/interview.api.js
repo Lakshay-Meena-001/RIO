@@ -69,8 +69,15 @@ export const getPreviousQuestion = async (interviewId) => {
  *
  * POST /api/interview/:interviewId/submit
  */
-export const submitInterview = async (interviewId) => {
-  const response = await api.post(`/api/interview/${interviewId}/submit`);
+export const submitInterview = async (
+  interviewId,
+  draftQuestionId = null,
+  draftAnswer = "",
+) => {
+  const response = await api.post(`/api/interview/${interviewId}/submit`, {
+    draftQuestionId,
+    draftAnswer,
+  });
 
   return response.data;
 };

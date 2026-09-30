@@ -134,8 +134,14 @@ export const submitInterview = async (req, res, next) => {
   try {
     const userId = getUserId(req);
     const { interviewId } = req.params;
+    const { draftQuestionId, draftAnswer } = req.body;
 
-    const result = await interviewService.submitInterview(userId, interviewId);
+    const result = await interviewService.submitInterview(
+      userId,
+      interviewId,
+      draftQuestionId,
+      draftAnswer,
+    );
 
     return res.status(200).json({
       success: true,
