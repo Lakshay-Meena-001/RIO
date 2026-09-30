@@ -653,3 +653,37 @@ export const deductCoinsInternal = async (req, res) => {
     });
   }
 };
+
+export const getUserBalanceInternal = async (req, res) => {
+  try {
+    const userId = req.headers["x-user-id"];
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    const user = await User.findById(userId).select("coins");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      coins: Number(user.coins) || 0,
+    });
+  } catch (error) {
+    console.error("Internal user balance lookup failed:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch user balance.",
+    });
+  }
+};

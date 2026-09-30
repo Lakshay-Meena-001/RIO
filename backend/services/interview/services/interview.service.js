@@ -465,6 +465,46 @@ async function generateInterviewSummary(interview) {
  * - coins
  * - coin deduction
  */
+
+async function getUserBalance(userId) {
+  let response;
+
+  try {
+    response = await fetch(`${AUTH_SERVICE_URL}/internal/user-balance`, {
+      method: "POST",
+
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": userId.toString(),
+      },
+    });
+  } catch (error) {
+    console.error("Auth Service balance request failed:", error);
+
+    throw new AppError(
+      "Unable to verify your interview balance right now. Please try again.",
+      503,
+    );
+  }
+
+  let data = null;
+
+  try {
+    data = await response.json();
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    throw new AppError(
+      data?.message || "Unable to verify your interview balance.",
+      response.status >= 500 ? 503 : response.status,
+    );
+  }
+
+  return Number(data?.coins) || 0;
+}
+
 async function deductInterviewCoins(userId, interviewId) {
   let response;
 
@@ -650,6 +690,15 @@ async function finalizeInterviewWithCharge(
 export const startInterview = async (userId, interviewData) => {
   const questionCount = Number(interviewData.questionCount || 10);
 
+  const balance = await getUserBalance(userId);
+
+  if (balance < INTERVIEW_COMPLETION_COST) {
+    throw new AppError(
+      `Insufficient balance. You need at least ₹${INTERVIEW_COMPLETION_COST} to start the interview.`,
+      400,
+    );
+  }
+
   const interview = await Interview.create({
     userId,
 
@@ -739,9 +788,24 @@ export const startInterview = async (userId, interviewData) => {
     };
   } catch (error) {
     /*
-     * The interview remains in created state if generation
-     * fails before the interview starts.
+     * Question generation failed after the interview
+     * document was created.
+     *
+     * Mark the interview as failed so we don't leave
+     * an orphaned "created" interview in the database.
+     *
+     * No coins are charged during interview start.
      */
+    try {
+      interview.status = "failed";
+      interview.endedAt = new Date();
+      interview.terminationReason = "server-error";
+
+      await interview.save();
+    } catch (updateError) {
+      console.error("Failed to mark interview start as failed:", updateError);
+    }
+
     if (error instanceof AppError) {
       throw error;
     }
