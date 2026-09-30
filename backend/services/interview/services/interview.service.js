@@ -589,7 +589,7 @@ async function deductInterviewCoins(userId, interviewId) {
   return data;
 }
 
- /*
+/*
  * =========================================================
  * FINALIZE + CHARGE
  * =========================================================
@@ -1100,7 +1100,7 @@ export const submitInterview = async (
     };
   }
 
-  if (interview.status !== "in-progress" && interview.status !== "expired") {
+  if (interview.status !== "in-progress") {
     throw new AppError("Interview is not active.", 400);
   }
 
@@ -1267,8 +1267,8 @@ export const submitInterview = async (
     ).length;
 
     /*
-     * If the timer expired and the candidate never attempted
-     * any answer, this is an abandoned/expired interview.
+     * If the candidate never attempted any answer,
+     * the interview is abandoned.
      *
      * It must NOT:
      * - generate a report
@@ -1441,7 +1441,6 @@ export const submitInterview = async (
 };
 
 /*
-
  * =========================================================
  * EXPIRE INTERVIEW
  * =========================================================
@@ -1466,8 +1465,8 @@ async function expireInterviewIfNeeded(interview) {
   }
 
   /*
-   * The interview is expired strictly according to its
-   * original deadline calculated from startedAt.
+   * The interview has reached its time limit strictly according
+   * to the original deadline calculated from startedAt.
    */
   try {
     /*
@@ -1611,6 +1610,7 @@ async function expireInterviewIfNeeded(interview) {
       latestInterview._id,
       report,
       "time-limit",
+      true,
     );
 
     return true;

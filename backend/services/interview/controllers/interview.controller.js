@@ -34,7 +34,6 @@ export const startInterview = async (req, res, next) => {
   }
 };
 
-
 /*
 |--------------------------------------------------------------------------
 | Next Question
@@ -184,6 +183,29 @@ export const quitInterview = async (req, res, next) => {
       success: true,
       message: "Interview quit successfully.",
       data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| Delete Interview
+|--------------------------------------------------------------------------
+*/
+
+export const deleteInterview = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+
+    const result = await interviewService.deleteInterview(userId, interviewId);
+
+    return res.status(200).json({
+      success: true,
+      message: "Interview deleted successfully.",
+      data: result,
     });
   } catch (error) {
     next(error);

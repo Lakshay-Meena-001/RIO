@@ -7,13 +7,13 @@ import {
   getPreviousQuestion,
   submitInterview,
   quitInterview,
+  deleteInterview,
 } from "../controllers/interview.controller.js";
 
 import { validate } from "../middlewares/validate.js";
 
 import { startInterviewSchema } from "../validators/interview.schema.js";
 
-import { deleteInterview } from "../services/interview.service.js";
 
 const router = express.Router();
 
