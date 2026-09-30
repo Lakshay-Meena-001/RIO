@@ -604,6 +604,22 @@ export const deductCoinsInternal = async (req, res) => {
     }
 
     /*
+     * MongoDB is authoritative.
+     * After a successful deduction, synchronize
+     * every active Redis session of this user.
+     */
+    const sessionIds = await redis.smembers(getUserSessionsKey(userId));
+
+    if (sessionIds.length > 0) {
+      const sessionData = JSON.stringify(buildSessionData(updatedUser));
+
+      await Promise.all(
+        sessionIds.map((sessionId) =>
+          redis.set(getSessionKey(sessionId), sessionData, "EX", SESSION_TTL),
+        ),
+      );
+    }
+    /*
      * MongoDB is the authoritative source for the balance.
      */
     return res.status(200).json({
