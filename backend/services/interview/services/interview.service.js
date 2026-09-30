@@ -1640,11 +1640,25 @@ async function expireInterviewIfNeeded(interview) {
 
       if (currentInterview && currentInterview.status === "in-progress") {
         /*
-         * Payment reached an uncertain state.
+         * Payment has already been processed.
          *
-         * Do NOT abandon the interview because the charge may have
-         * succeeded remotely. Keep paymentStatus = "charging" and
-         * release the finalization lock so a later request can retry
+         * NEVER abandon the interview.
+         * A later retry must finish finalization without
+         * charging the user again.
+         */
+        if (currentInterview.paymentStatus === "charged") {
+          currentInterview.finalizationKey = null;
+
+          await currentInterview.save();
+
+          return true;
+        }
+
+        /*
+         * Payment may still be processing remotely.
+         *
+         * Do NOT abandon the interview.
+         * Release the lock so a later retry can continue
          * the same idempotent payment transaction.
          */
         if (currentInterview.paymentStatus === "charging") {
