@@ -262,11 +262,30 @@ function markQuestionSubmitted(question, evaluation) {
  * No coin deduction.
  */
 async function abandonForServerError(interview) {
+  /*
+   * Never abandon an interview after its payment has
+   * already been charged.
+   *
+   * The caller should recover/finalize such an interview
+   * instead of converting it into a failed interview.
+   */
+  if (
+    interview.paymentStatus === "charged" ||
+    interview.paymentStatus === "charging"
+  ) {
+    throw new AppError(
+      "Interview payment is already being processed. Finalization must continue.",
+      503,
+    );
+  }
+
   interview.status = "abandoned";
 
   interview.endedAt = new Date();
 
   interview.terminationReason = "server-error";
+
+  interview.finalizationKey = null;
 
   await interview.save();
 }
@@ -570,7 +589,6 @@ async function deductInterviewCoins(userId, interviewId) {
   return data;
 }
 
-/*
  /*
  * =========================================================
  * FINALIZE + CHARGE
@@ -638,7 +656,7 @@ async function finalizeInterviewWithCharge(
       {
         _id: interviewId,
         userId,
-        status: { $in: ["in-progress", "expired"] },
+        status: "in-progress",
         $or: [
           { finalizationKey: null },
           { finalizationKey: { $exists: false } },
@@ -664,16 +682,29 @@ async function finalizeInterviewWithCharge(
         return latestInterview;
       }
 
-      throw new AppError(
-        "Interview finalization is already in progress. Please retry.",
-        409,
-      );
-    }
+      /*
+       * Payment may already have succeeded in a previous
+       * finalization attempt. In that case, do not try to
+       * charge again. Allow this retry to continue finalization.
+       */
+      if (latestInterview?.paymentStatus === "charged") {
+        latestInterview.finalizationKey = finalizationKey;
 
-    interview = lockedInterview;
+        await latestInterview.save();
+
+        interview = latestInterview;
+      } else {
+        throw new AppError(
+          "Interview finalization is already in progress. Please retry.",
+          409,
+        );
+      }
+    } else {
+      interview = lockedInterview;
+    }
   }
 
-  if (interview.status !== "in-progress" && interview.status !== "expired") {
+  if (interview.status !== "in-progress") {
     throw new AppError("Interview is not active.", 400);
   }
   /*
@@ -708,7 +739,37 @@ async function finalizeInterviewWithCharge(
      * Auth Service owns the actual coin deduction and
      * transaction idempotency.
      */
-    await deductInterviewCoins(userId, interviewId);
+    try {
+      await deductInterviewCoins(userId, interviewId);
+
+      /*
+       * Coins successfully deducted.
+       */
+      interview.paymentStatus = "charged";
+    } catch (error) {
+      /*
+       * A 4xx response represents a business-level payment
+       * failure such as insufficient coins.
+       *
+       * No successful deduction happened, so the interview
+       * must NOT remain stuck in "charging".
+       */
+      if (
+        error instanceof AppError &&
+        error.statusCode >= 400 &&
+        error.statusCode < 500
+      ) {
+        interview.paymentStatus = "not-charged";
+
+        interview.paymentTransactionId = null;
+
+        interview.finalizationKey = null;
+
+        await interview.save();
+      }
+
+      throw error;
+    }
 
     /*
      * Coins successfully deducted.
@@ -789,7 +850,7 @@ export const startInterview = async (userId, interviewData) => {
 
   if (balance < INTERVIEW_COMPLETION_COST) {
     throw new AppError(
-      `Insufficient balance. You need at least ₹${INTERVIEW_COMPLETION_COST} to start the interview.`,
+      `Not enough balance. You need at least ${INTERVIEW_COMPLETION_COST} coins to start the interview.`,
       400,
     );
   }
@@ -1097,7 +1158,7 @@ export const submitInterview = async (
       {
         _id: interviewId,
         userId,
-        status: { $in: ["in-progress", "expired"] },
+        status: "in-progress",
         $or: [
           { finalizationKey: null },
           { finalizationKey: { $exists: false } },
@@ -1217,16 +1278,25 @@ export const submitInterview = async (
      */
     if (evaluatedAnswerCount === 0) {
       interview.status = "abandoned";
+
       interview.terminationReason = isTimeExpired ? "time-limit" : "no-answers";
+
       interview.endedAt = new Date();
+
+      /*
+       * No answer means no payment.
+       * Release the finalization lock before closing
+       * the interview as abandoned.
+       */
+      interview.finalizationKey = null;
 
       await interview.save();
 
       return {
+        interviewId: interview._id,
         status: "abandoned",
         terminationReason: interview.terminationReason,
-        report: null,
-        coinsDeducted: 0,
+        coinsCharged: 0,
       };
     }
 
@@ -1322,6 +1392,17 @@ export const submitInterview = async (
        * -------------------------------------------------------
        */
       if (currentInterview?.paymentStatus === "charging") {
+        /*
+         * Payment may have succeeded remotely.
+         * Keep paymentStatus = "charging" and the same
+         * transaction ID, but release the interview lock so
+         * the next retry can continue the same idempotent
+         * payment transaction.
+         */
+        currentInterview.finalizationKey = null;
+
+        await currentInterview.save();
+
         throw new AppError(
           "Your interview is still being finalized. Please retry.",
           503,
@@ -1337,6 +1418,8 @@ export const submitInterview = async (
        * -------------------------------------------------------
        */
       if (currentInterview && currentInterview.status === "in-progress") {
+        currentInterview.finalizationKey = null;
+
         await abandonForServerError(currentInterview);
       }
     } catch (recoveryError) {
@@ -1387,6 +1470,56 @@ async function expireInterviewIfNeeded(interview) {
    * original deadline calculated from startedAt.
    */
   try {
+    /*
+     * -----------------------------------------------------
+     * Acquire the finalization lock BEFORE evaluating any
+     * pending answers.
+     *
+     * This prevents timer expiry and manual final submission
+     * from evaluating/finalizing the same interview concurrently.
+     * -----------------------------------------------------
+     */
+    const finalizationKey = `finalize:${interview._id.toString()}`;
+
+    const lockedInterview = await Interview.findOneAndUpdate(
+      {
+        _id: interview._id,
+        status: "in-progress",
+        $or: [
+          { finalizationKey: null },
+          { finalizationKey: { $exists: false } },
+        ],
+      },
+      {
+        $set: {
+          finalizationKey,
+        },
+      },
+      {
+        new: true,
+      },
+    );
+
+    if (!lockedInterview) {
+      const latestInterview = await Interview.findById(interview._id);
+
+      /*
+       * Another request already completed the interview.
+       */
+      if (latestInterview?.status === "completed") {
+        return true;
+      }
+
+      /*
+       * Another request is already finalizing it.
+       *
+       * Do not evaluate the same answers again.
+       */
+      return true;
+    }
+
+    interview = lockedInterview;
+
     /*
      * -----------------------------------------------------
      * Evaluate only answered questions that have not
@@ -1454,6 +1587,13 @@ async function expireInterviewIfNeeded(interview) {
 
       latestInterview.endedAt = new Date();
 
+      /*
+       * No answer means no payment.
+       * Release the finalization lock before closing
+       * the interview as abandoned.
+       */
+      latestInterview.finalizationKey = null;
+
       await latestInterview.save();
 
       return true;
@@ -1499,6 +1639,24 @@ async function expireInterviewIfNeeded(interview) {
       const currentInterview = await Interview.findById(interview._id);
 
       if (currentInterview && currentInterview.status === "in-progress") {
+        /*
+         * Payment reached an uncertain state.
+         *
+         * Do NOT abandon the interview because the charge may have
+         * succeeded remotely. Keep paymentStatus = "charging" and
+         * release the finalization lock so a later request can retry
+         * the same idempotent payment transaction.
+         */
+        if (currentInterview.paymentStatus === "charging") {
+          currentInterview.finalizationKey = null;
+
+          await currentInterview.save();
+
+          return true;
+        }
+
+        currentInterview.finalizationKey = null;
+
         await abandonForServerError(currentInterview);
       }
     } catch (abandonError) {
@@ -1549,11 +1707,35 @@ export const quitInterview = async (userId, interviewId) => {
     throw new AppError("Interview is already closed.", 400);
   }
 
+  /*
+   * -------------------------------------------------------
+   * Finalization/payment is already in progress.
+   *
+   * Do NOT allow Quit to turn the interview into abandoned
+   * while the completion flow is processing.
+   *
+   * This is especially important when paymentStatus is
+   * "charging" or "charged".
+   * -------------------------------------------------------
+   */
+  if (
+    interview.finalizationKey ||
+    interview.paymentStatus === "charging" ||
+    interview.paymentStatus === "charged"
+  ) {
+    throw new AppError(
+      "Interview finalization is already in progress. Please wait for it to complete.",
+      409,
+    );
+  }
+
   interview.status = "abandoned";
 
   interview.endedAt = new Date();
 
   interview.terminationReason = "quit";
+
+  interview.finalizationKey = null;
 
   await interview.save();
 
