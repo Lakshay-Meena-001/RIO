@@ -413,9 +413,54 @@ const interviewSchema = new mongoose.Schema(
     },
 
     /*
-     * -----------------------------------------------------
+     * ---------------------------------------------------------
+     * Payment Lifecycle
+     * ---------------------------------------------------------
+     *
+     * Tracks the coin transaction belonging to this interview.
+     *
+     * not-charged:
+     *   Interview has not consumed coins.
+     *
+     * charging:
+     *   Completion payment is being processed.
+     *
+     * charged:
+     *   Coins were successfully deducted.
+     *
+     * refunded:
+     *   A previously charged transaction was compensated.
+     */
+    paymentStatus: {
+      type: String,
+      enum: ["not-charged", "charging", "charged", "refunded"],
+      default: "not-charged",
+    },
+
+    paymentTransactionId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+
+    /*
+     * ---------------------------------------------------------
+     * Finalization Lock
+     * ---------------------------------------------------------
+     *
+     * Prevents concurrent final-submit requests from attempting
+     * to finalize the same interview at the same time.
+     */
+    finalizationKey: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+
+    /*
+     * ---------------------------------------------------------
      * Final Interview Report
-     * -----------------------------------------------------
+     * ---------------------------------------------------------
      */
 
     overallScore: {

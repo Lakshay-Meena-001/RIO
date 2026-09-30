@@ -589,13 +589,14 @@ async function finalizeInterviewWithCharge(
   interviewId,
   report,
   terminationReason = "completed",
+  lockAlreadyAcquired = false,
 ) {
   /*
    * ---------------------------------------------------------
    * Load the interview.
    * ---------------------------------------------------------
    */
-  const interview = await Interview.findOne({
+  let interview = await Interview.findOne({
     _id: interviewId,
     userId,
   });
@@ -618,27 +619,116 @@ async function finalizeInterviewWithCharge(
     return interview;
   }
 
+  /*
+   * ---------------------------------------------------------
+   * Acquire finalization lock atomically.
+   * ---------------------------------------------------------
+   *
+   * Only one request can move this interview into the
+   * finalization flow.
+   *
+   * Another simultaneous request will fail to acquire the
+   * lock and must retry/read the latest interview state.
+   * ---------------------------------------------------------
+   */
+  if (!lockAlreadyAcquired) {
+    const finalizationKey = `finalize:${interviewId.toString()}`;
+
+    const lockedInterview = await Interview.findOneAndUpdate(
+      {
+        _id: interviewId,
+        userId,
+        status: { $in: ["in-progress", "expired"] },
+        $or: [
+          { finalizationKey: null },
+          { finalizationKey: { $exists: false } },
+        ],
+      },
+      {
+        $set: {
+          finalizationKey,
+        },
+      },
+      {
+        new: true,
+      },
+    );
+
+    if (!lockedInterview) {
+      const latestInterview = await Interview.findOne({
+        _id: interviewId,
+        userId,
+      });
+
+      if (latestInterview?.status === "completed") {
+        return latestInterview;
+      }
+
+      throw new AppError(
+        "Interview finalization is already in progress. Please retry.",
+        409,
+      );
+    }
+
+    interview = lockedInterview;
+  }
+
   if (interview.status !== "in-progress" && interview.status !== "expired") {
     throw new AppError("Interview is not active.", 400);
   }
   /*
    * ---------------------------------------------------------
-   * Charge coins through Auth Service.
+   * Payment lifecycle.
    * ---------------------------------------------------------
    *
-   * Interview Service does NOT touch the User model.
+   * If this interview was already charged during a previous
+   * attempt, NEVER call Auth Service again.
    *
-   * Auth Service:
-   *
-   * Interview Service
-   *       ↓
-   * POST /internal/user-coins
-   *       ↓
-   * Auth Service
-   *       ↓
-   * User MongoDB
+   * This makes finalization retry-safe.
+   * ---------------------------------------------------------
    */
-  await deductInterviewCoins(userId, interviewId);
+  if (interview.paymentStatus !== "charged") {
+    /*
+     * Reuse the existing transaction ID when the interview
+     * is already in "charging" state.
+     *
+     * This guarantees that retries belong to the same
+     * payment transaction.
+     */
+    const paymentTransactionId =
+      interview.paymentTransactionId ||
+      `interview:${interviewId.toString()}:completion`;
+
+    interview.paymentStatus = "charging";
+    interview.paymentTransactionId = paymentTransactionId;
+
+    await interview.save();
+
+    /*
+     * Auth Service owns the actual coin deduction and
+     * transaction idempotency.
+     */
+    await deductInterviewCoins(userId, interviewId);
+
+    /*
+     * Coins successfully deducted.
+     */
+    interview.paymentStatus = "charged";
+  }
+
+  /*
+   * ---------------------------------------------------------
+   * Payment is now complete.
+   *
+   * From this point onward, finalization must not perform
+   * another payment operation.
+   * ---------------------------------------------------------
+   */
+  if (interview.paymentStatus === "charged") {
+    interview.paymentTransactionId =
+      interview.paymentTransactionId ||
+      `interview:${interviewId.toString()}:completion`;
+  }
 
   /*
    * ---------------------------------------------------------
@@ -665,10 +755,21 @@ async function finalizeInterviewWithCharge(
 
   interview.finalizedAt = new Date();
 
+  /*
+   * ---------------------------------------------------------
+   * Finalization completed successfully.
+   *
+   * The lock is no longer needed because the interview is
+   * now permanently completed.
+   * ---------------------------------------------------------
+   */
+  interview.finalizationKey = null;
+
   await interview.save();
 
   return interview;
 }
+
 /*
  * =========================================================
  * START INTERVIEW
@@ -990,6 +1091,51 @@ export const submitInterview = async (
      * They are NOT sent to the LLM.
      * -----------------------------------------------------
      */
+    const finalizationKey = `finalize:${interviewId.toString()}`;
+
+    const lockedInterview = await Interview.findOneAndUpdate(
+      {
+        _id: interviewId,
+        userId,
+        status: { $in: ["in-progress", "expired"] },
+        $or: [
+          { finalizationKey: null },
+          { finalizationKey: { $exists: false } },
+        ],
+      },
+      {
+        $set: {
+          finalizationKey,
+        },
+      },
+      {
+        new: true,
+      },
+    );
+
+    if (!lockedInterview) {
+      const latestInterview = await Interview.findOne({
+        _id: interviewId,
+        userId,
+      });
+
+      if (latestInterview?.status === "completed") {
+        return {
+          status: "completed",
+          interview: latestInterview,
+          report: latestInterview.report,
+          coinsCharged: INTERVIEW_COMPLETION_COST,
+        };
+      }
+
+      throw new AppError(
+        "Interview is already being finalized. Please retry.",
+        409,
+      );
+    }
+
+    interview = lockedInterview;
+
     const pendingAnsweredQuestions = interview.questions.filter(
       (question) =>
         question.answerStatus !== "submitted" &&
@@ -1098,6 +1244,7 @@ export const submitInterview = async (
       interviewId,
       report,
       terminationReason,
+      true,
     );
 
     return {
@@ -1148,11 +1295,59 @@ export const submitInterview = async (
         userId,
       });
 
+      /*
+       * -------------------------------------------------------
+       * Payment is already charged.
+       *
+       * NEVER abandon the interview.
+       *
+       * A later retry must finish the interview without
+       * charging the user again.
+       * -------------------------------------------------------
+       */
+      if (currentInterview?.paymentStatus === "charged") {
+        throw new AppError(
+          "Your interview payment was processed, but finalization is still pending. Please retry.",
+          503,
+        );
+      }
+
+      /*
+       * -------------------------------------------------------
+       * Payment is currently being processed.
+       *
+       * Do NOT abandon the interview.
+       *
+       * The same payment transaction can safely be retried.
+       * -------------------------------------------------------
+       */
+      if (currentInterview?.paymentStatus === "charging") {
+        throw new AppError(
+          "Your interview is still being finalized. Please retry.",
+          503,
+        );
+      }
+
+      /*
+       * -------------------------------------------------------
+       * No payment has been processed.
+       *
+       * A genuine server-side failure can safely abandon the
+       * interview without charging coins.
+       * -------------------------------------------------------
+       */
       if (currentInterview && currentInterview.status === "in-progress") {
         await abandonForServerError(currentInterview);
       }
-    } catch (abandonError) {
-      console.error("Failed to mark interview as abandoned:", abandonError);
+    } catch (recoveryError) {
+      if (recoveryError instanceof AppError) {
+        throw recoveryError;
+      }
+
+      console.error(
+        "Failed to process interview finalization recovery:",
+        recoveryError,
+      );
     }
 
     throw new AppError(
