@@ -356,7 +356,14 @@ const interviewSchema = new mongoose.Schema(
      */
     terminationReason: {
       type: String,
-      enum: ["completed", "quit", "time-limit", "server-error", "failed"],
+      enum: [
+        "completed",
+        "quit",
+        "time-limit",
+        "no-answers",
+        "server-error",
+        "failed",
+      ],
       default: null,
     },
 

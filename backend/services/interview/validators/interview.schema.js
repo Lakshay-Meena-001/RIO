@@ -83,23 +83,6 @@ export const startInterviewSchema = z.object({
   projectContext: projectContextSchema.nullable().default(null),
 });
 
-/*
-|--------------------------------------------------------------------------
-| Submit Answer Request
-|--------------------------------------------------------------------------
-|
-| A candidate can submit ANY question.
-| Therefore questionId is required.
-|
-*/
-
-export const submitAnswerSchema = z.object({
-  interviewId: z.string().trim().min(1, "Interview ID is required"),
-
-  questionId: z.string().trim().min(1, "Question ID is required"),
-
-  answer: z.string().trim().min(1, "Answer is required"),
-});
 
 /*
 |--------------------------------------------------------------------------

@@ -15,24 +15,6 @@ export const startInterview = async (interviewData) => {
 };
 
 /*
- * Submit the candidate's answer for a specific question.
- *
- * POST /api/interview/answer
- *
- * The questionId is required because the candidate can
- * submit questions in any order.
- */
-export const submitAnswer = async (interviewId, questionId, answer) => {
-  const response = await api.post("/api/interview/answer", {
-    interviewId,
-    questionId,
-    answer,
-  });
-
-  return response.data;
-};
-
-/*
  * Move to the next question.
  *
  * This is navigation only.
@@ -69,14 +51,9 @@ export const getPreviousQuestion = async (interviewId) => {
  *
  * POST /api/interview/:interviewId/submit
  */
-export const submitInterview = async (
-  interviewId,
-  draftQuestionId = null,
-  draftAnswer = "",
-) => {
+export const submitInterview = async (interviewId, draftAnswers = {}) => {
   const response = await api.post(`/api/interview/${interviewId}/submit`, {
-    draftQuestionId,
-    draftAnswer,
+    draftAnswers,
   });
 
   return response.data;
@@ -100,28 +77,6 @@ export const getInterview = async (interviewId) => {
  */
 export const getInterviewHistory = async () => {
   const response = await api.get("/api/interview/history");
-
-  return response.data;
-};
-
-/*
- * Pause an active interview.
- *
- * PATCH /api/interview/:interviewId/pause
- */
-export const pauseInterview = async (interviewId) => {
-  const response = await api.patch(`/api/interview/${interviewId}/pause`);
-
-  return response.data;
-};
-
-/*
- * Resume a paused interview.
- *
- * PATCH /api/interview/:interviewId/resume
- */
-export const resumeInterview = async (interviewId) => {
-  const response = await api.patch(`/api/interview/${interviewId}/resume`);
 
   return response.data;
 };

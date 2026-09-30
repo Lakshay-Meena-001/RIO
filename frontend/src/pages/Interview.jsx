@@ -16,7 +16,6 @@ import {
   getNextQuestion,
   getPreviousQuestion,
   quitInterview,
-  submitAnswer,
   submitInterview,
 } from "../api/interview.api";
 
@@ -26,11 +25,11 @@ const Interview = () => {
 
   const [interview, setInterview] = useState(null);
   const [answer, setAnswer] = useState("");
+  const [draftAnswers, setDraftAnswers] = useState({});
   const draftAnswersRef = useRef({});
 
   const [loading, setLoading] = useState(true);
   const [navigating, setNavigating] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [finalSubmitting, setFinalSubmitting] = useState(false);
   const [quitting, setQuitting] = useState(false);
 
@@ -151,13 +150,11 @@ const Interview = () => {
 
   const totalQuestions = interview?.questions?.length || 0;
 
-  const submittedQuestions =
+  const answeredQuestions =
     interview?.questions?.filter(
-      (question) => question.answerStatus === "submitted",
+      (question) =>
+        draftAnswers[question.questionId]?.trim() || question.answer?.trim(),
     ).length || 0;
-
-  const isCurrentQuestionSubmitted =
-    currentQuestion?.answerStatus === "submitted";
 
   const isLastQuestion = questionNumber === totalQuestions;
 
@@ -356,66 +353,6 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
-   * Submit current answer
-   * ---------------------------------------------------------
-   */
-
-  const handleSubmitAnswer = async () => {
-    if (
-      !interview ||
-      !currentQuestion ||
-      submitting ||
-      isAbandoned ||
-      isCurrentQuestionSubmitted
-    ) {
-      return;
-    }
-
-    if (!answer.trim()) {
-      setError("Please write an answer before submitting.");
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      setError("");
-
-      const result = await submitAnswer(
-        interviewId,
-        currentQuestion.questionId,
-        answer.trim(),
-      );
-
-      if (!result?.success) {
-        throw new Error(result?.message || "Unable to submit your answer.");
-      }
-
-      if (result?.data) {
-        setInterview(result.data);
-
-        const submittedQuestion = Array.isArray(result.data.questions)
-          ? result.data.questions[result.data.currentQuestionIndex]
-          : null;
-
-        setAnswer(submittedQuestion?.answer || answer);
-      } else {
-        await refreshInterview();
-      }
-    } catch (err) {
-      console.error("Failed to submit answer:", err);
-
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Unable to submit your answer. Please try again.",
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  /*
-   * ---------------------------------------------------------
    * Final submit
    * ---------------------------------------------------------
    */
@@ -424,7 +361,6 @@ const Interview = () => {
       if (
         !interview ||
         finalSubmitting ||
-        submitting ||
         navigating ||
         quitting ||
         isAbandoned ||
@@ -446,11 +382,15 @@ const Interview = () => {
         setFinalSubmitting(true);
         setError("");
 
-        const result = await submitInterview(
-          interviewId,
-          currentQuestion?.questionId ?? null,
-          answer,
-        );
+        const finalDraftAnswers = {
+          ...draftAnswersRef.current,
+        };
+
+        if (currentQuestion?.questionId) {
+          finalDraftAnswers[currentQuestion.questionId] = answer;
+        }
+
+        const result = await submitInterview(interviewId, finalDraftAnswers);
 
         if (!result?.success) {
           throw new Error(result?.message || "Unable to submit the interview.");
@@ -467,6 +407,14 @@ const Interview = () => {
             replace: true,
           });
 
+          return;
+        }
+
+        if (
+          result?.data?.status === "abandoned" ||
+          result?.data?.interview?.status === "abandoned"
+        ) {
+          await refreshInterview();
           return;
         }
 
@@ -495,6 +443,12 @@ const Interview = () => {
             err?.message ||
             "Unable to submit the interview. Please try again.",
         );
+
+        try {
+          await refreshInterview();
+        } catch {
+          // Keep the original submit error visible.
+        }
       } finally {
         setFinalSubmitting(false);
       }
@@ -502,14 +456,15 @@ const Interview = () => {
     [
       interview,
       finalSubmitting,
-      submitting,
       navigating,
       quitting,
       isAbandoned,
       isCompleted,
       interviewId,
       navigate,
-      refreshInterview,answer,currentQuestion,
+      refreshInterview,
+      answer,
+      currentQuestion,
     ],
   );
 
@@ -910,9 +865,9 @@ const Interview = () => {
                   </p>
                 </div>
 
-                {isCurrentQuestionSubmitted && (
-                  <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
-                    Answer locked
+                {answer.trim().length > 0 && (
+                  <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#71717A]">
+                    Draft saved
                   </span>
                 )}
               </div>
@@ -921,29 +876,23 @@ const Interview = () => {
               <div className="relative">
                 <textarea
                   value={answer}
-                  onChange={(event) => {
-                    const value = event.target.value;
+                  onChange={(e) => {
+                    const value = e.target.value;
 
                     setAnswer(value);
 
-                    draftAnswersRef.current[currentQuestion.questionId] = value;
+                    if (currentQuestion?.questionId) {
+                      draftAnswersRef.current[currentQuestion.questionId] =
+                        value;
 
-                    if (error) {
-                      setError("");
+                      setDraftAnswers((previous) => ({
+                        ...previous,
+                        [currentQuestion.questionId]: value,
+                      }));
                     }
                   }}
-                  disabled={
-                    submitting ||
-                    navigating ||
-                    quitting ||
-                    finalSubmitting ||
-                    isCurrentQuestionSubmitted
-                  }
-                  placeholder={
-                    isCurrentQuestionSubmitted
-                      ? "This answer has been submitted."
-                      : "Start explaining your approach..."
-                  }
+                  disabled={navigating || quitting || finalSubmitting}
+                  placeholder="Start explaining your approach..."
                   className="min-h-[300px] w-full resize-none bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
                 />
 
@@ -971,7 +920,7 @@ const Interview = () => {
                   </p>
 
                   <p className="mt-1 font-sans text-[13px] text-white/60">
-                    {submittedQuestions} answered
+                    {answeredQuestions} answered
                   </p>
                 </div>
 
@@ -985,7 +934,9 @@ const Interview = () => {
                 {interview.questions.map((question, index) => {
                   const number = index + 1;
                   const isActive = number === questionNumber;
-                  const isSubmitted = question.answerStatus === "submitted";
+                  const isAnswered =
+                    draftAnswers[question.questionId]?.trim() ||
+                    question.answer?.trim();
 
                   return (
                     <button
@@ -997,7 +948,7 @@ const Interview = () => {
                         "flex h-10 items-center justify-center rounded-xl border font-sans text-[12px] font-semibold transition-all",
                         isActive
                           ? "border-white bg-white text-[#17191C]"
-                          : isSubmitted
+                          : isAnswered
                             ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-300"
                             : "border-white/[0.08] bg-white/[0.035] text-[#71717A] hover:bg-white/[0.07] hover:text-[#D4D4D8]",
                       ].join(" ")}
@@ -1033,17 +984,13 @@ const Interview = () => {
                   </button>
                 </div>
 
-                {/* Submit Answer */}
-                <button
-                  type="button"
-                  onClick={handleSubmitAnswer}
-                  disabled={!answer.trim() || isCurrentQuestionSubmitted}
-                  className="mt-2 flex h-12 w-full items-center justify-center rounded-xl bg-white font-sans text-[13px] font-semibold text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-30"
-                >
-                  {isCurrentQuestionSubmitted
-                    ? "Answer Submitted"
-                    : "Submit Answer"}
-                </button>
+                {/* Draft status */}
+                <div className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-center">
+                  <p className="text-[10px] leading-5 text-[#52525B]">
+                    Your answer is saved as a draft until you submit the
+                    interview.
+                  </p>
+                </div>
                 {isLastQuestion && (
                   <button
                     type="button"
@@ -1051,7 +998,6 @@ const Interview = () => {
                     disabled={
                       !canSubmitFinal ||
                       finalSubmitting ||
-                      submitting ||
                       navigating ||
                       quitting
                     }
@@ -1076,11 +1022,7 @@ const Interview = () => {
               type="button"
               onClick={handlePreviousQuestion}
               disabled={
-                navigating ||
-                submitting ||
-                finalSubmitting ||
-                quitting ||
-                questionNumber <= 1
+                navigating || finalSubmitting || quitting || questionNumber <= 1
               }
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-[#D4D4D8] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -1097,11 +1039,7 @@ const Interview = () => {
               type="button"
               onClick={handleNextQuestion}
               disabled={
-                navigating ||
-                submitting ||
-                finalSubmitting ||
-                quitting ||
-                isLastQuestion
+                navigating || finalSubmitting || quitting || isLastQuestion
               }
               className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-medium text-[#D4D4D8] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -1115,11 +1053,7 @@ const Interview = () => {
               type="button"
               onClick={() => setShowSubmitModal(true)}
               disabled={
-                !canSubmitFinal ||
-                finalSubmitting ||
-                submitting ||
-                navigating ||
-                quitting
+                !canSubmitFinal || finalSubmitting || navigating || quitting
               }
               className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
@@ -1146,7 +1080,8 @@ const Interview = () => {
             <p className="mt-2 text-sm leading-6 text-[#71717A]">
               You're about to finish this interview. Any answered questions that
               haven't been evaluated yet will be processed before the interview
-              is finalized.
+              is finalized. If you haven't answered any question, this interview
+              will be marked as abandoned.
             </p>
 
             {/* Divider */}

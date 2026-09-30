@@ -571,24 +571,18 @@ async function deductInterviewCoins(userId, interviewId) {
 }
 
 /*
+ /*
  * =========================================================
  * FINALIZE + CHARGE
  * =========================================================
  *
  * IMPORTANT:
  *
- * Interview completion and coin deduction happen inside the
- * SAME MongoDB transaction.
+ * Interview Service requests the coin deduction from the
+ * Auth Service before marking the interview as completed.
  *
- * This prevents:
- *
- * completed interview + no coins deducted
- *
- * or
- *
- * coins deducted + interview not completed
- *
- * from being committed independently.
+ * The Auth Service owns the user's coin balance and handles
+ * the deduction/idempotency for the interview transaction.
  */
 async function finalizeInterviewWithCharge(
   userId,
@@ -816,127 +810,6 @@ export const startInterview = async (userId, interviewData) => {
 
 /*
  * =========================================================
- * SUBMIT ONE ANSWER
- * =========================================================
- *
- * Candidate can submit ANY question.
- *
- * questionId identifies the question.
- *
- * Already submitted questions are immutable.
- */
-export const submitAnswer = async (userId, interviewId, questionId, answer) => {
-  validateInterviewId(interviewId);
-
-  if (!questionId) {
-    throw new AppError("Question ID is required.", 400);
-  }
-
-  if (typeof answer !== "string" || !answer.trim()) {
-    throw new AppError("Answer is required.", 400);
-  }
-
-  const interview = await findUserInterview(userId, interviewId);
-
-  /*
-   * -------------------------------------------------------
-   * Handle time expiry before processing answer.
-   * -------------------------------------------------------
-   */
-  if (
-    interview.status === "in-progress" &&
-    getInterviewDeadline(interview) &&
-    new Date() >= getInterviewDeadline(interview)
-  ) {
-    await expireInterviewIfNeeded(interview);
-
-    throw new AppError("Interview time has expired.", 400);
-  }
-
-  if (interview.status !== "in-progress") {
-    throw new AppError("Interview is not active.", 400);
-  }
-
-  const question = interview.questions.find(
-    (item) => item.questionId === questionId,
-  );
-
-  if (!question) {
-    throw new AppError("Interview question not found.", 404);
-  }
-
-  /*
-   * -------------------------------------------------------
-   * Idempotent duplicate submission.
-   *
-   * Never run the LLM again.
-   * -------------------------------------------------------
-   */
-  if (question.answerStatus === "submitted" || question.submittedAt) {
-    return {
-      interviewId: interview._id,
-
-      questionId: question.questionId,
-
-      evaluation: question.evaluation,
-
-      answerStatus: "submitted",
-
-      currentQuestionIndex: interview.currentQuestionIndex,
-    };
-  }
-
-  /*
-   * Save answer before evaluation.
-   *
-   * If evaluation fails, answer remains available but
-   * submittedAt remains null.
-   */
-  question.answer = answer;
-
-  await interview.save();
-
-  try {
-    const { evaluation } = await evaluateQuestion(interview, question);
-
-    markQuestionSubmitted(question, evaluation);
-
-    await interview.save();
-
-    return {
-      interviewId: interview._id,
-
-      questionId: question.questionId,
-
-      evaluation,
-
-      answerStatus: question.answerStatus,
-
-      currentQuestionIndex: interview.currentQuestionIndex,
-    };
-  } catch (error) {
-    try {
-      const currentInterview = await Interview.findOne({
-        _id: interviewId,
-        userId,
-      });
-
-      if (currentInterview && currentInterview.status === "in-progress") {
-        await abandonForServerError(currentInterview);
-      }
-    } catch (abandonError) {
-      console.error("Failed to mark interview as abandoned:", abandonError);
-    }
-
-    throw new AppError(
-      "We couldn't evaluate your answer due to a server error. Your interview has been ended.",
-      502,
-    );
-  }
-};
-
-/*
- * =========================================================
  * NEXT QUESTION
  * =========================================================
  *
@@ -992,6 +865,14 @@ export const getPreviousQuestion = async (userId, interviewId) => {
     throw new AppError("Interview is not active.", 400);
   }
 
+  const deadline = getInterviewDeadline(interview);
+
+  if (deadline && new Date() >= deadline) {
+    await expireInterviewIfNeeded(interview);
+
+    throw new AppError("Interview time has expired.", 400);
+  }
+
   const previousIndex = interview.currentQuestionIndex - 1;
 
   if (previousIndex < 0) {
@@ -1025,8 +906,7 @@ export const getPreviousQuestion = async (userId, interviewId) => {
 export const submitInterview = async (
   userId,
   interviewId,
-  draftQuestionId = null,
-  draftAnswer = "",
+  draftAnswers = {},
 ) => {
   validateInterviewId(interviewId);
 
@@ -1058,7 +938,7 @@ export const submitInterview = async (
     };
   }
 
-  if (interview.status !== "in-progress") {
+  if (interview.status !== "in-progress" && interview.status !== "expired") {
     throw new AppError("Interview is not active.", 400);
   }
 
@@ -1072,27 +952,20 @@ export const submitInterview = async (
    * without passing through the normal active-answer endpoint.
    * -------------------------------------------------------
    */
-  if (
-    draftQuestionId &&
-    typeof draftAnswer === "string" &&
-    draftAnswer.trim()
-  ) {
-    const draftQuestion = interview.questions.find(
-      (question) => question.questionId === draftQuestionId,
-    );
+  if (draftAnswers && typeof draftAnswers === "object") {
+    for (const question of interview.questions) {
+      if (question.answerStatus === "submitted" || question.submittedAt) {
+        continue;
+      }
 
-    if (!draftQuestion) {
-      throw new AppError("Interview question not found.", 404);
+      const draftAnswer = draftAnswers[question.questionId];
+
+      if (typeof draftAnswer === "string") {
+        question.answer = draftAnswer.trim();
+      }
     }
 
-    if (
-      draftQuestion.answerStatus !== "submitted" &&
-      !draftQuestion.submittedAt
-    ) {
-      draftQuestion.answer = draftAnswer.trim();
-
-      await interview.save();
-    }
+    await interview.save();
   }
 
   /*
@@ -1196,25 +1069,22 @@ export const submitInterview = async (
      * - become a completed interview
      * - appear as completed history
      */
-    if (isTimeExpired && evaluatedAnswerCount === 0) {
+    if (evaluatedAnswerCount === 0) {
       interview.status = "abandoned";
-      interview.terminationReason = "time-limit";
+      interview.terminationReason = isTimeExpired ? "time-limit" : "no-answers";
       interview.endedAt = new Date();
 
       await interview.save();
 
       return {
         status: "abandoned",
-        terminationReason: "time-limit",
+        terminationReason: interview.terminationReason,
         report: null,
         coinsDeducted: 0,
       };
     }
 
-    const report =
-      evaluatedAnswerCount === 0
-        ? generateFallbackReport(interview)
-        : await generateInterviewSummary(interview);
+    const report = await generateInterviewSummary(interview);
 
     /*
      * -----------------------------------------------------
@@ -1293,19 +1163,21 @@ export const submitInterview = async (
 };
 
 /*
+
  * =========================================================
  * EXPIRE INTERVIEW
  * =========================================================
- *
  * Backend is the source of truth for time.
  *
- * Remaining questions are evaluated automatically.
+ * When the deadline is reached:
+ * - answered pending questions are evaluated
+ * - unanswered questions remain Not Answered
+ * - an interview with no evaluated answers is abandoned
+ * - an interview with evaluated answers is finalized and charged
  */
+
 async function expireInterviewIfNeeded(interview) {
-  if (
-    !interview.startedAt ||
-    !["in-progress", "paused"].includes(interview.status)
-  ) {
+  if (!interview.startedAt || interview.status !== "in-progress") {
     return false;
   }
 
@@ -1316,8 +1188,8 @@ async function expireInterviewIfNeeded(interview) {
   }
 
   /*
-   * A paused interview is also expired once its original
-   * deadline has passed.
+   * The interview is expired strictly according to its
+   * original deadline calculated from startedAt.
    */
   try {
     /*
@@ -1340,9 +1212,9 @@ async function expireInterviewIfNeeded(interview) {
       const { evaluation } = await evaluateQuestion(interview, question);
 
       markQuestionSubmitted(question, evaluation);
-    }
 
-    if (pendingQuestions.length > 0) {
+      // Persist every successful evaluation immediately.
+      // If a later question fails, earlier evaluations remain saved.
       await interview.save();
     }
 
@@ -1412,8 +1284,22 @@ async function expireInterviewIfNeeded(interview) {
      * Time-limit processing failed.
      *
      * Preserve whatever was already successfully evaluated.
-     * Do NOT charge coins.
+     *
+     * Business errors such as insufficient coins are propagated
+     * to the caller and are NOT converted into server-error
+     * abandonment.
+     *
+     * Actual evaluation/server failures abandon the interview
+     * without charging coins.
      */
+    if (
+      error instanceof AppError &&
+      error.statusCode >= 400 &&
+      error.statusCode < 500
+    ) {
+      throw error;
+    }
+
     try {
       const currentInterview = await Interview.findById(interview._id);
 
@@ -1443,7 +1329,7 @@ export const getInterview = async (userId, interviewId) => {
    * If the request happens after the deadline,
    * process expiration before returning state.
    */
-  if (interview.status === "in-progress" || interview.status === "paused") {
+  if (interview.status === "in-progress") {
     await expireInterviewIfNeeded(interview);
   }
 
@@ -1451,66 +1337,6 @@ export const getInterview = async (userId, interviewId) => {
     _id: interviewId,
     userId,
   });
-};
-
-/*
- * =========================================================
- * PAUSE INTERVIEW
- * =========================================================
- */
-
-export const pauseInterview = async (userId, interviewId) => {
-  validateInterviewId(interviewId);
-
-  const interview = await findUserInterview(userId, interviewId);
-
-  if (interview.status !== "in-progress") {
-    throw new AppError("Interview is not active.", 400);
-  }
-
-  const deadline = getInterviewDeadline(interview);
-
-  if (deadline && new Date() >= deadline) {
-    await expireInterviewIfNeeded(interview);
-
-    throw new AppError("Interview time has expired.", 400);
-  }
-
-  interview.status = "paused";
-
-  await interview.save();
-
-  return interview;
-};
-
-/*
- * =========================================================
- * RESUME INTERVIEW
- * =========================================================
- */
-
-export const resumeInterview = async (userId, interviewId) => {
-  validateInterviewId(interviewId);
-
-  const interview = await findUserInterview(userId, interviewId);
-
-  if (interview.status !== "paused") {
-    throw new AppError("Only a paused interview can be resumed.", 400);
-  }
-
-  const deadline = getInterviewDeadline(interview);
-
-  if (deadline && new Date() >= deadline) {
-    await expireInterviewIfNeeded(interview);
-
-    throw new AppError("Interview time has expired.", 400);
-  }
-
-  interview.status = "in-progress";
-
-  await interview.save();
-
-  return interview;
 };
 
 /*
@@ -1548,6 +1374,7 @@ export const quitInterview = async (userId, interviewId) => {
 export const getInterviewHistory = async (userId) => {
   return Interview.find({
     userId,
+    status: "completed",
   }).sort({
     createdAt: -1,
   });

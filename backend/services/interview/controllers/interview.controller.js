@@ -34,34 +34,6 @@ export const startInterview = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Submit Individual Answer
-|--------------------------------------------------------------------------
-*/
-
-export const submitAnswer = async (req, res, next) => {
-  try {
-    const userId = getUserId(req);
-
-    const { interviewId, questionId, answer } = req.body;
-
-    const result = await interviewService.submitAnswer(
-      userId,
-      interviewId,
-      questionId,
-      answer,
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Answer submitted successfully.",
-      data: result,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
 
 /*
 |--------------------------------------------------------------------------
@@ -134,13 +106,12 @@ export const submitInterview = async (req, res, next) => {
   try {
     const userId = getUserId(req);
     const { interviewId } = req.params;
-    const { draftQuestionId, draftAnswer } = req.body;
+    const { draftAnswers } = req.body;
 
     const result = await interviewService.submitInterview(
       userId,
       interviewId,
-      draftQuestionId,
-      draftAnswer,
+      draftAnswers,
     );
 
     return res.status(200).json({
@@ -190,58 +161,6 @@ export const getInterviewHistory = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: interviews,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/*
-|--------------------------------------------------------------------------
-| Pause Interview
-|--------------------------------------------------------------------------
-*/
-
-export const pauseInterview = async (req, res, next) => {
-  try {
-    const userId = getUserId(req);
-    const { interviewId } = req.params;
-
-    const interview = await interviewService.pauseInterview(
-      userId,
-      interviewId,
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Interview paused successfully.",
-      data: interview,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/*
-|--------------------------------------------------------------------------
-| Resume Interview
-|--------------------------------------------------------------------------
-*/
-
-export const resumeInterview = async (req, res, next) => {
-  try {
-    const userId = getUserId(req);
-    const { interviewId } = req.params;
-
-    const interview = await interviewService.resumeInterview(
-      userId,
-      interviewId,
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Interview resumed successfully.",
-      data: interview,
     });
   } catch (error) {
     next(error);

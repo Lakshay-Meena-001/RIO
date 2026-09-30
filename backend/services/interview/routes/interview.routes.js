@@ -1,24 +1,17 @@
 import express from "express";
-
 import {
   startInterview,
-  submitAnswer,
   getInterview,
   getInterviewHistory,
   getNextQuestion,
   getPreviousQuestion,
   submitInterview,
-  pauseInterview,
-  resumeInterview,
   quitInterview,
 } from "../controllers/interview.controller.js";
 
 import { validate } from "../middlewares/validate.js";
 
-import {
-  startInterviewSchema,
-  submitAnswerSchema,
-} from "../validators/interview.schema.js";
+import { startInterviewSchema } from "../validators/interview.schema.js";
 
 import { deleteInterview } from "../services/interview.service.js";
 
@@ -31,14 +24,6 @@ const router = express.Router();
 */
 
 router.post("/start", validate(startInterviewSchema), startInterview);
-
-/*
-|--------------------------------------------------------------------------
-| Individual Answer Submission
-|--------------------------------------------------------------------------
-*/
-
-router.post("/answer", validate(submitAnswerSchema), submitAnswer);
 
 /*
 |--------------------------------------------------------------------------
@@ -82,10 +67,6 @@ router.post("/:interviewId/submit", submitInterview);
 | Interview Lifecycle
 |--------------------------------------------------------------------------
 */
-
-router.patch("/:interviewId/pause", pauseInterview);
-
-router.patch("/:interviewId/resume", resumeInterview);
 
 router.patch("/:interviewId/quit", quitInterview);
 
