@@ -545,10 +545,16 @@ export const deductCoinsInternal = async (req, res) => {
      */
     const userId = req.headers["x-user-id"];
 
-    const { coin, action } = req.body;
+    const { coin, action, transactionId } = req.body;
+
+    if (!transactionId || typeof transactionId !== "string") {
+      return res.status(400).json({
+        success: false,
+        message: "Transaction ID is required.",
+      });
+    }
 
     const coinAmount = Number(coin);
-
     /*
      * User identity required.
      */
@@ -584,10 +590,16 @@ export const deductCoinsInternal = async (req, res) => {
         coins: {
           $gte: coinAmount,
         },
+        processedCoinTransactions: {
+          $ne: transactionId,
+        },
       },
       {
         $inc: {
           coins: -coinAmount,
+        },
+        $addToSet: {
+          processedCoinTransactions: transactionId,
         },
       },
       {
@@ -603,12 +615,24 @@ export const deductCoinsInternal = async (req, res) => {
      * 2. User does not have enough coins
      */
     if (!updatedUser) {
-      const currentUser = await User.findById(userId).select("coins");
+      const currentUser = await User.findById(userId).select(
+        "coins processedCoinTransactions",
+      );
 
       if (!currentUser) {
         return res.status(404).json({
           success: false,
           message: "User account not found.",
+        });
+      }
+
+      if (currentUser.processedCoinTransactions?.includes(transactionId)) {
+        return res.status(200).json({
+          success: true,
+          message: "Coin transaction already processed.",
+          action: action || null,
+          coins: Number(currentUser.coins) || 0,
+          alreadyProcessed: true,
         });
       }
 

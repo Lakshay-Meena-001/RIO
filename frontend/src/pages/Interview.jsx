@@ -253,7 +253,11 @@ const Interview = () => {
         ? updatedInterview.questions[updatedInterview.currentQuestionIndex]
         : null;
 
-      setAnswer(nextQuestion?.answer || "");
+      setAnswer(
+        draftAnswersRef.current[nextQuestion?.questionId] ??
+          nextQuestion?.answer ??
+          "",
+      );
     } catch (err) {
       console.error("Failed to move to next question:", err);
 
@@ -442,7 +446,19 @@ const Interview = () => {
         setFinalSubmitting(true);
         setError("");
 
-        
+        if (currentQuestion && !isCurrentQuestionSubmitted && answer.trim()) {
+          const answerResult = await submitAnswer(
+            interviewId,
+            currentQuestion.questionId,
+            answer.trim(),
+          );
+
+          if (!answerResult?.success) {
+            throw new Error(
+              answerResult?.message || "Unable to save your current answer.",
+            );
+          }
+        }
 
         const result = await submitInterview(interviewId);
 
@@ -503,7 +519,10 @@ const Interview = () => {
       isCompleted,
       interviewId,
       navigate,
-      refreshInterview
+      refreshInterview,
+      answer,
+      currentQuestion,
+      isCurrentQuestionSubmitted,
     ],
   );
 

@@ -519,7 +519,8 @@ async function deductInterviewCoins(userId, interviewId) {
 
       body: JSON.stringify({
         coin: INTERVIEW_COMPLETION_COST,
-        action: `interview-completion:${interviewId.toString()}`,
+        action: "interview-completion",
+        transactionId: `interview:${interviewId.toString()}:completion`,
       }),
     });
   } catch (error) {

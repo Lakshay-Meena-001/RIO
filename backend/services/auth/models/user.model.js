@@ -122,6 +122,11 @@ const userSchema = new mongoose.Schema(
       default: 1500,
       min: 0,
     },
+
+    processedCoinTransactions: {
+      type: [String],
+      default: [],
+    },
   },
   {
     timestamps: true,
