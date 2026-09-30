@@ -119,7 +119,7 @@ const userSchema = new mongoose.Schema(
     // instead of relying only on this balance.
     coins: {
       type: Number,
-      default: 150,
+      default: 1500,
       min: 0,
     },
   },

@@ -20,6 +20,10 @@ const getSessionKey = (sessionId) => {
   return `session:${sessionId}`;
 };
 
+const getUserSessionsKey = (userId) => {
+  return `user:sessions:${userId}`;
+};
+
 /*
  * Build the exact data that should live inside
  * the Redis session.
@@ -40,12 +44,17 @@ const buildSessionData = (user) => ({
  * the session structure consistent everywhere.
  */
 const saveSession = async (sessionId, user) => {
+  const userId = user._id.toString();
+
   await redis.set(
     getSessionKey(sessionId),
     JSON.stringify(buildSessionData(user)),
     "EX",
     SESSION_TTL,
   );
+
+  await redis.sadd(getUserSessionsKey(userId), sessionId);
+  await redis.expire(getUserSessionsKey(userId), SESSION_TTL);
 };
 
 /*

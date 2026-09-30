@@ -82,7 +82,11 @@ const Interview = () => {
         ? data.questions[data.currentQuestionIndex]
         : null;
 
-      setAnswer(loadedQuestion?.answer || "");
+      setAnswer(
+        draftAnswersRef.current[loadedQuestion?.questionId] ??
+          loadedQuestion?.answer ??
+          "",
+      );
 
       if (data.status === "abandoned") {
         setError("This interview has been abandoned.");
@@ -209,7 +213,11 @@ const Interview = () => {
       ? result.data.questions[result.data.currentQuestionIndex]
       : null;
 
-    setAnswer(refreshedQuestion?.answer || "");
+    setAnswer(
+      draftAnswersRef.current[refreshedQuestion?.questionId] ??
+        refreshedQuestion?.answer ??
+        "",
+    );
 
     return result.data;
   }, [interviewId, navigate]);
@@ -290,7 +298,11 @@ const Interview = () => {
         ? updatedInterview.questions[updatedInterview.currentQuestionIndex]
         : null;
 
-      setAnswer(previousQuestion?.answer || "");
+      setAnswer(
+        draftAnswersRef.current[previousQuestion?.questionId] ??
+          previousQuestion?.answer ??
+          "",
+      );
     } catch (err) {
       console.error("Failed to move to previous question:", err);
 
@@ -331,7 +343,11 @@ const Interview = () => {
       currentQuestionIndex: index,
     }));
 
-    setAnswer(jumpedQuestion?.answer || "");
+    setAnswer(
+      draftAnswersRef.current[jumpedQuestion?.questionId] ??
+        jumpedQuestion?.answer ??
+        "",
+    );
   };
 
   /*
@@ -426,6 +442,8 @@ const Interview = () => {
         setFinalSubmitting(true);
         setError("");
 
+        
+
         const result = await submitInterview(interviewId);
 
         if (!result?.success) {
@@ -485,7 +503,7 @@ const Interview = () => {
       isCompleted,
       interviewId,
       navigate,
-      refreshInterview,
+      refreshInterview
     ],
   );
 
