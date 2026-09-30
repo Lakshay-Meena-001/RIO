@@ -12,7 +12,7 @@ import AppError from "../utils/error.js";
  * =========================================================
  */
 
-const INTERVIEW_COMPLETION_COST = 10;
+const INTERVIEW_COMPLETION_COST = 100;
 
 const AUTH_SERVICE_URL =
   process.env.AUTH_SERVICE_URL || "http://localhost:8001";
