@@ -624,12 +624,9 @@ async function finalizeInterviewWithCharge(
     return interview;
   }
 
-  if (
-  interview.status !== "in-progress" &&
-  interview.status !== "expired"
-) {
-  throw new AppError("Interview is not active.", 400);
-}
+  if (interview.status !== "in-progress" && interview.status !== "expired") {
+    throw new AppError("Interview is not active.", 400);
+  }
   /*
    * ---------------------------------------------------------
    * Charge coins through Auth Service.
@@ -1340,7 +1337,9 @@ async function expireInterviewIfNeeded(interview) {
     );
 
     for (const question of pendingQuestions) {
-      await evaluateQuestion(interview, question);
+      const { evaluation } = await evaluateQuestion(interview, question);
+
+      markQuestionSubmitted(question, evaluation);
     }
 
     if (pendingQuestions.length > 0) {
@@ -1370,10 +1369,30 @@ async function expireInterviewIfNeeded(interview) {
         question.evaluation,
     ).length;
 
-    const report =
-      evaluatedAnswerCount === 0
-        ? generateFallbackReport(latestInterview)
-        : await generateInterviewSummary(latestInterview);
+    /*
+     * -----------------------------------------------------
+     * Timer expired without any attempted answer.
+     *
+     * This interview must:
+     * - NOT generate a report
+     * - NOT charge coins
+     * - NOT become completed
+     * - NOT appear as completed history
+     * -----------------------------------------------------
+     */
+    if (evaluatedAnswerCount === 0) {
+      latestInterview.status = "abandoned";
+
+      latestInterview.terminationReason = "time-limit";
+
+      latestInterview.endedAt = new Date();
+
+      await latestInterview.save();
+
+      return true;
+    }
+
+    const report = await generateInterviewSummary(latestInterview);
 
     /*
      * -----------------------------------------------------
