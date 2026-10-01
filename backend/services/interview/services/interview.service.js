@@ -64,7 +64,10 @@ function buildGraphState(interview, extraState = {}) {
 
     currentEvaluation: extraState.currentEvaluation || null,
 
-    questions: interview.questions || [],
+    questions:
+      extraState.questions !== undefined
+        ? extraState.questions
+        : interview.questions || [],
 
     overallScore: interview.overallScore,
 
@@ -435,8 +438,18 @@ function generateFallbackReport(interview) {
 
 async function generateInterviewSummary(interview) {
   try {
+    const summaryQuestions = interview.questions.map((question) => ({
+      questionId: question.questionId,
+      text: question.text,
+      section: question.section,
+      difficulty: question.difficulty,
+      answerStatus: question.answerStatus,
+      evaluation: question.evaluation,
+    }));
+
     const graphState = buildGraphState(interview, {
       action: "summary",
+      questions: summaryQuestions,
     });
 
     const result = await graph.invoke(graphState);

@@ -70,7 +70,7 @@ const Interview = () => {
        * Completed interviews go directly to report.
        */
       if (data.status === "completed") {
-        navigate(`/mock-interview/${interviewId}/report`, {
+        navigate(`/mock-interview/history?interview=${interviewId}`, {
           replace: true,
         });
 
@@ -204,7 +204,7 @@ const Interview = () => {
     }
 
     if (result.data.status === "completed") {
-      navigate(`/mock-interview/${interviewId}/report`, {
+      navigate(`/mock-interview/history?interview=${interviewId}`, {
         replace: true,
       });
 
@@ -233,7 +233,7 @@ const Interview = () => {
    */
 
   const handleNextQuestion = async () => {
-    if (!interview || navigating  || isAbandoned || isLastQuestion) {
+    if (!interview || navigating || isAbandoned || isLastQuestion) {
       return;
     }
 
@@ -1196,7 +1196,7 @@ const Interview = () => {
             <button
               type="button"
               onClick={() =>
-                navigate(`/mock-interview/${interviewId}/report`, {
+                navigate(`/mock-interview/history?interview=${interviewId}`, {
                   replace: true,
                 })
               }

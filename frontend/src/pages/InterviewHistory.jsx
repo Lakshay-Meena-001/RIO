@@ -1,17 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import InterviewReport from "./InterviewReport";
 import { getInterviewHistory } from "../api/interview.api";
 
-import {
-  FiClock,
-  FiMenu,
-  FiRefreshCw,
-} from "react-icons/fi";
+import { FiClock, FiMenu, FiRefreshCw } from "react-icons/fi";
 
 const InterviewHistory = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   const navigateWithTransition = (path, options) => {
     if (
@@ -49,7 +46,19 @@ const InterviewHistory = () => {
       const history = Array.isArray(result.data) ? result.data : [];
 
       setInterviews(history);
+
+      const requestedInterviewId = searchParams.get("interview");
+
       setSelectedInterviewId((currentSelectedId) => {
+        if (
+          requestedInterviewId &&
+          history.some(
+            (interview) => getInterviewId(interview) === requestedInterviewId,
+          )
+        ) {
+          return requestedInterviewId;
+        }
+
         if (
           currentSelectedId &&
           history.some(
@@ -253,7 +262,6 @@ const InterviewHistory = () => {
           }`}
         >
           <div className="shrink-0 border-b border-white/[0.07] bg-white/[0.015] px-4 pb-5 pt-5">
-            
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#52525B]">
@@ -326,7 +334,8 @@ const InterviewHistory = () => {
                 </p>
 
                 <p className="mt-2 max-w-[210px] text-[11px] leading-5 text-[#71717A]">
-                  Complete your first mock interview and your report will stay here for future practice.
+                  Complete your first mock interview and your report will stay
+                  here for future practice.
                 </p>
 
                 <p className="mt-4 text-[10px] italic leading-5 text-[#52525B]">
@@ -462,7 +471,8 @@ const InterviewHistory = () => {
                     </h2>
 
                     <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-[#71717A]">
-                      Pick a completed interview from the left to review your performance, or start a new round when you are ready.
+                      Pick a completed interview from the left to review your
+                      performance, or start a new round when you are ready.
                     </p>
 
                     <p className="mt-4 text-xs italic text-[#52525B]">
@@ -471,7 +481,9 @@ const InterviewHistory = () => {
 
                     <button
                       type="button"
-                      onClick={() => navigateWithTransition("/mock-interview/new")}
+                      onClick={() =>
+                        navigateWithTransition("/mock-interview/new")
+                      }
                       className="mt-6 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_28px_rgba(0,0,0,0.2)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#F4F4F5]"
                     >
                       Start Interview

@@ -1,6 +1,14 @@
 import llm from "../config/llm.js";
 import summaryPrompt from "../prompts/summary.prompt.js";
 import { summarySchema } from "../validators/interview.schema.js";
+import { ChatGroq } from "@langchain/groq";
+
+const summaryLlm = new ChatGroq({
+  model: "openai/gpt-oss-120b",
+  temperature: 0.2,
+  maxTokens: 1500,
+  maxRetries: 2,
+});
 
 export const summaryAgent = async (data) => {
   try {
@@ -8,7 +16,7 @@ export const summaryAgent = async (data) => {
     const prompt = summaryPrompt(data);
 
     // 2. Ask LLM for final report
-    const response = await llm.invoke(prompt);
+    const response = await summaryLlm.invoke(prompt);
 
     // 3. Convert response to string
     const content =
@@ -26,17 +34,14 @@ export const summaryAgent = async (data) => {
     const parsed = JSON.parse(cleaned);
 
     // 6. Validate LLM output
-    const validatedSummary =
-      summarySchema.parse(parsed);
+    const validatedSummary = summarySchema.parse(parsed);
 
     // 7. Return only validated data
     return validatedSummary;
   } catch (error) {
     console.error("Summary Agent Error:", error);
 
-    const agentError = new Error(
-      "Failed to generate interview summary.",
-    );
+    const agentError = new Error("Failed to generate interview summary.");
 
     agentError.statusCode = 502;
     agentError.cause = error;

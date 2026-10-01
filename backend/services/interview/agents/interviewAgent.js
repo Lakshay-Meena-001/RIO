@@ -4,36 +4,31 @@ import { interviewQuestionsSchema } from "../validators/interview.schema.js";
 
 export const interviewAgent = async (data) => {
   try {
-    // 1. Build prompt
     const prompt = interviewPrompt(data);
 
-    // 2. Ask LLM
     const response = await llm.invoke(prompt);
 
-    // 3. Convert response to string
     const content =
       typeof response.content === "string"
         ? response.content
         : JSON.stringify(response.content);
 
-    // 4. Remove markdown JSON fences if present
     const cleaned = content
       .replace(/```json/gi, "")
       .replace(/```/g, "")
       .trim();
 
-    // 5. Parse JSON
     const parsed = JSON.parse(cleaned);
 
-    // 6. Validate complete question set
     const validatedQuestions = interviewQuestionsSchema.parse(parsed);
 
-    // 7. Return only validated data
     return validatedQuestions;
   } catch (error) {
     console.error("Interview Agent Error:", error);
 
-    const agentError = new Error("Failed to generate interview questions.");
+    const agentError = new Error(
+      "Failed to generate interview questions."
+    );
 
     agentError.statusCode = 502;
     agentError.cause = error;

@@ -11,7 +11,6 @@ import ResumeBuilder from "./pages/ResumeBuilder";
 import MockInterview from "./pages/MockInterview";
 import NewInterview from "./pages/NewInterview";
 import Interview from "./pages/Interview";
-import InterviewReport from "./pages/InterviewReport";
 import InterviewHistory from "./pages/InterviewHistory";
 
 import { getCurrentUser } from "./api/user.api";
@@ -171,21 +170,6 @@ const App = () => {
         element={
           isAuthenticated && isProfileComplete ? (
             <Interview user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-
-      {/* -------------------------------------------------- */}
-      {/* Interview Report */}
-      {/* -------------------------------------------------- */}
-
-      <Route
-        path="/mock-interview/:interviewId/report"
-        element={
-          isAuthenticated && isProfileComplete ? (
-            <InterviewReport user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
           )
