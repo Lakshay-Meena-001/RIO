@@ -1350,9 +1350,9 @@ export const submitInterview = async (
           409,
         );
       }
+    } else {
+      interview = lockedInterview;
     }
-
-    interview = lockedInterview;
 
     /*
      * -------------------------------------------------------
@@ -1604,7 +1604,7 @@ export const submitInterview = async (
         // Do NOT abandon the interview because this was a
         // server/evaluation failure, not a user abandonment.
         currentInterview.finalizationKey = null;
-
+        f;
         await currentInterview.save();
       }
     } catch (recoveryError) {
