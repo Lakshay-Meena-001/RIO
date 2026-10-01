@@ -35,6 +35,10 @@ const Interview = () => {
 
   const [error, setError] = useState("");
   const [showQuitModal, setShowQuitModal] = useState(false);
+  const [showInsufficientBalanceModal, setShowInsufficientBalanceModal] =
+    useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showRulesModal, setShowRulesModal] = useState(true);
 
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const autoSubmitTriggeredRef = useRef(false);
@@ -381,6 +385,8 @@ const Interview = () => {
       try {
         setFinalSubmitting(true);
         setError("");
+        setShowInsufficientBalanceModal(false);
+        setShowCompletionModal(false);
 
         const finalDraftAnswers = {
           ...draftAnswersRef.current,
@@ -403,9 +409,7 @@ const Interview = () => {
           result?.data?.status === "completed" ||
           result?.data?.interview?.status === "completed"
         ) {
-          navigate(`/mock-interview/${interviewId}/report`, {
-            replace: true,
-          });
+          setShowCompletionModal(true);
 
           return;
         }
@@ -438,11 +442,20 @@ const Interview = () => {
           err,
         );
 
-        setError(
+        const errorMessage =
           err?.response?.data?.message ||
-            err?.message ||
-            "Unable to submit the interview. Please try again.",
-        );
+          err?.message ||
+          "Unable to submit the interview. Please try again.";
+
+        if (
+          errorMessage.toLowerCase().includes("insufficient") &&
+          errorMessage.toLowerCase().includes("coin")
+        ) {
+          setShowInsufficientBalanceModal(true);
+          setError("");
+        } else {
+          setError(errorMessage);
+        }
 
         try {
           await refreshInterview();
@@ -690,7 +703,12 @@ const Interview = () => {
 
             <button
               type="button"
-              onClick={() => navigate(`/mock-interview/${interviewId}/report`)}
+              onClick={() => {
+                setShowCompletionModal(false);
+                navigate(`/mock-interview/${interviewId}/report`, {
+                  replace: true,
+                });
+              }}
               className="mt-6 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C]"
             >
               View Report
@@ -1063,6 +1081,115 @@ const Interview = () => {
           )}
         </div>
       </div>
+      {showRulesModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#191B1E] p-6 shadow-2xl">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-[#A1A1AA]">
+              <FiCheckCircle size={18} />
+            </div>
+
+            <h2 className="mt-5 text-lg font-semibold text-white">
+              Before you begin
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-[#71717A]">
+              Please read these interview rules before continuing.
+            </p>
+
+            <div className="my-5 space-y-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-4">
+              <p className="text-xs leading-5 text-[#A1A1AA]">
+                • Your answers are saved as drafts while you move between
+                questions.
+              </p>
+
+              <p className="text-xs leading-5 text-[#A1A1AA]">
+                • Next and Previous do not submit or evaluate your answer.
+              </p>
+
+              <p className="text-xs leading-5 text-[#A1A1AA]">
+                • Final submission evaluates all non-empty answers.
+              </p>
+
+              <p className="text-xs leading-5 text-[#A1A1AA]">
+                • When the timer reaches 00:00, the interview is automatically
+                submitted.
+              </p>
+
+              <p className="text-xs leading-5 text-[#A1A1AA]">
+                • If you submit without answering anything, the interview is
+                abandoned and no coins are charged.
+              </p>
+
+              <p className="text-xs leading-5 text-[#A1A1AA]">
+                • Quitting the interview abandons this attempt and does not
+                create a completed report or history entry.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowRulesModal(false)}
+              className="w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
+            >
+              I Understand & Continue
+            </button>
+          </div>
+        </div>
+      )}
+      {showCompletionModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E] p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/20 bg-emerald-400/10 text-emerald-400">
+              <FiCheckCircle size={22} />
+            </div>
+
+            <h2 className="mt-5 text-lg font-semibold text-white">
+              Interview Completed
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
+              100 coins charged for this interview.
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate(`/mock-interview/${interviewId}/report`, {
+                  replace: true,
+                })
+              }
+              className="mt-6 w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
+            >
+              View Report
+            </button>
+          </div>
+        </div>
+      )}
+      {showInsufficientBalanceModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E] p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-400">
+              <FiAlertCircle size={22} />
+            </div>
+
+            <h2 className="mt-5 text-lg font-semibold text-white">
+              Insufficient Balance
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
+              You need 100 coins to complete this interview.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => setShowInsufficientBalanceModal(false)}
+              className="mt-6 w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
+            >
+              Okay
+            </button>
+          </div>
+        </div>
+      )}
       {showSubmitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#191B1E] p-6 shadow-2xl">

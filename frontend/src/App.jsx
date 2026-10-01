@@ -12,6 +12,7 @@ import MockInterview from "./pages/MockInterview";
 import NewInterview from "./pages/NewInterview";
 import Interview from "./pages/Interview";
 import InterviewReport from "./pages/InterviewReport";
+import InterviewHistory from "./pages/InterviewHistory";
 
 import { getCurrentUser } from "./api/user.api";
 import { getResume } from "./api/resume.api";
@@ -190,6 +191,22 @@ const App = () => {
           )
         }
       />
+
+      {/* --------------------------------------------------
+    Interview History
+-------------------------------------------------- */}
+
+      <Route
+        path="/mock-interview/history"
+        element={
+          isAuthenticated && isProfileComplete ? (
+            <InterviewHistory user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/login" replace />
+          )
+        }
+      />
+      
     </Routes>
   );
 };

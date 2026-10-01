@@ -282,18 +282,29 @@ const MockInterview = ({ user, setUser }) => {
                 </div>
 
                 {/* Desktop CTA */}
-                <button
-                  type="button"
-                  onClick={() => navigate("/mock-interview/new")}
-                  className="group hidden items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#17191C] transition-transform duration-200 hover:scale-[1.02] sm:flex"
-                >
-                  <FiPlay size={15} />
-                  Start Interview
-                  <FiArrowRight
-                    size={15}
-                    className="transition-transform group-hover:translate-x-0.5"
-                  />
-                </button>
+                <div className="hidden items-center gap-3 sm:flex">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/mock-interview/history")}
+                    className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/[0.09]"
+                  >
+                    <FiClock size={15} />
+                    History
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigate("/mock-interview/new")}
+                    className="group flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#17191C] transition-transform duration-200 hover:scale-[1.02]"
+                  >
+                    <FiPlay size={15} />
+                    Start Interview
+                    <FiArrowRight
+                      size={15}
+                      className="transition-transform group-hover:translate-x-0.5"
+                    />
+                  </button>
+                </div>
               </motion.section>
 
               {/* Stats */}
