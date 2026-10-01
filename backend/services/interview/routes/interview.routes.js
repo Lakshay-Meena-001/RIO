@@ -1,10 +1,12 @@
 import express from "express";
 import {
   startInterview,
+  beginInterview,
   getInterview,
   getInterviewHistory,
   getNextQuestion,
   getPreviousQuestion,
+  jumpToQuestion,
   submitInterview,
   quitInterview,
   deleteInterview,
@@ -13,7 +15,6 @@ import {
 import { validate } from "../middlewares/validate.js";
 
 import { startInterviewSchema } from "../validators/interview.schema.js";
-
 
 const router = express.Router();
 
@@ -24,6 +25,8 @@ const router = express.Router();
 */
 
 router.post("/start", validate(startInterviewSchema), startInterview);
+
+router.post("/:interviewId/begin", beginInterview);
 
 /*
 |--------------------------------------------------------------------------
@@ -49,6 +52,8 @@ router.get("/history", getInterviewHistory);
 router.post("/:interviewId/next", getNextQuestion);
 
 router.post("/:interviewId/previous", getPreviousQuestion);
+
+router.post("/:interviewId/jump", jumpToQuestion);
 
 /*
 |--------------------------------------------------------------------------

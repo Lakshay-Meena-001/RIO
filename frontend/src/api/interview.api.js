@@ -15,6 +15,19 @@ export const startInterview = async (interviewData) => {
 };
 
 /*
+ * Begin an interview after the user accepts the rules.
+ *
+ * This is when the actual interview timer starts.
+ *
+ * POST /api/interview/:interviewId/begin
+ */
+export const beginInterview = async (interviewId) => {
+  const response = await api.post(`/api/interview/${interviewId}/begin`);
+
+  return response.data;
+};
+
+/*
  * Move to the next question.
  *
  * This is navigation only.
@@ -37,6 +50,23 @@ export const getNextQuestion = async (interviewId) => {
  */
 export const getPreviousQuestion = async (interviewId) => {
   const response = await api.post(`/api/interview/${interviewId}/previous`);
+
+  return response.data;
+};
+
+/*
+ * Jump to question.
+ *
+ * This is navigation only.
+ *
+ * POST /api/interview/:interviewId/jump
+ */
+
+
+export const jumpToQuestion = async (interviewId, index) => {
+  const response = await api.post(`/api/interview/${interviewId}/jump`, {
+    index,
+  });
 
   return response.data;
 };

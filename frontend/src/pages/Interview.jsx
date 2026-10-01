@@ -14,11 +14,13 @@ import {
 import { RiBrainAi3Fill } from "react-icons/ri";
 
 import {
+  beginInterview,
   getInterview,
   getNextQuestion,
   getPreviousQuestion,
   quitInterview,
   submitInterview,
+  jumpToQuestion,
 } from "../api/interview.api";
 
 const Interview = () => {
@@ -41,6 +43,8 @@ const Interview = () => {
     useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [reportReady, setReportReady] = useState(false);
+  const [showNoAnswerModal, setShowNoAnswerModal] = useState(false);
+  const [processingStage, setProcessingStage] = useState("evaluating");
   const [showRulesModal, setShowRulesModal] = useState(true);
 
   const [remainingSeconds, setRemainingSeconds] = useState(null);
@@ -93,10 +97,6 @@ const Interview = () => {
           loadedQuestion?.answer ??
           "",
       );
-
-      if (data.status === "abandoned") {
-        setError("This interview has been abandoned.");
-      }
     } catch (err) {
       console.error("Failed to load interview:", err);
 
@@ -142,7 +142,6 @@ const Interview = () => {
    * ---------------------------------------------------------
    */
 
-  const isAbandoned = interview?.status === "abandoned";
   const isCompleted = interview?.status === "completed";
 
   /*
@@ -204,11 +203,7 @@ const Interview = () => {
     }
 
     if (result.data.status === "completed") {
-      navigate(`/mock-interview/history?interview=${interviewId}`, {
-        replace: true,
-      });
-
-      return null;
+      return result.data;
     }
 
     setInterview(result.data);
@@ -224,7 +219,7 @@ const Interview = () => {
     );
 
     return result.data;
-  }, [interviewId, navigate]);
+  }, [interviewId]);
 
   /*
    * ---------------------------------------------------------
@@ -233,7 +228,13 @@ const Interview = () => {
    */
 
   const handleNextQuestion = async () => {
-    if (!interview || navigating || isAbandoned || isLastQuestion) {
+    if (
+      !interview ||
+      navigating ||
+      finalSubmitting ||
+      quitting ||
+      isLastQuestion
+    ) {
       return;
     }
 
@@ -288,7 +289,13 @@ const Interview = () => {
    */
 
   const handlePreviousQuestion = async () => {
-    if (!interview || navigating || isAbandoned || questionNumber <= 1) {
+    if (
+      !interview ||
+      navigating ||
+      finalSubmitting ||
+      quitting ||
+      questionNumber <= 1
+    ) {
       return;
     }
 
@@ -336,11 +343,12 @@ const Interview = () => {
    * ---------------------------------------------------------
    */
 
-  const handleQuestionJump = (index) => {
+  const handleQuestionJump = async (index) => {
     if (
       !interview ||
       navigating ||
-      isAbandoned ||
+      finalSubmitting ||
+      quitting ||
       index === interview.currentQuestionIndex ||
       index < 0 ||
       index >= interview.questions.length
@@ -348,20 +356,40 @@ const Interview = () => {
       return;
     }
 
-    setError("");
+    try {
+      setNavigating(true);
+      setError("");
 
-    const jumpedQuestion = interview.questions[index];
+      const result = await jumpToQuestion(interviewId, index);
 
-    setInterview((previous) => ({
-      ...previous,
-      currentQuestionIndex: index,
-    }));
+      if (!result?.success || !result?.data) {
+        throw new Error(
+          result?.message || "Unable to move to the selected question.",
+        );
+      }
 
-    setAnswer(
-      draftAnswersRef.current[jumpedQuestion?.questionId] ??
-        jumpedQuestion?.answer ??
-        "",
-    );
+      const updatedInterview = result.data;
+      const jumpedQuestion =
+        updatedInterview.questions?.[updatedInterview.currentQuestionIndex];
+
+      setInterview(updatedInterview);
+
+      setAnswer(
+        draftAnswersRef.current[jumpedQuestion?.questionId] ??
+          jumpedQuestion?.answer ??
+          "",
+      );
+    } catch (err) {
+      console.error("Failed to jump to question:", err);
+
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Unable to move to the selected question.",
+      );
+    } finally {
+      setNavigating(false);
+    }
   };
 
   /*
@@ -376,7 +404,6 @@ const Interview = () => {
         finalSubmitting ||
         navigating ||
         quitting ||
-        isAbandoned ||
         isCompleted
       ) {
         return;
@@ -396,6 +423,7 @@ const Interview = () => {
         setError("");
         setShowInsufficientBalanceModal(false);
         setReportReady(false);
+        setProcessingStage("evaluating");
         setShowCompletionModal(true);
 
         const finalDraftAnswers = {
@@ -420,6 +448,7 @@ const Interview = () => {
           result?.data?.status === "completed" ||
           result?.data?.interview?.status === "completed"
         ) {
+          setProcessingStage("report");
           setReportReady(true);
 
           return;
@@ -428,7 +457,12 @@ const Interview = () => {
           result?.data?.status === "abandoned" ||
           result?.data?.interview?.status === "abandoned"
         ) {
+          setShowCompletionModal(false);
+          setReportReady(false);
+          setShowNoAnswerModal(true);
+
           await refreshInterview();
+
           return;
         }
 
@@ -440,6 +474,7 @@ const Interview = () => {
         const refreshed = await refreshInterview();
 
         if (refreshed?.status === "completed") {
+          setProcessingStage("report");
           setReportReady(true);
         }
       } catch (err) {
@@ -449,6 +484,9 @@ const Interview = () => {
             : "Failed to submit interview:",
           err,
         );
+
+        setShowCompletionModal(false);
+        setReportReady(false);
 
         const errorMessage =
           err?.response?.data?.message ||
@@ -479,7 +517,6 @@ const Interview = () => {
       finalSubmitting,
       navigating,
       quitting,
-      isAbandoned,
       isCompleted,
       interviewId,
       refreshInterview,
@@ -497,7 +534,7 @@ const Interview = () => {
   }, [handleSubmitInterview]);
 
   useEffect(() => {
-    if (!interview?.startedAt || isAbandoned || isCompleted) {
+    if (!interview?.startedAt || isCompleted) {
       const timer = window.setTimeout(() => {
         setRemainingSeconds(null);
       }, 0);
@@ -530,7 +567,6 @@ const Interview = () => {
         remaining === 0 &&
         !autoSubmitTriggeredRef.current &&
         !finalSubmitting &&
-        !isAbandoned &&
         !isCompleted
       ) {
         autoSubmitTriggeredRef.current = true;
@@ -551,7 +587,6 @@ const Interview = () => {
   }, [
     interview?.startedAt,
     interview?.timeLimit,
-    isAbandoned,
     isCompleted,
     finalSubmitting,
     handleSubmitInterview,
@@ -600,7 +635,7 @@ const Interview = () => {
    */
 
   useEffect(() => {
-    if (!interview || isAbandoned || isCompleted) {
+    if (!interview || isCompleted) {
       return;
     }
 
@@ -625,7 +660,7 @@ const Interview = () => {
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [interview, isAbandoned, isCompleted]);
+  }, [interview, isCompleted]);
 
   /*
    * ---------------------------------------------------------
@@ -677,85 +712,6 @@ const Interview = () => {
           >
             Try again
           </button>
-        </div>
-      </div>
-    );
-  }
-
-  /*
-   * ---------------------------------------------------------
-   * Abandoned screen
-   *
-   * No resume.
-   * No navigation.
-   * No submit.
-   * No quit.
-   * ---------------------------------------------------------
-   */
-
-  if (isAbandoned) {
-    return (
-      <div className="min-h-screen bg-[#111315] px-5 py-10 text-white">
-        <div className="mx-auto flex min-h-[80vh] max-w-2xl items-center justify-center">
-          <div className="w-full rounded-2xl border border-white/10 bg-white/[0.045] p-7 text-center sm:p-10">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl border border-red-400/20 bg-red-400/[0.06] text-red-300">
-              <FiAlertCircle size={20} />
-            </div>
-
-            <h1 className="mt-5 text-xl font-semibold">Interview abandoned</h1>
-
-            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#71717A]">
-              This interview has ended and cannot be resumed.
-            </p>
-
-            <div className="text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06]">
-                <FiCheckCircle size={21} className="text-emerald-400" />
-              </div>
-
-              <h3 className="mt-5 text-lg font-semibold text-white">
-                Interview Submitted
-              </h3>
-
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#8B8F98]">
-                We are processing your interview and preparing your detailed
-                report.
-              </p>
-
-              <button
-                type="button"
-                disabled={!reportReady}
-                onClick={() => {
-                  if (!reportReady) {
-                    return;
-                  }
-
-                  setShowCompletionModal(false);
-
-                  navigate(`/mock-interview/history?interview=${interviewId}`, {
-                    replace: true,
-                  });
-                }}
-                className={`mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
-                  reportReady
-                    ? "bg-white text-[#17191C] hover:bg-white/90"
-                    : "cursor-not-allowed bg-white/[0.08] text-[#71717A]"
-                }`}
-              >
-                {reportReady ? (
-                  <>
-                    View Report
-                    <FiArrowRight size={15} />
-                  </>
-                ) : (
-                  <>
-                    <FiLoader size={15} className="animate-spin" />
-                    Processing...
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
         </div>
       </div>
     );
@@ -890,7 +846,7 @@ const Interview = () => {
                 </div>
 
                 {/* Question */}
-                <h1 className="mt-4 w-full font-sans text-[12px] font-medium leading-[1.4] tracking-[-0.01em] text-[#F4F4F5] sm:text-[16px] lg:text-[22px]">
+                <h1 className="mt-4 w-full font-sans text-[12px] font-medium leading-[1.4] tracking-[-0.01em] text-[#F4F4F5] sm:text-[15px] lg:text-[18px]">
                   {currentQuestion?.text || "Question unavailable."}
                 </h1>
               </div>
@@ -1003,7 +959,7 @@ const Interview = () => {
                       key={question._id || index}
                       type="button"
                       onClick={() => handleQuestionJump(index)}
-                      disabled={navigating}
+                      disabled={navigating || finalSubmitting || quitting}
                       className={[
                         "flex h-10 items-center justify-center rounded-xl border font-sans text-[12px] font-semibold transition-all",
                         isActive
@@ -1043,7 +999,6 @@ const Interview = () => {
                     Next →
                   </button>
                 </div>
-
                 {/* Draft status */}
                 <div className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-center">
                   <p className="text-[10px] leading-5 text-[#52525B]">
@@ -1051,22 +1006,22 @@ const Interview = () => {
                     interview.
                   </p>
                 </div>
-                {isLastQuestion && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSubmitModal(true)}
-                    disabled={
-                      !canSubmitFinal ||
-                      finalSubmitting ||
-                      navigating ||
-                      quitting
-                    }
-                    className="mt-2 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.08] font-sans text-[13px] font-semibold text-white transition hover:bg-white/[0.13] disabled:cursor-not-allowed disabled:opacity-30"
-                  >
-                    <FiCheck size={14} />
-                    Submit Interview
-                  </button>
-                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowSubmitModal(true)}
+                  disabled={
+                    !canSubmitFinal || finalSubmitting || navigating || quitting
+                  }
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
+                    isLastQuestion
+                      ? "bg-white text-black hover:bg-[#E4E4E7]"
+                      : "bg-white/[0.08] text-[#71717A] cursor-not-allowed"
+                  } disabled:opacity-30`}
+                >
+                  <FiCheck size={14} />
+                  Submit Interview
+                </button>
               </div>
             </div>
           </aside>
@@ -1158,19 +1113,41 @@ const Interview = () => {
               </p>
 
               <p className="text-xs leading-5 text-[#A1A1AA]">
-                • If you submit without answering anything, the interview is
-                abandoned and no coins are charged.
+                • If you haven't answered anything, no report will be generated
+                and no coins will be charged.
               </p>
 
               <p className="text-xs leading-5 text-[#A1A1AA]">
-                • Quitting the interview abandons this attempt and does not
-                create a completed report or history entry.
+                • If you quit the interview, your attempt will be discarded. No
+                report will be generated and no coins will be charged.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() => setShowRulesModal(false)}
+              onClick={async () => {
+                try {
+                  setNavigating(true);
+                  setError("");
+
+                  const result = await beginInterview(interviewId);
+
+                  if (!result?.success || !result?.data) {
+                    throw new Error("Failed to start interview.");
+                  }
+
+                  setInterview(result.data);
+                  setShowRulesModal(false);
+                } catch (err) {
+                  setError(
+                    err?.response?.data?.message ||
+                      err?.message ||
+                      "Failed to start interview.",
+                  );
+                } finally {
+                  setNavigating(false);
+                }
+              }}
               className="w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
             >
               I Understand & Continue
@@ -1181,28 +1158,67 @@ const Interview = () => {
       {showCompletionModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E] p-6 text-center shadow-2xl">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-emerald-400/20 bg-emerald-400/10 text-emerald-400">
-              <FiCheckCircle size={22} />
+            <div
+              className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full border ${
+                reportReady
+                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
+                  : "border-white/10 bg-white/[0.05] text-[#A1A1AA]"
+              }`}
+            >
+              {reportReady ? (
+                <FiCheckCircle size={22} />
+              ) : (
+                <FiLoader size={22} className="animate-spin" />
+              )}
             </div>
 
             <h2 className="mt-5 text-lg font-semibold text-white">
-              Interview Completed
+              {reportReady
+                ? "Interview Completed"
+                : processingStage === "evaluating"
+                  ? "We are evaluating your answers..."
+                  : "Generating your interview report..."}
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
-              100 coins charged for this interview.
+              {reportReady
+                ? "Your interview has been evaluated and your report is ready."
+                : processingStage === "evaluating"
+                  ? "Your answers are being evaluated. Please wait..."
+                  : "Your detailed interview report is being generated. Please wait..."}
             </p>
 
             <button
               type="button"
-              onClick={() =>
+              disabled={!reportReady}
+              onClick={() => {
+                if (!reportReady) {
+                  return;
+                }
+
+                setShowCompletionModal(false);
+
                 navigate(`/mock-interview/history?interview=${interviewId}`, {
                   replace: true,
-                })
-              }
-              className="mt-6 w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
+                });
+              }}
+              className={`mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-xs font-semibold transition ${
+                reportReady
+                  ? "bg-white text-[#17191C] hover:bg-white/90"
+                  : "cursor-not-allowed bg-white/[0.08] text-[#71717A]"
+              }`}
             >
-              View Report
+              {reportReady ? (
+                <>
+                  View Report
+                  <FiArrowRight size={15} />
+                </>
+              ) : (
+                <>
+                  <FiLoader size={14} className="animate-spin" />
+                  Processing...
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -1249,8 +1265,8 @@ const Interview = () => {
             <p className="mt-2 text-sm leading-6 text-[#71717A]">
               You're about to finish this interview. Any answered questions that
               haven't been evaluated yet will be processed before the interview
-              is finalized. If you haven't answered any question, this interview
-              will be marked as abandoned.
+              is finalized. If you haven't answered anything, no report will be
+              generated and no coins will be charged.
             </p>
 
             {/* Divider */}
@@ -1279,6 +1295,31 @@ const Interview = () => {
           </div>
         </div>
       )}
+      {showNoAnswerModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#111113] p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-[#F4F4F5]">
+              You haven't answered anything
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-[#71717A]">
+              No report will be generated and no coins will be charged.
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                navigate("/mock-interview", {
+                  replace: true,
+                })
+              }
+              className="mt-6 w-full rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:bg-[#E4E4E7]"
+            >
+              Back to Mock Interviews
+            </button>
+          </div>
+        </div>
+      )}
       {/* =====================================================
           QUIT CONFIRMATION
       ====================================================== */}
@@ -1292,8 +1333,8 @@ const Interview = () => {
             <h2 className="mt-5 text-lg font-semibold">Quit this interview?</h2>
 
             <p className="mt-2 text-sm leading-6 text-[#71717A]">
-              Leaving this interview will permanently abandon this attempt. You
-              will not be able to resume it later.
+              If you quit now, this interview will be discarded. No report will
+              be generated and no coins will be charged.
             </p>
 
             <div className="mt-6 flex gap-2">

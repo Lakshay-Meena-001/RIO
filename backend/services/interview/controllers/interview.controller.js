@@ -36,6 +36,32 @@ export const startInterview = async (req, res, next) => {
 
 /*
 |--------------------------------------------------------------------------
+| Begin Interview
+|--------------------------------------------------------------------------
+*/
+
+export const beginInterview = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+
+    const interview = await interviewService.beginInterview(
+      userId,
+      interviewId,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Interview timer started.",
+      data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
 | Next Question
 |--------------------------------------------------------------------------
 |
@@ -84,6 +110,38 @@ export const getPreviousQuestion = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Moved to previous question.",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/*
+|--------------------------------------------------------------------------
+| Jump To Question
+|--------------------------------------------------------------------------
+|
+| Navigation only.
+| No LLM call happens here.
+|
+*/
+
+export const jumpToQuestion = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+    const { index } = req.body;
+
+    const result = await interviewService.jumpToQuestion(
+      userId,
+      interviewId,
+      index,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Moved to selected question.",
       data: result,
     });
   } catch (error) {

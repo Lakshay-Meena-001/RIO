@@ -985,6 +985,33 @@ export const startInterview = async (userId, interviewData) => {
 
 /*
  * =========================================================
+ * BEGIN INTERVIEW
+ * =========================================================
+ */
+export const beginInterview = async (userId, interviewId) => {
+  validateInterviewId(interviewId);
+
+  const interview = await findUserInterview(userId, interviewId);
+
+  if (interview.status !== "created") {
+    throw new AppError("Interview cannot be started.", 400);
+  }
+  
+  interview.status = "created";
+
+  interview.startedAt = null;
+
+  interview.endedAt = null;
+
+  interview.terminationReason = null;
+
+  await interview.save();
+
+  return interview;
+};
+
+/*
+ * =========================================================
  * NEXT QUESTION
  * =========================================================
  *
@@ -1055,6 +1082,50 @@ export const getPreviousQuestion = async (userId, interviewId) => {
   }
 
   interview.currentQuestionIndex = previousIndex;
+
+  await interview.save();
+
+  return interview;
+};
+
+/*
+ * =========================================================
+ * JUMP TO QUESTION
+ * =========================================================
+ *
+ * Navigation only.
+ *
+ * Keeps frontend question-card navigation
+ * synchronized with the persisted interview index.
+ */
+export const jumpToQuestion = async (userId, interviewId, index) => {
+  validateInterviewId(interviewId);
+
+  const interview = await findUserInterview(userId, interviewId);
+
+  if (interview.status !== "in-progress") {
+    throw new AppError("Interview is not active.", 400);
+  }
+
+  const deadline = getInterviewDeadline(interview);
+
+  if (deadline && new Date() >= deadline) {
+    await expireInterviewIfNeeded(interview);
+
+    throw new AppError("Interview time has expired.", 400);
+  }
+
+  const targetIndex = Number(index);
+
+  if (
+    !Number.isInteger(targetIndex) ||
+    targetIndex < 0 ||
+    targetIndex >= interview.questions.length
+  ) {
+    throw new AppError("Invalid question index.", 400);
+  }
+
+  interview.currentQuestionIndex = targetIndex;
 
   await interview.save();
 
