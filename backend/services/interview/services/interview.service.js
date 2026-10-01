@@ -681,7 +681,7 @@ async function finalizeInterviewWithCharge(
         },
       },
       {
-        new: true,
+        returnDocument: "after",
       },
     );
 
@@ -859,6 +859,17 @@ async function finalizeInterviewWithCharge(
 export const startInterview = async (userId, interviewData) => {
   const questionCount = Number(interviewData.questionCount || 10);
 
+  if (
+    !Number.isInteger(questionCount) ||
+    questionCount < 1 ||
+    questionCount > 50
+  ) {
+    throw new AppError(
+      "Question count must be an integer between 1 and 50.",
+      400,
+    );
+  }
+
   const balance = await getUserBalance(userId);
 
   if (balance < INTERVIEW_COMPLETION_COST) {
@@ -1012,7 +1023,7 @@ export const beginInterview = async (userId, interviewId) => {
       },
     },
     {
-      new: true,
+      returnDocument: "after",
     },
   );
 
@@ -1060,11 +1071,27 @@ export const getNextQuestion = async (userId, interviewId) => {
     return interview;
   }
 
-  interview.currentQuestionIndex = nextIndex;
+  const updatedInterview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "in-progress",
+    },
+    {
+      $set: {
+        currentQuestionIndex: nextIndex,
+      },
+    },
+    {
+      returnDocument: "after",
+    },
+  );
 
-  await interview.save();
+  if (!updatedInterview) {
+    throw new AppError("Interview is no longer active.", 400);
+  }
 
-  return interview;
+  return updatedInterview;
 };
 
 /*
@@ -1099,11 +1126,27 @@ export const getPreviousQuestion = async (userId, interviewId) => {
     return interview;
   }
 
-  interview.currentQuestionIndex = previousIndex;
+  const updatedInterview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "in-progress",
+    },
+    {
+      $set: {
+        currentQuestionIndex: previousIndex,
+      },
+    },
+    {
+      returnDocument: "after",
+    },
+  );
 
-  await interview.save();
+  if (!updatedInterview) {
+    throw new AppError("Interview is no longer active.", 400);
+  }
 
-  return interview;
+  return updatedInterview;
 };
 
 /*
@@ -1143,11 +1186,27 @@ export const jumpToQuestion = async (userId, interviewId, index) => {
     throw new AppError("Invalid question index.", 400);
   }
 
-  interview.currentQuestionIndex = targetIndex;
+  const updatedInterview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "in-progress",
+    },
+    {
+      $set: {
+        currentQuestionIndex: targetIndex,
+      },
+    },
+    {
+      returnDocument: "after",
+    },
+  );
 
-  await interview.save();
+  if (!updatedInterview) {
+    throw new AppError("Interview is no longer active.", 400);
+  }
 
-  return interview;
+  return updatedInterview;
 };
 /*
  * =========================================================
@@ -1208,32 +1267,6 @@ export const submitInterview = async (
 
   /*
    * -------------------------------------------------------
-   * Persist the current frontend draft before finalization.
-   *
-   * This is intentionally NOT submitAnswer().
-   *
-   * Timer expiry must be able to capture the textarea draft
-   * without passing through the normal active-answer endpoint.
-   * -------------------------------------------------------
-   */
-  if (draftAnswers && typeof draftAnswers === "object") {
-    for (const question of interview.questions) {
-      if (question.answerStatus === "submitted" || question.submittedAt) {
-        continue;
-      }
-
-      const draftAnswer = draftAnswers[question.questionId];
-
-      if (typeof draftAnswer === "string") {
-        question.answer = draftAnswer.trim();
-      }
-    }
-
-    await interview.save();
-  }
-
-  /*
-   * -------------------------------------------------------
    * Time check
    * -------------------------------------------------------
    */
@@ -1272,7 +1305,7 @@ export const submitInterview = async (
         },
       },
       {
-        new: true,
+        returnDocument: "after",
       },
     );
 
@@ -1288,17 +1321,64 @@ export const submitInterview = async (
           interview: latestInterview,
           report: latestInterview.report,
           coinsCharged: INTERVIEW_COMPLETION_COST,
+          alreadyFinalized: true,
         };
       }
 
-      throw new AppError(
-        "Interview is already being finalized. Please retry.",
-        409,
-      );
+      /*
+       * Payment was already charged by a previous attempt,
+       * but finalization did not finish.
+       *
+       * Never charge again.
+       *
+       * Allow this request to continue the finalization
+       * using the existing charged state.
+       */
+      if (
+        latestInterview?.status === "in-progress" &&
+        latestInterview.paymentStatus === "charged"
+      ) {
+        interview = latestInterview;
+
+        /*
+         * The existing finalizationKey belongs to the same
+         * interview, so this retry is allowed to recover it.
+         */
+      } else {
+        throw new AppError(
+          "Interview is already being finalized. Please retry.",
+          409,
+        );
+      }
     }
 
     interview = lockedInterview;
 
+    /*
+     * -------------------------------------------------------
+     * Persist the current frontend draft before finalization.
+     *
+     * This is intentionally NOT submitAnswer().
+     *
+     * Timer expiry must be able to capture the textarea draft
+     * without passing through the normal active-answer endpoint.
+     * -------------------------------------------------------
+     */
+    if (draftAnswers && typeof draftAnswers === "object") {
+      for (const question of interview.questions) {
+        if (question.answerStatus === "submitted" || question.submittedAt) {
+          continue;
+        }
+
+        const draftAnswer = draftAnswers[question.questionId];
+
+        if (typeof draftAnswer === "string") {
+          question.answer = draftAnswer.trim();
+        }
+      }
+
+      await interview.save();
+    }
     const pendingAnsweredQuestions = interview.questions.filter(
       (question) =>
         question.answerStatus !== "submitted" &&
@@ -1520,9 +1600,12 @@ export const submitInterview = async (
        * -------------------------------------------------------
        */
       if (currentInterview && currentInterview.status === "in-progress") {
+        // Release the finalization lock so the user can retry.
+        // Do NOT abandon the interview because this was a
+        // server/evaluation failure, not a user abandonment.
         currentInterview.finalizationKey = null;
 
-        await abandonForServerError(currentInterview);
+        await currentInterview.save();
       }
     } catch (recoveryError) {
       if (recoveryError instanceof AppError) {
@@ -1597,7 +1680,7 @@ async function expireInterviewIfNeeded(interview) {
         },
       },
       {
-        new: true,
+        returnDocument: "after",
       },
     );
 
@@ -1612,9 +1695,21 @@ async function expireInterviewIfNeeded(interview) {
       }
 
       /*
-       * Another request is already finalizing it.
+       * Another request is currently finalizing the interview.
+       * Do not start another evaluation/finalization flow.
        *
-       * Do not evaluate the same answers again.
+       * The current request only needs to stop here.
+       */
+      if (
+        latestInterview?.status === "in-progress" &&
+        latestInterview.finalizationKey
+      ) {
+        return true;
+      }
+
+      /*
+       * The interview changed to another terminal/non-active
+       * state while this request was running.
        */
       return true;
     }
@@ -1817,27 +1912,46 @@ export const getInterview = async (userId, interviewId) => {
 export const quitInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await findUserInterview(userId, interviewId);
+  const interview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "in-progress",
+      $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
+      paymentStatus: {
+        $nin: ["charging", "charged"],
+      },
+    },
+    {
+      $set: {
+        status: "abandoned",
+        endedAt: new Date(),
+        terminationReason: "quit",
+        finalizationKey: null,
+      },
+    },
+    {
+      returnDocument: "after",
+    },
+  );
 
-  if (interview.status === "completed" || interview.status === "abandoned") {
+  if (interview) {
+    return interview;
+  }
+
+  const existingInterview = await findUserInterview(userId, interviewId);
+
+  if (
+    existingInterview.status === "completed" ||
+    existingInterview.status === "abandoned"
+  ) {
     throw new AppError("Interview is already closed.", 400);
   }
 
-  /*
-   * -------------------------------------------------------
-   * Finalization/payment is already in progress.
-   *
-   * Do NOT allow Quit to turn the interview into abandoned
-   * while the completion flow is processing.
-   *
-   * This is especially important when paymentStatus is
-   * "charging" or "charged".
-   * -------------------------------------------------------
-   */
   if (
-    interview.finalizationKey ||
-    interview.paymentStatus === "charging" ||
-    interview.paymentStatus === "charged"
+    existingInterview.finalizationKey ||
+    existingInterview.paymentStatus === "charging" ||
+    existingInterview.paymentStatus === "charged"
   ) {
     throw new AppError(
       "Interview finalization is already in progress. Please wait for it to complete.",
@@ -1845,17 +1959,7 @@ export const quitInterview = async (userId, interviewId) => {
     );
   }
 
-  interview.status = "abandoned";
-
-  interview.endedAt = new Date();
-
-  interview.terminationReason = "quit";
-
-  interview.finalizationKey = null;
-
-  await interview.save();
-
-  return interview;
+  throw new AppError("Interview cannot be quit.", 400);
 };
 
 /*
@@ -1882,14 +1986,36 @@ export const getInterviewHistory = async (userId) => {
 export const deleteInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await findUserInterview(userId, interviewId);
-
-  await Interview.deleteOne({
-    _id: interview._id,
+  const deletedInterview = await Interview.findOneAndDelete({
+    _id: interviewId,
     userId,
+    status: {
+      $in: ["completed", "abandoned"],
+    },
   });
 
-  return {
-    interviewId,
-  };
+  if (deletedInterview) {
+    return {
+      interviewId,
+    };
+  }
+
+  const interview = await findUserInterview(userId, interviewId);
+
+  if (
+    interview.status === "in-progress" ||
+    interview.paymentStatus === "charging" ||
+    interview.paymentStatus === "charged" ||
+    interview.finalizationKey
+  ) {
+    throw new AppError(
+      "Interview cannot be deleted while it is being finalized.",
+      409,
+    );
+  }
+
+  throw new AppError(
+    "Only completed or abandoned interviews can be deleted.",
+    400,
+  );
 };
