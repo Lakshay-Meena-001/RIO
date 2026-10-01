@@ -45,7 +45,7 @@ const Interview = () => {
   const [reportReady, setReportReady] = useState(false);
   const [showNoAnswerModal, setShowNoAnswerModal] = useState(false);
   const [processingStage, setProcessingStage] = useState("evaluating");
-  const [showRulesModal, setShowRulesModal] = useState(true);
+  const [showRulesModal, setShowRulesModal] = useState(false);
 
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const autoSubmitTriggeredRef = useRef(false);

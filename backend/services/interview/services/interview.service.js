@@ -934,9 +934,9 @@ export const startInterview = async (userId, interviewData) => {
 
     interview.currentQuestionIndex = 0;
 
-    interview.status = "in-progress";
+    interview.status = "created";
 
-    interview.startedAt = new Date();
+    interview.startedAt = null;
 
     interview.endedAt = null;
 
@@ -996,20 +996,16 @@ export const beginInterview = async (userId, interviewId) => {
   if (interview.status !== "created") {
     throw new AppError("Interview cannot be started.", 400);
   }
-  
-  interview.status = "created";
 
-  interview.startedAt = null;
-
+  interview.status = "in-progress";
+  interview.startedAt = new Date();
   interview.endedAt = null;
-
   interview.terminationReason = null;
 
   await interview.save();
 
   return interview;
 };
-
 /*
  * =========================================================
  * NEXT QUESTION
