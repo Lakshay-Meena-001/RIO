@@ -991,18 +991,40 @@ export const startInterview = async (userId, interviewData) => {
 export const beginInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await findUserInterview(userId, interviewId);
+  /*
+   * Atomically transition created -> in-progress.
+   * This prevents concurrent begin requests from starting
+   * the same interview twice.
+   */
+  const interview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "created",
+      "questions.0": { $exists: true },
+    },
+    {
+      $set: {
+        status: "in-progress",
+        startedAt: new Date(),
+        endedAt: null,
+        terminationReason: null,
+      },
+    },
+    {
+      new: true,
+    },
+  );
 
-  if (interview.status !== "created") {
-    throw new AppError("Interview cannot be started.", 400);
+  if (!interview) {
+    const existingInterview = await findUserInterview(userId, interviewId);
+
+    if (existingInterview.status !== "created") {
+      throw new AppError("Interview cannot be started.", 400);
+    }
+
+    throw new AppError("Interview is not ready to begin.", 400);
   }
-
-  interview.status = "in-progress";
-  interview.startedAt = new Date();
-  interview.endedAt = null;
-  interview.terminationReason = null;
-
-  await interview.save();
 
   return interview;
 };

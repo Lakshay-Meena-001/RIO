@@ -34,6 +34,7 @@ const Interview = () => {
 
   const [loading, setLoading] = useState(true);
   const [navigating, setNavigating] = useState(false);
+  const [questionNavigating, setQuestionNavigating] = useState(false);
   const [finalSubmitting, setFinalSubmitting] = useState(false);
   const [quitting, setQuitting] = useState(false);
 
@@ -43,12 +44,13 @@ const Interview = () => {
     useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [reportReady, setReportReady] = useState(false);
-  const [showNoAnswerModal, setShowNoAnswerModal] = useState(false);
   const [processingStage, setProcessingStage] = useState("evaluating");
   const [showRulesModal, setShowRulesModal] = useState(false);
 
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const autoSubmitTriggeredRef = useRef(false);
+  const isMountedRef = useRef(false);
+  const loadRequestIdRef = useRef(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
 
   /*
@@ -58,6 +60,8 @@ const Interview = () => {
    */
 
   const loadInterview = useCallback(async () => {
+    const requestId = ++loadRequestIdRef.current;
+
     try {
       setError("");
 
@@ -68,10 +72,15 @@ const Interview = () => {
       }
 
       const data = result.data;
+
+      if (!isMountedRef.current || requestId !== loadRequestIdRef.current) {
+        return;
+      }
+
       autoSubmitTriggeredRef.current = false;
 
       /*
-       * Completed interviews go directly to report.
+       * Completed interviews go directly to report/history.
        */
       if (data.status === "completed") {
         navigate(`/mock-interview/history?interview=${interviewId}`, {
@@ -84,10 +93,13 @@ const Interview = () => {
       setInterview(data);
 
       /*
-       * Set answer directly here.
+       * Rules are shown only for a newly created interview.
        *
-       * No useEffect is needed for answer synchronization.
+       * created      -> Rules Modal
+       * in-progress  -> Resume directly
        */
+      setShowRulesModal(data.status === "created");
+
       const loadedQuestion = Array.isArray(data.questions)
         ? data.questions[data.currentQuestionIndex]
         : null;
@@ -98,6 +110,10 @@ const Interview = () => {
           "",
       );
     } catch (err) {
+      if (!isMountedRef.current || requestId !== loadRequestIdRef.current) {
+        return;
+      }
+
       console.error("Failed to load interview:", err);
 
       setError(
@@ -106,7 +122,9 @@ const Interview = () => {
           "Unable to load this interview.",
       );
     } finally {
-      setLoading(false);
+      if (isMountedRef.current && requestId === loadRequestIdRef.current) {
+        setLoading(false);
+      }
     }
   }, [interviewId, navigate]);
 
@@ -115,11 +133,18 @@ const Interview = () => {
    * synchronous state-update warnings.
    */
   useEffect(() => {
+    isMountedRef.current = true;
+
     const timer = window.setTimeout(() => {
       loadInterview();
     }, 0);
 
-    return () => window.clearTimeout(timer);
+    return () => {
+      isMountedRef.current = false;
+      loadRequestIdRef.current += 1;
+
+      window.clearTimeout(timer);
+    };
   }, [loadInterview]);
 
   /*
@@ -230,6 +255,7 @@ const Interview = () => {
   const handleNextQuestion = async () => {
     if (
       !interview ||
+      interview.status !== "in-progress" ||
       navigating ||
       finalSubmitting ||
       quitting ||
@@ -239,7 +265,7 @@ const Interview = () => {
     }
 
     try {
-      setNavigating(true);
+      setQuestionNavigating(true);
       setError("");
 
       const result = await getNextQuestion(interviewId);
@@ -279,7 +305,7 @@ const Interview = () => {
           "Unable to move to the next question.",
       );
     } finally {
-      setNavigating(false);
+      setQuestionNavigating(false);
     }
   };
   /*
@@ -291,6 +317,7 @@ const Interview = () => {
   const handlePreviousQuestion = async () => {
     if (
       !interview ||
+      interview.status !== "in-progress" ||
       navigating ||
       finalSubmitting ||
       quitting ||
@@ -300,7 +327,7 @@ const Interview = () => {
     }
 
     try {
-      setNavigating(true);
+      setQuestionNavigating(true);
       setError("");
 
       const result = await getPreviousQuestion(interviewId);
@@ -333,7 +360,7 @@ const Interview = () => {
           "Unable to move to the previous question.",
       );
     } finally {
-      setNavigating(false);
+      setQuestionNavigating(false);
     }
   };
 
@@ -346,6 +373,7 @@ const Interview = () => {
   const handleQuestionJump = async (index) => {
     if (
       !interview ||
+      interview.status !== "in-progress" ||
       navigating ||
       finalSubmitting ||
       quitting ||
@@ -357,7 +385,7 @@ const Interview = () => {
     }
 
     try {
-      setNavigating(true);
+      setQuestionNavigating(true);
       setError("");
 
       const result = await jumpToQuestion(interviewId, index);
@@ -388,7 +416,7 @@ const Interview = () => {
           "Unable to move to the selected question.",
       );
     } finally {
-      setNavigating(false);
+      setQuestionNavigating(false);
     }
   };
 
@@ -457,11 +485,15 @@ const Interview = () => {
           result?.data?.status === "abandoned" ||
           result?.data?.interview?.status === "abandoned"
         ) {
+          /*
+           * Empty submission is a silent discard.
+           * No report, no coins, and no intermediate screen.
+           */
           setShowCompletionModal(false);
           setReportReady(false);
-          setShowNoAnswerModal(true);
-
-          await refreshInterview();
+          navigate("/mock-interview", {
+            replace: true,
+          });
 
           return;
         }
@@ -534,7 +566,12 @@ const Interview = () => {
   }, [handleSubmitInterview]);
 
   useEffect(() => {
-    if (!interview?.startedAt || isCompleted) {
+    if (
+      !interview ||
+      interview.status !== "in-progress" ||
+      !interview.startedAt ||
+      isCompleted
+    ) {
       const timer = window.setTimeout(() => {
         setRemainingSeconds(null);
       }, 0);
@@ -907,7 +944,7 @@ const Interview = () => {
                       }));
                     }
                   }}
-                  disabled={navigating || quitting || finalSubmitting}
+                  disabled={questionNavigating || quitting || finalSubmitting}
                   placeholder="Start explaining your approach..."
                   className="min-h-[300px] w-full resize-none bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
                 />
@@ -959,7 +996,7 @@ const Interview = () => {
                       key={question._id || index}
                       type="button"
                       onClick={() => handleQuestionJump(index)}
-                      disabled={navigating || finalSubmitting || quitting}
+                      disabled={questionNavigating || finalSubmitting || quitting}
                       className={[
                         "flex h-10 items-center justify-center rounded-xl border font-sans text-[12px] font-semibold transition-all",
                         isActive
@@ -979,12 +1016,27 @@ const Interview = () => {
               <div className="flex-1" />
 
               {/* Navigation */}
+              {/* Navigation */}
               <div className="border-t border-white/[0.07] pt-4">
-                <div className="grid grid-cols-2 gap-2">
+                {/* Draft status */}
+                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-center">
+                  <p className="text-[10px] leading-5 text-[#52525B]">
+                    Your answer is saved as a draft until you submit the
+                    interview.
+                  </p>
+                </div>
+
+                {/* Previous / Next */}
+                <div className="mt-2 grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={handlePreviousQuestion}
-                    disabled={questionNumber === 1}
+                    disabled={
+                      navigating ||
+                      finalSubmitting ||
+                      quitting ||
+                      questionNumber === 1
+                    }
                     className="flex h-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025] font-sans text-[12px] font-semibold text-white/65 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     ← Previous
@@ -993,30 +1045,29 @@ const Interview = () => {
                   <button
                     type="button"
                     onClick={handleNextQuestion}
-                    disabled={isLastQuestion}
+                    disabled={
+                      navigating ||
+                      finalSubmitting ||
+                      quitting ||
+                      isLastQuestion
+                    }
                     className="flex h-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025] font-sans text-[12px] font-semibold text-white/65 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
                   >
                     Next →
                   </button>
                 </div>
-                {/* Draft status */}
-                <div className="mt-2 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-center">
-                  <p className="text-[10px] leading-5 text-[#52525B]">
-                    Your answer is saved as a draft until you submit the
-                    interview.
-                  </p>
-                </div>
 
+                {/* Submit */}
                 <button
                   type="button"
                   onClick={() => setShowSubmitModal(true)}
                   disabled={
                     !canSubmitFinal || finalSubmitting || navigating || quitting
                   }
-                  className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
+                  className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
                     isLastQuestion
                       ? "bg-white text-black hover:bg-[#E4E4E7]"
-                      : "bg-white/[0.08] text-[#71717A] cursor-not-allowed"
+                      : "cursor-not-allowed bg-white/[0.08] text-[#71717A]"
                   } disabled:opacity-30`}
                 >
                   <FiCheck size={14} />
@@ -1125,7 +1176,12 @@ const Interview = () => {
 
             <button
               type="button"
+              disabled={navigating || interview.status !== "created"}
               onClick={async () => {
+                if (navigating || interview.status !== "created") {
+                  return;
+                }
+
                 try {
                   setNavigating(true);
                   setError("");
@@ -1148,9 +1204,9 @@ const Interview = () => {
                   setNavigating(false);
                 }
               }}
-              className="w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
+              className="w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              I Understand & Continue
+              {navigating ? "Starting Interview..." : "I Understand & Continue"}
             </button>
           </div>
         </div>
@@ -1292,31 +1348,6 @@ const Interview = () => {
                 {finalSubmitting ? "Submitting..." : "Submit Interview"}
               </button>
             </div>
-          </div>
-        </div>
-      )}
-      {showNoAnswerModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#111113] p-6 shadow-2xl">
-            <h2 className="text-lg font-semibold text-[#F4F4F5]">
-              You haven't answered anything
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-[#71717A]">
-              No report will be generated and no coins will be charged.
-            </p>
-
-            <button
-              type="button"
-              onClick={() =>
-                navigate("/mock-interview", {
-                  replace: true,
-                })
-              }
-              className="mt-6 w-full rounded-xl bg-white px-4 py-3 text-sm font-medium text-black transition hover:bg-[#E4E4E7]"
-            >
-              Back to Mock Interviews
-            </button>
           </div>
         </div>
       )}
