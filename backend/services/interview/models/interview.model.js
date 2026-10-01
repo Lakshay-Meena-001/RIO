@@ -459,6 +459,21 @@ const interviewSchema = new mongoose.Schema(
 
     /*
      * ---------------------------------------------------------
+     * Finalization Lock Timestamp
+     * ---------------------------------------------------------
+     *
+     * Stores when the finalization lock was acquired.
+     *
+     * This allows the service to distinguish:
+     * - an active finalization request
+     * - a stale lock left behind by a crashed request
+     */
+    finalizationStartedAt: {
+      type: Date,
+      default: null,
+    },
+    /*
+     * ---------------------------------------------------------
      * Final Interview Report
      * ---------------------------------------------------------
      */

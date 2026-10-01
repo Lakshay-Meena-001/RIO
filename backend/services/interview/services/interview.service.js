@@ -13,6 +13,7 @@ import AppError from "../utils/error.js";
  */
 
 const INTERVIEW_COMPLETION_COST = 100;
+const FINALIZATION_LOCK_TIMEOUT_MS = 30 * 60 * 1000;
 
 const AUTH_SERVICE_URL =
   process.env.AUTH_SERVICE_URL || "http://localhost:8001";
@@ -289,6 +290,7 @@ async function abandonForServerError(interview) {
   interview.terminationReason = "server-error";
 
   interview.finalizationKey = null;
+  interview.finalizationStartedAt = null;
 
   await interview.save();
 }
@@ -673,11 +675,23 @@ async function finalizeInterviewWithCharge(
         $or: [
           { finalizationKey: null },
           { finalizationKey: { $exists: false } },
+          {
+            finalizationKey: { $ne: null },
+            $or: [
+              { finalizationStartedAt: null },
+              {
+                finalizationStartedAt: {
+                  $lt: new Date(Date.now() - FINALIZATION_LOCK_TIMEOUT_MS),
+                },
+              },
+            ],
+          },
         ],
       },
       {
         $set: {
           finalizationKey,
+          finalizationStartedAt: new Date(),
         },
       },
       {
@@ -695,23 +709,10 @@ async function finalizeInterviewWithCharge(
         return latestInterview;
       }
 
-      /*
-       * Payment may already have succeeded in a previous
-       * finalization attempt. In that case, do not try to
-       * charge again. Allow this retry to continue finalization.
-       */
-      if (latestInterview?.paymentStatus === "charged") {
-        latestInterview.finalizationKey = finalizationKey;
-
-        await latestInterview.save();
-
-        interview = latestInterview;
-      } else {
-        throw new AppError(
-          "Interview finalization is already in progress. Please retry.",
-          409,
-        );
-      }
+      throw new AppError(
+        "Interview finalization is already in progress. Please retry.",
+        409,
+      );
     } else {
       interview = lockedInterview;
     }
@@ -778,6 +779,8 @@ async function finalizeInterviewWithCharge(
 
         interview.finalizationKey = null;
 
+        interview.finalizationStartedAt = null;
+
         await interview.save();
       }
 
@@ -838,6 +841,7 @@ async function finalizeInterviewWithCharge(
    * ---------------------------------------------------------
    */
   interview.finalizationKey = null;
+  interview.finalizationStartedAt = null;
 
   await interview.save();
 
@@ -1297,11 +1301,23 @@ export const submitInterview = async (
         $or: [
           { finalizationKey: null },
           { finalizationKey: { $exists: false } },
+          {
+            finalizationKey: { $ne: null },
+            $or: [
+              { finalizationStartedAt: null },
+              {
+                finalizationStartedAt: {
+                  $lt: new Date(Date.now() - FINALIZATION_LOCK_TIMEOUT_MS),
+                },
+              },
+            ],
+          },
         ],
       },
       {
         $set: {
           finalizationKey,
+          finalizationStartedAt: new Date(),
         },
       },
       {
@@ -1316,40 +1332,13 @@ export const submitInterview = async (
       });
 
       if (latestInterview?.status === "completed") {
-        return {
-          status: "completed",
-          interview: latestInterview,
-          report: latestInterview.report,
-          coinsCharged: INTERVIEW_COMPLETION_COST,
-          alreadyFinalized: true,
-        };
+        return latestInterview;
       }
 
-      /*
-       * Payment was already charged by a previous attempt,
-       * but finalization did not finish.
-       *
-       * Never charge again.
-       *
-       * Allow this request to continue the finalization
-       * using the existing charged state.
-       */
-      if (
-        latestInterview?.status === "in-progress" &&
-        latestInterview.paymentStatus === "charged"
-      ) {
-        interview = latestInterview;
-
-        /*
-         * The existing finalizationKey belongs to the same
-         * interview, so this retry is allowed to recover it.
-         */
-      } else {
-        throw new AppError(
-          "Interview is already being finalized. Please retry.",
-          409,
-        );
-      }
+      throw new AppError(
+        "Interview is already being finalized. Please retry.",
+        409,
+      );
     } else {
       interview = lockedInterview;
     }
@@ -1471,6 +1460,7 @@ export const submitInterview = async (
        * the interview as abandoned.
        */
       interview.finalizationKey = null;
+      interview.finalizationStartedAt = null;
 
       await interview.save();
 
@@ -1581,9 +1571,10 @@ export const submitInterview = async (
          * the next retry can continue the same idempotent
          * payment transaction.
          */
-        currentInterview.finalizationKey = null;
+        interview.finalizationKey = null;
+        interview.finalizationStartedAt = null;
 
-        await currentInterview.save();
+        await interview.save();
 
         throw new AppError(
           "Your interview is still being finalized. Please retry.",
@@ -1604,7 +1595,8 @@ export const submitInterview = async (
         // Do NOT abandon the interview because this was a
         // server/evaluation failure, not a user abandonment.
         currentInterview.finalizationKey = null;
-        f;
+        currentInterview.finalizationStartedAt = null;
+
         await currentInterview.save();
       }
     } catch (recoveryError) {
@@ -1672,11 +1664,23 @@ async function expireInterviewIfNeeded(interview) {
         $or: [
           { finalizationKey: null },
           { finalizationKey: { $exists: false } },
+          {
+            finalizationKey: { $ne: null },
+            $or: [
+              { finalizationStartedAt: null },
+              {
+                finalizationStartedAt: {
+                  $lt: new Date(Date.now() - FINALIZATION_LOCK_TIMEOUT_MS),
+                },
+              },
+            ],
+          },
         ],
       },
       {
         $set: {
           finalizationKey,
+          finalizationStartedAt: new Date(),
         },
       },
       {
@@ -1789,6 +1793,7 @@ async function expireInterviewIfNeeded(interview) {
        * the interview as abandoned.
        */
       latestInterview.finalizationKey = null;
+      latestInterview.finalizationStartedAt = null;
 
       await latestInterview.save();
 
@@ -1845,6 +1850,7 @@ async function expireInterviewIfNeeded(interview) {
          */
         if (currentInterview.paymentStatus === "charged") {
           currentInterview.finalizationKey = null;
+          currentInterview.finalizationStartedAt = null;
 
           await currentInterview.save();
 
@@ -1860,6 +1866,7 @@ async function expireInterviewIfNeeded(interview) {
          */
         if (currentInterview.paymentStatus === "charging") {
           currentInterview.finalizationKey = null;
+          currentInterview.finalizationStartedAt = null;
 
           await currentInterview.save();
 
@@ -1928,6 +1935,7 @@ export const quitInterview = async (userId, interviewId) => {
         endedAt: new Date(),
         terminationReason: "quit",
         finalizationKey: null,
+        finalizationStartedAt: null,
       },
     },
     {
