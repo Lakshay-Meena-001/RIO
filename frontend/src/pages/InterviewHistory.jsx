@@ -5,7 +5,6 @@ import InterviewReport from "./InterviewReport";
 import { getInterviewHistory } from "../api/interview.api";
 
 import {
-  FiArrowLeft,
   FiClock,
   FiMenu,
   FiRefreshCw,
@@ -254,15 +253,7 @@ const InterviewHistory = () => {
           }`}
         >
           <div className="shrink-0 border-b border-white/[0.07] bg-white/[0.015] px-4 pb-5 pt-5">
-            <button
-              type="button"
-              onClick={() => navigateWithTransition("/mock-interview")}
-              className="mb-6 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-[#A1A1AA] transition-all duration-200 hover:bg-white/[0.05] hover:text-white"
-            >
-              <FiArrowLeft size={14} />
-              Back to interviews
-            </button>
-
+            
             <div className="flex items-end justify-between gap-3">
               <div>
                 <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#52525B]">

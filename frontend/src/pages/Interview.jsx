@@ -7,6 +7,8 @@ import {
   FiChevronRight,
   FiClock,
   FiCheckCircle,
+  FiArrowRight,
+  FiLoader,
 } from "react-icons/fi";
 
 import { RiBrainAi3Fill } from "react-icons/ri";
@@ -38,6 +40,7 @@ const Interview = () => {
   const [showInsufficientBalanceModal, setShowInsufficientBalanceModal] =
     useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [reportReady, setReportReady] = useState(false);
   const [showRulesModal, setShowRulesModal] = useState(true);
 
   const [remainingSeconds, setRemainingSeconds] = useState(null);
@@ -230,7 +233,7 @@ const Interview = () => {
    */
 
   const handleNextQuestion = async () => {
-    if (!interview || navigating || isAbandoned || isLastQuestion) {
+    if (!interview || navigating  || isAbandoned || isLastQuestion) {
       return;
     }
 
@@ -246,13 +249,20 @@ const Interview = () => {
         );
       }
 
-      const updatedInterview = result.data;
+      const nextIndex = result.data.currentQuestionIndex;
 
-      setInterview(updatedInterview);
+      const nextQuestion = interview.questions?.[nextIndex];
 
-      const nextQuestion = Array.isArray(updatedInterview.questions)
-        ? updatedInterview.questions[updatedInterview.currentQuestionIndex]
-        : null;
+      setInterview((currentInterview) => {
+        if (!currentInterview) {
+          return currentInterview;
+        }
+
+        return {
+          ...currentInterview,
+          currentQuestionIndex: nextIndex,
+        };
+      });
 
       setAnswer(
         draftAnswersRef.current[nextQuestion?.questionId] ??
@@ -271,7 +281,6 @@ const Interview = () => {
       setNavigating(false);
     }
   };
-
   /*
    * ---------------------------------------------------------
    * Previous question
@@ -386,7 +395,8 @@ const Interview = () => {
         setFinalSubmitting(true);
         setError("");
         setShowInsufficientBalanceModal(false);
-        setShowCompletionModal(false);
+        setReportReady(false);
+        setShowCompletionModal(true);
 
         const finalDraftAnswers = {
           ...draftAnswersRef.current,
@@ -403,17 +413,17 @@ const Interview = () => {
         }
 
         /*
-         * Backend successfully finalized the interview.
+         * Backend successfully finalized the interview
+         * and the report is now ready.
          */
         if (
           result?.data?.status === "completed" ||
           result?.data?.interview?.status === "completed"
         ) {
-          setShowCompletionModal(true);
+          setReportReady(true);
 
           return;
         }
-
         if (
           result?.data?.status === "abandoned" ||
           result?.data?.interview?.status === "abandoned"
@@ -430,9 +440,7 @@ const Interview = () => {
         const refreshed = await refreshInterview();
 
         if (refreshed?.status === "completed") {
-          navigate(`/mock-interview/${interviewId}/report`, {
-            replace: true,
-          });
+          setReportReady(true);
         }
       } catch (err) {
         console.error(
@@ -474,7 +482,6 @@ const Interview = () => {
       isAbandoned,
       isCompleted,
       interviewId,
-      navigate,
       refreshInterview,
       answer,
       currentQuestion,
@@ -701,18 +708,53 @@ const Interview = () => {
               This interview has ended and cannot be resumed.
             </p>
 
-            <button
-              type="button"
-              onClick={() => {
-                setShowCompletionModal(false);
-                navigate(`/mock-interview/${interviewId}/report`, {
-                  replace: true,
-                });
-              }}
-              className="mt-6 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C]"
-            >
-              View Report
-            </button>
+            <div className="text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06]">
+                <FiCheckCircle size={21} className="text-emerald-400" />
+              </div>
+
+              <h3 className="mt-5 text-lg font-semibold text-white">
+                Interview Submitted
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#8B8F98]">
+                We are processing your interview and preparing your detailed
+                report.
+              </p>
+
+              <button
+                type="button"
+                disabled={!reportReady}
+                onClick={() => {
+                  if (!reportReady) {
+                    return;
+                  }
+
+                  setShowCompletionModal(false);
+
+                  navigate(`/mock-interview/history?interview=${interviewId}`, {
+                    replace: true,
+                  });
+                }}
+                className={`mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold transition-all ${
+                  reportReady
+                    ? "bg-white text-[#17191C] hover:bg-white/90"
+                    : "cursor-not-allowed bg-white/[0.08] text-[#71717A]"
+                }`}
+              >
+                {reportReady ? (
+                  <>
+                    View Report
+                    <FiArrowRight size={15} />
+                  </>
+                ) : (
+                  <>
+                    <FiLoader size={15} className="animate-spin" />
+                    Processing...
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>

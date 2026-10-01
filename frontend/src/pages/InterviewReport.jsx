@@ -413,17 +413,31 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
           {!isEmbedded && (
             <button
               type="button"
-              onClick={() => navigateWithTransition("/mock-interview/history")}
-              className="mb-6 inline-flex items-center gap-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:text-white"
+              onClick={() => navigate("/mock-interview")}
+              className="group mb-6 inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors hover:text-white"
             >
-              <FiArrowLeft size={14} />
-              Back to interviews
+              <FiArrowLeft
+                size={13}
+                className="transition-transform duration-200 group-hover:-translate-x-0.5"
+              />
+              Mock Interviews
             </button>
           )}
 
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71717A]">
+              <button
+                type="button"
+                onClick={() => navigate("/mock-interview")}
+                className="group mb-6 inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors hover:text-white"
+              >
+                <FiArrowLeft
+                  size={13}
+                  className="transition-transform duration-200 group-hover:-translate-x-0.5"
+                />
+                Mock Interviews
+              </button>
+              <p className="mb-2 hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71717A] sm:block">
                 Interview Report
               </p>
 
@@ -451,7 +465,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-semibold text-[#D4D4D8] transition-colors hover:border-red-400/20 hover:bg-red-400/[0.08] hover:text-red-300"
+                className="hidden items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-semibold text-[#D4D4D8] transition-colors hover:border-red-400/20 hover:bg-red-400/[0.08] hover:text-red-300 sm:inline-flex"
               >
                 <FiTrash2 size={15} />
                 Delete
@@ -998,7 +1012,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
         </section>
 
         {/* Bottom CTA */}
-        <div className="rio-report-section mt-6 flex flex-col gap-4 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.025] p-5 shadow-[0_12px_34px_rgba(0,0,0,0.1)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:flex sm:items-center sm:justify-between">
           <div>
             <p className="text-sm font-semibold">Ready for another round?</p>
 
@@ -1007,23 +1021,26 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex sm:mt-0">
             <button
               type="button"
-              onClick={() => setShowDeleteModal(true)}
-              className="hidden items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-semibold text-[#D4D4D8] transition-colors hover:border-red-400/20 hover:bg-red-400/[0.08] hover:text-red-300 sm:inline-flex"
-            >
-              <FiTrash2 size={15} />
-              Delete
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigateWithTransition("/mock-interview/new")}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C]"
+              onClick={() => navigate("/mock-interview/new")}
+              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] transition-transform hover:scale-[1.02]"
             >
               Interview Again
               <FiArrowRight size={14} />
+            </button>
+          </div>
+        </div>
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#17191C]/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:hidden">
+          <div className="mx-auto max-w-xl">
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/[0.08] px-4 py-3 text-xs font-semibold text-white transition-colors active:bg-red-400/[0.14]"
+            >
+              <FiTrash2 size={14} />
+              Delete Interview
             </button>
           </div>
         </div>
