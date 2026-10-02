@@ -16,6 +16,7 @@ import { RiBrainAi3Fill } from "react-icons/ri";
 import {
   beginInterview,
   getInterview,
+  getActiveInterview,
   getNextQuestion,
   getPreviousQuestion,
   quitInterview,
@@ -46,6 +47,7 @@ const Interview = () => {
   const [reportReady, setReportReady] = useState(false);
   const [processingStage, setProcessingStage] = useState("evaluating");
   const [showRulesModal, setShowRulesModal] = useState(false);
+  const [showInterviewEndedModal, setShowInterviewEndedModal] = useState(false);
 
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const autoSubmitTriggeredRef = useRef(false);
@@ -127,6 +129,100 @@ const Interview = () => {
       }
     }
   }, [interviewId, navigate]);
+
+  /*
+   * ---------------------------------------------------------
+   * Active interview ownership watcher
+   * ---------------------------------------------------------
+   *
+   * Only one interview can be active for an account.
+   *
+   * If another tab/device starts a new interview, the backend
+   * active-interview endpoint will return the new interview.
+   *
+   * When that happens, this interview is no longer the active
+   * interview and this page must immediately inform the user.
+   * ---------------------------------------------------------
+   */
+
+  useEffect(() => {
+    if (!interviewId || !interview) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkActiveInterview = async () => {
+      try {
+        const result = await getActiveInterview();
+
+        if (cancelled) {
+          return;
+        }
+
+        const activeInterview = result?.data || null;
+
+        /*
+         * Another interview is now active for this account.
+         *
+         * That means this interview was replaced from another
+         * tab/device.
+         */
+        if (
+          activeInterview &&
+          String(activeInterview._id) !== String(interviewId)
+        ) {
+          setShowInterviewEndedModal(true);
+        }
+      } catch (err) {
+        /*
+         * This watcher is only a synchronization mechanism.
+         * A temporary network failure must never destroy the
+         * current interview UI.
+         */
+        console.error("Failed to check active interview:", err);
+      }
+    };
+
+    /*
+     * Check when the page becomes visible again.
+     *
+     * This handles the common multi-tab case:
+     *
+     * Tab A -> old interview
+     * Tab B -> starts new interview
+     * User returns to Tab A
+     */
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        checkActiveInterview();
+      }
+    };
+
+    const handleWindowFocus = () => {
+      checkActiveInterview();
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    window.addEventListener("focus", handleWindowFocus);
+
+    /*
+     * Also check periodically so another device/browser can be
+     * detected without requiring a manual refresh.
+     */
+    const interval = window.setInterval(checkActiveInterview, 5000);
+
+    return () => {
+      cancelled = true;
+
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+
+      window.removeEventListener("focus", handleWindowFocus);
+
+      window.clearInterval(interval);
+    };
+  }, [interviewId, interview]);
 
   /*
    * The timeout keeps the initial mount effect free from
@@ -996,7 +1092,9 @@ const Interview = () => {
                       key={question._id || index}
                       type="button"
                       onClick={() => handleQuestionJump(index)}
-                      disabled={questionNavigating || finalSubmitting || quitting}
+                      disabled={
+                        questionNavigating || finalSubmitting || quitting
+                      }
                       className={[
                         "flex h-10 items-center justify-center rounded-xl border font-sans text-[12px] font-semibold transition-all",
                         isActive
@@ -1129,6 +1227,38 @@ const Interview = () => {
           )}
         </div>
       </div>
+      {showInterviewEndedModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#191B1E] p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-400">
+              <FiAlertCircle size={22} />
+            </div>
+
+            <h2 className="mt-5 text-lg font-semibold text-white">
+              Interview ended
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
+              This interview has been terminated because a new interview was
+              started from your account.
+            </p>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowInterviewEndedModal(false);
+
+                navigate("/mock-interview", {
+                  replace: true,
+                });
+              }}
+              className="mt-6 w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
       {showRulesModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#191B1E] p-6 shadow-2xl">
