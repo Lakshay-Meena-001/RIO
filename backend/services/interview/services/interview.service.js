@@ -884,8 +884,12 @@ export const startInterview = async (userId, interviewData) => {
 
   if (activeInterview) {
     throw new AppError(
-      "You already have an active interview. Resume it before starting a new one.",
+      "You already have an active interview. Starting a new interview will end your current interview and discard its progress.",
       409,
+      {
+        code: "ACTIVE_INTERVIEW_EXISTS",
+        interviewId: activeInterview._id,
+      },
     );
   }
 
@@ -946,7 +950,7 @@ export const startInterview = async (userId, interviewData) => {
      */
     if (error?.code === 11000) {
       throw new AppError(
-        "You already have an active interview. Resume it before starting a new one.",
+        "You already have an active interview. Starting a new interview will end your current interview and discard its progress.",
         409,
       );
     }
@@ -1031,6 +1035,16 @@ export const startInterview = async (userId, interviewData) => {
   }
 };
 
+export const replaceActiveInterview = async (userId) => {
+  const activeInterview = await Interview.findOneAndDelete({
+    userId,
+    status: {
+      $in: ["created", "in-progress"],
+    },
+  });
+
+  return activeInterview;
+};
 /*
  * =========================================================
  * BEGIN INTERVIEW
@@ -1140,19 +1154,11 @@ export const getActiveInterview = async (userId) => {
 export const getRecentlyTerminatedInterview = async (userId) => {
   const interview = await Interview.findOne({
     userId,
-    status: {
-      $in: ["completed", "abandoned"],
-    },
+    status: "abandoned",
     terminationReason: "time-limit",
-  }).sort({
-    endedAt: -1,
-  });
+  }).sort({ endedAt: -1 });
 
-  if (!interview || interview.terminationNoticeDismissedAt) {
-    return null;
-  }
-
-  return interview;
+  return interview || null;
 };
 /*
  * =========================================================
@@ -1163,30 +1169,20 @@ export const getRecentlyTerminatedInterview = async (userId) => {
 export const dismissTerminationNotice = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const interview = await Interview.findOneAndUpdate(
-    {
-      _id: interviewId,
-      userId,
-      status: {
-        $in: ["completed", "abandoned"],
-      },
-      terminationReason: "time-limit",
+  const deletedInterview = await Interview.findOneAndDelete({
+    _id: interviewId,
+    userId,
+    status: {
+      $in: ["completed", "abandoned"],
     },
-    {
-      $set: {
-        terminationNoticeDismissedAt: new Date(),
-      },
-    },
-    {
-      returnDocument: "after",
-    },
-  );
+    terminationReason: "time-limit",
+  });
 
-  if (!interview) {
+  if (!deletedInterview) {
     throw new AppError("Termination notice not found.", 404);
   }
 
-  return interview;
+  return deletedInterview;
 };
 
 /*

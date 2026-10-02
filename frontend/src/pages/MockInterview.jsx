@@ -8,6 +8,7 @@ import {
   getActiveInterview,
   getRecentlyTerminatedInterview,
   dismissTerminationNotice,
+  replaceActiveInterview,
 } from "../api/interview.api";
 
 import {
@@ -28,6 +29,9 @@ const MockInterview = ({ user, setUser }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [activeInterview, setActiveInterview] = useState(null);
   const [activeLoading, setActiveLoading] = useState(true);
+  const [showReplaceInterviewModal, setShowReplaceInterviewModal] =
+    useState(false);
+  const [replacingInterview, setReplacingInterview] = useState(false);
 
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -261,6 +265,50 @@ const MockInterview = ({ user, setUser }) => {
     }
   };
 
+  const handleStartInterview = () => {
+    if (activeInterview) {
+      setShowReplaceInterviewModal(true);
+      return;
+    }
+
+    navigate("/mock-interview/new");
+  };
+
+  const handleStartNewInterview = async () => {
+    if (replacingInterview) {
+      return;
+    }
+
+    try {
+      setReplacingInterview(true);
+      setError("");
+
+      const result = await replaceActiveInterview();
+
+      if (!result?.success) {
+        throw new Error(
+          result?.message || "Failed to replace active interview.",
+        );
+      }
+
+      setShowReplaceInterviewModal(false);
+      setActiveInterview(null);
+      setActiveTimeLeft(null);
+
+      navigate("/mock-interview/new");
+    } catch (err) {
+      console.error("Failed to replace active interview:", err);
+
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to start a new interview.",
+      );
+    } finally {
+      setReplacingInterview(false);
+    }
+  };
+
   const formatScore = (score) => {
     if (!Number.isFinite(Number(score))) {
       return "—";
@@ -451,7 +499,7 @@ const MockInterview = ({ user, setUser }) => {
 
                   <button
                     type="button"
-                    onClick={() => navigate("/mock-interview/new")}
+                    onClick={handleStartInterview}
                     className="group flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#17191C] transition-transform duration-200 hover:scale-[1.02]"
                   >
                     <FiPlay size={15} />
@@ -549,6 +597,10 @@ const MockInterview = ({ user, setUser }) => {
                             </p>
                           </div>
 
+                          <p className="hidden text-xs font-medium text-[#D4D4D8] sm:block">
+                            Continue
+                          </p>
+
                           <FiArrowRight
                             size={16}
                             className="text-[#71717A] transition-all duration-200 group-hover:translate-x-1 group-hover:text-white"
@@ -595,11 +647,11 @@ const MockInterview = ({ user, setUser }) => {
                       <div className="flex items-center justify-between gap-4">
                         <div>
                           <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#71717A]">
-                            Active interviews
+                            Active interview
                           </p>
 
                           <p className="mt-1 text-sm font-medium text-[#A1A1AA]">
-                            No active interviews yet
+                            No active interview yet
                           </p>
                         </div>
 
@@ -867,7 +919,7 @@ const MockInterview = ({ user, setUser }) => {
 
                     <button
                       type="button"
-                      onClick={() => navigate("/mock-interview/new")}
+                      onClick={handleStartInterview}
                       className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-xs font-semibold text-[#17191C] transition-transform hover:scale-[1.02]"
                     >
                       Start Interview
@@ -1029,7 +1081,7 @@ const MockInterview = ({ user, setUser }) => {
 
                     <button
                       type="button"
-                      onClick={() => navigate("/mock-interview/new")}
+                      onClick={handleStartInterview}
                       className="group mt-4 inline-flex items-center gap-2 text-xs font-medium text-[#D4D4D8] transition-colors hover:text-white"
                     >
                       Configure a new interview
@@ -1046,11 +1098,46 @@ const MockInterview = ({ user, setUser }) => {
         </div>
       </div>
 
+      {showReplaceInterviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#1D2024] p-6 shadow-2xl">
+            <h2 className="text-lg font-semibold text-white">
+              Active interview in progress
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-[#A1A1AA]">
+              You already have an interview in progress. Starting a new
+              interview will end/discard the current interview and its progress.
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowReplaceInterviewModal(false)}
+                disabled={replacingInterview}
+                className="rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-sm font-medium text-[#D4D4D8] transition-colors hover:bg-white/[0.09] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleStartNewInterview}
+                disabled={replacingInterview}
+                className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-[#17191C] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {replacingInterview ? "Starting..." : "Start New Interview"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile fixed CTA */}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/92 p-3 backdrop-blur-xl sm:hidden">
         <button
           type="button"
-          onClick={() => navigate("/mock-interview/new")}
+          onClick={handleStartInterview}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3.5 text-sm font-semibold text-[#17191C] shadow-[0_-4px_25px_rgba(0,0,0,0.15)]"
         >
           <FiPlay size={15} />

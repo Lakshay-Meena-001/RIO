@@ -4,6 +4,7 @@ import {
   beginInterview,
   getInterview,
   getActiveInterview,
+  replaceActiveInterview,
   getInterviewHistory,
   getNextQuestion,
   getPreviousQuestion,
@@ -39,9 +40,9 @@ router.post("/:interviewId/begin", beginInterview);
 | Keep this before "/:interviewId" so "history" is not treated as an ID.
 |
 */
-
 router.get("/history", getInterviewHistory);
 router.get("/active", getActiveInterview);
+router.post("/active/replace", replaceActiveInterview);
 router.get("/recently-terminated", getRecentlyTerminatedInterview);
 
 /*

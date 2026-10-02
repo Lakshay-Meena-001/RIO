@@ -366,11 +366,6 @@ const interviewSchema = new mongoose.Schema(
       default: null,
     },
 
-    terminationNoticeDismissedAt: {
-      type: Date,
-      default: null,
-    },
-
     /*
      * -----------------------------------------------------
      * Navigation

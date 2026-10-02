@@ -34,6 +34,24 @@ export const startInterview = async (req, res, next) => {
   }
 };
 
+export const replaceActiveInterview = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+
+    const interview = await interviewService.replaceActiveInterview(userId);
+
+    return res.status(200).json({
+      success: true,
+      message: interview
+        ? "Active interview replaced."
+        : "No active interview found.",
+      data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 /*
 |--------------------------------------------------------------------------
 | Begin Interview

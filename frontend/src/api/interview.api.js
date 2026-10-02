@@ -110,6 +110,11 @@ export const getInterview = async (interviewId) => {
   return response.data;
 };
 
+export const replaceActiveInterview = async () => {
+  const response = await api.post("/api/interview/active/replace");
+  return response.data;
+};
+
 /*
  * Get the authenticated user's interview history.
  *
