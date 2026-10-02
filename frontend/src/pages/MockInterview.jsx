@@ -1,9 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
 import Sidebar from "../components/SideBar";
-import { getInterviewHistory } from "../api/interview.api";
+import {
+  getInterviewHistory,
+  getActiveInterview,
+  getRecentlyTerminatedInterview,
+  dismissTerminationNotice,
+} from "../api/interview.api";
 
 import {
   FiArrowRight,
@@ -21,10 +26,18 @@ const MockInterview = ({ user, setUser }) => {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [activeInterview, setActiveInterview] = useState(null);
+  const [activeLoading, setActiveLoading] = useState(true);
 
   const [interviews, setInterviews] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
+  const [activeTimeLeft, setActiveTimeLeft] = useState(null);
+
+  const [recentlyTerminatedInterview, setRecentlyTerminatedInterview] =
+    useState(null);
+  const [terminationLoading, setTerminationLoading] = useState(true);
 
   const firstName = user?.name?.split(" ")[0] || "there";
 
@@ -34,36 +47,150 @@ const MockInterview = ({ user, setUser }) => {
    * ---------------------------------------------------------
    */
 
-  const loadInterviewHistory = useCallback(async () => {
-    try {
-      const result = await getInterviewHistory();
+  useEffect(() => {
+    let cancelled = false;
 
-      if (!result?.success) {
-        throw new Error(result?.message || "Failed to load interview history.");
+    const loadInterviewHistory = async () => {
+      try {
+        const result = await getInterviewHistory();
+
+        if (cancelled) return;
+
+        if (!result?.success) {
+          throw new Error(
+            result?.message || "Failed to load interview history.",
+          );
+        }
+
+        setInterviews(Array.isArray(result.data) ? result.data : []);
+        setError("");
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error("Failed to load interview history:", err);
+
+        setError(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Unable to load your interview history.",
+        );
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
+    };
 
-      setInterviews(Array.isArray(result.data) ? result.data : []);
-      setError("");
-    } catch (err) {
-      console.error("Failed to load interview history:", err);
+    loadInterviewHistory();
 
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Unable to load your interview history.",
-      );
-    } finally {
-      setLoading(false);
-    }
+    return () => {
+      cancelled = true;
+    };
+  }, [historyRefreshKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkActiveInterview = async () => {
+      try {
+        const result = await getActiveInterview();
+
+        if (cancelled) return;
+
+        if (!result?.success) {
+          throw new Error(
+            result?.message || "Failed to load active interview.",
+          );
+        }
+
+        setActiveInterview(result.data || null);
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error("Failed to load active interview:", err);
+        setActiveInterview(null);
+      } finally {
+        if (!cancelled) {
+          setActiveLoading(false);
+        }
+      }
+    };
+
+    checkActiveInterview();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    const load = async () => {
-      await loadInterviewHistory();
+    if (!activeInterview || activeInterview.status !== "in-progress") {
+      return;
+    }
+
+    const calculateRemaining = () => {
+      if (!activeInterview.startedAt || !activeInterview.timeLimit) {
+        return;
+      }
+
+      const deadline =
+        new Date(activeInterview.startedAt).getTime() +
+        activeInterview.timeLimit * 60 * 1000;
+
+      const remaining = Math.max(0, deadline - Date.now());
+
+      setActiveTimeLeft(remaining);
+
+      if (remaining <= 0) {
+        setActiveInterview(null);
+        setActiveTimeLeft(null);
+        return;
+      }
     };
 
-    load();
-  }, [loadInterviewHistory]);
+    calculateRemaining();
+
+    const timer = setInterval(calculateRemaining, 1000);
+
+    return () => clearInterval(timer);
+  }, [activeInterview]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRecentlyTerminatedInterview = async () => {
+      try {
+        const result = await getRecentlyTerminatedInterview();
+
+        if (cancelled) return;
+
+        if (!result?.success) {
+          throw new Error(
+            result?.message || "Failed to load recent interview status.",
+          );
+        }
+
+        setRecentlyTerminatedInterview(result.data || null);
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error("Failed to load recently terminated interview:", err);
+
+        setRecentlyTerminatedInterview(null);
+      } finally {
+        if (!cancelled) {
+          setTerminationLoading(false);
+        }
+      }
+    };
+
+    loadRecentlyTerminatedInterview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   /*
    * ---------------------------------------------------------
    * Derived statistics
@@ -120,6 +247,20 @@ const MockInterview = ({ user, setUser }) => {
    * ---------------------------------------------------------
    */
 
+  const handleDismissTerminationNotice = async () => {
+    if (!recentlyTerminatedInterview?._id) {
+      return;
+    }
+
+    try {
+      await dismissTerminationNotice(recentlyTerminatedInterview._id);
+
+      setRecentlyTerminatedInterview(null);
+    } catch (err) {
+      console.error("Failed to dismiss termination notice:", err);
+    }
+  };
+
   const formatScore = (score) => {
     if (!Number.isFinite(Number(score))) {
       return "—";
@@ -142,6 +283,22 @@ const MockInterview = ({ user, setUser }) => {
       month: "short",
       year: "numeric",
     });
+  };
+
+  const formatCountdown = (milliseconds) => {
+    if (milliseconds === null || milliseconds === undefined) {
+      return "--:--";
+    }
+
+    const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(
+      2,
+      "0",
+    )}`;
   };
 
   const formatInterviewType = (type) => {
@@ -307,6 +464,258 @@ const MockInterview = ({ user, setUser }) => {
                 </div>
               </motion.section>
 
+              {/* Active interview */}
+              {!activeLoading && (
+                <motion.section
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35 }}
+                  className="mb-4"
+                >
+                  {activeInterview ? (
+                    <article
+                      role="button"
+                      tabIndex={0}
+                      onClick={() =>
+                        navigate(`/mock-interview/${activeInterview._id}`)
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          navigate(`/mock-interview/${activeInterview._id}`);
+                        }
+                      }}
+                      className="group cursor-pointer rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 transition-all duration-200 hover:border-white/[0.16] hover:bg-white/[0.055] sm:px-6"
+                    >
+                      <div className="flex items-center justify-between gap-5">
+                        {/* Left */}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#A1A1AA]">
+                              Active interview
+                            </p>
+                          </div>
+
+                          <h2 className="mt-1.5 truncate text-sm font-semibold text-white sm:text-[15px]">
+                            {activeInterview.role || "Mock Interview"}
+                          </h2>
+
+                          <p className="mt-1 text-[11px] text-[#71717A]">
+                            {formatDate(
+                              activeInterview.startedAt ||
+                                activeInterview.createdAt,
+                            )}
+                          </p>
+                        </div>
+
+                        {/* Right */}
+                        <div className="flex shrink-0 items-center gap-5 sm:gap-8">
+                          <div className="hidden text-right sm:block">
+                            <p className="text-[8px] font-medium uppercase tracking-[0.14em] text-[#71717A]">
+                              Start
+                            </p>
+
+                            <p className="mt-0.5 text-xs font-medium text-[#D4D4D8]">
+                              {activeInterview.startedAt
+                                ? new Date(
+                                    activeInterview.startedAt,
+                                  ).toLocaleTimeString("en-IN", {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "Not started"}
+                            </p>
+                          </div>
+
+                          <div className="text-right">
+                            <p className="text-[8px] font-medium uppercase tracking-[0.14em] text-[#71717A]">
+                              {activeInterview.status === "created"
+                                ? "Status"
+                                : "Time left"}
+                            </p>
+
+                            <p
+                              className={`mt-0.5 font-mono text-sm font-semibold tracking-tight ${
+                                activeInterview.status === "in-progress"
+                                  ? "text-white"
+                                  : "text-[#A1A1AA]"
+                              }`}
+                            >
+                              {activeInterview.status === "created"
+                                ? "Ready"
+                                : formatCountdown(activeTimeLeft)}
+                            </p>
+                          </div>
+
+                          <FiArrowRight
+                            size={16}
+                            className="text-[#71717A] transition-all duration-200 group-hover:translate-x-1 group-hover:text-white"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Mobile timing */}
+                      <div className="mt-3 flex items-center gap-5 sm:hidden">
+                        <div>
+                          <p className="text-[8px] font-medium uppercase tracking-[0.14em] text-[#71717A]">
+                            Start
+                          </p>
+
+                          <p className="mt-0.5 text-[11px] text-[#D4D4D8]">
+                            {activeInterview.startedAt
+                              ? new Date(
+                                  activeInterview.startedAt,
+                                ).toLocaleTimeString("en-IN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "Not started"}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-[8px] font-medium uppercase tracking-[0.14em] text-[#71717A]">
+                            {activeInterview.status === "created"
+                              ? "Status"
+                              : "Time left"}
+                          </p>
+
+                          <p className="mt-0.5 font-mono text-[11px] font-semibold text-white">
+                            {activeInterview.status === "created"
+                              ? "Ready"
+                              : formatCountdown(activeTimeLeft)}
+                          </p>
+                        </div>
+                      </div>
+                    </article>
+                  ) : (
+                    <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] px-5 py-4 sm:px-6">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#71717A]">
+                            Active interviews
+                          </p>
+
+                          <p className="mt-1 text-sm font-medium text-[#A1A1AA]">
+                            No active interviews yet
+                          </p>
+                        </div>
+
+                        <FiClock
+                          size={16}
+                          className="shrink-0 text-[#52525B]"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </motion.section>
+              )}
+
+              {!terminationLoading && recentlyTerminatedInterview && (
+                <motion.article
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3 }}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() =>
+                    navigate(
+                      `/mock-interview/history?interview=${recentlyTerminatedInterview._id}`,
+                    )
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      navigate(
+                        `/mock-interview/history?interview=${recentlyTerminatedInterview._id}`,
+                      );
+                    }
+                  }}
+                  className="group relative mb-4 cursor-pointer rounded-2xl border border-amber-400/10 bg-white/[0.035] px-5 py-4 transition-all duration-200 hover:border-white/[0.15] hover:bg-white/[0.05] sm:px-6"
+                >
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDismissTerminationNotice();
+                    }}
+                    className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full text-[#71717A] transition-colors hover:bg-white/[0.08] hover:text-white"
+                    aria-label="Dismiss notification"
+                  >
+                    <FiXCircle size={14} />
+                  </button>
+
+                  <div className="flex items-center justify-between gap-5 pr-7">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+
+                        <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#71717A]">
+                          Interview ended
+                        </p>
+                      </div>
+
+                      <h2 className="mt-1.5 truncate text-sm font-semibold text-white sm:text-[15px]">
+                        {recentlyTerminatedInterview.role || "Mock Interview"}
+                      </h2>
+
+                      <p className="mt-1 text-[11px] text-[#71717A]">
+                        {formatDate(
+                          recentlyTerminatedInterview.endedAt ||
+                            recentlyTerminatedInterview.createdAt,
+                        )}
+                      </p>
+
+                      <p className="mt-2 text-[11px] text-[#A1A1AA]">
+                        Time limit reached
+                      </p>
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-5 sm:gap-8">
+                      <div className="hidden text-right sm:block">
+                        <p className="text-[8px] font-medium uppercase tracking-[0.14em] text-[#71717A]">
+                          Start
+                        </p>
+
+                        <p className="mt-0.5 text-xs font-medium text-[#D4D4D8]">
+                          {recentlyTerminatedInterview.startedAt
+                            ? new Date(
+                                recentlyTerminatedInterview.startedAt,
+                              ).toLocaleTimeString("en-IN", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "—"}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-[8px] font-medium uppercase tracking-[0.14em] text-[#71717A]">
+                          Ended
+                        </p>
+
+                        <p className="mt-0.5 text-xs font-medium text-[#D4D4D8]">
+                          {recentlyTerminatedInterview.endedAt
+                            ? new Date(
+                                recentlyTerminatedInterview.endedAt,
+                              ).toLocaleTimeString("en-IN", {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })
+                            : "—"}
+                        </p>
+                      </div>
+
+                      <FiArrowRight
+                        size={16}
+                        className="text-[#71717A] transition-all duration-200 group-hover:translate-x-1 group-hover:text-white"
+                      />
+                    </div>
+                  </div>
+                </motion.article>
+              )}
               {/* Stats */}
               <motion.section
                 initial={{ opacity: 0, y: 12 }}
@@ -428,7 +837,11 @@ const MockInterview = ({ user, setUser }) => {
 
                     <button
                       type="button"
-                      onClick={loadInterviewHistory}
+                      onClick={() => {
+                        setLoading(true);
+                        setError("");
+                        setHistoryRefreshKey((previous) => previous + 1);
+                      }}
                       className="mt-5 rounded-xl border border-white/10 bg-white/[0.05] px-4 py-2.5 text-xs font-medium text-white transition-colors hover:bg-white/[0.09]"
                     >
                       Try again
@@ -481,7 +894,7 @@ const MockInterview = ({ user, setUser }) => {
                             <div
                               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${
                                 completed
-                                  ? "border-white/10 bg-white/6 text-white"
+                                  ? "border-white/10 bg-white/[0.06] text-white"
                                   : "border-white/[0.08] bg-white/[0.035] text-[#71717A]"
                               }`}
                             >
@@ -545,8 +958,7 @@ const MockInterview = ({ user, setUser }) => {
                                   `/mock-interview/history?interview=${interview._id}`,
                                 )
                               }
-                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 <bg-white />
-                              <4></4> text-[#A1A1AA] transition-colors hover:bg-white/[0.08] hover:text-white"
+                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[#A1A1AA] transition-colors hover:bg-white/[0.08] hover:text-white"
                               aria-label={
                                 completed
                                   ? "Review interview"
@@ -598,9 +1010,9 @@ const MockInterview = ({ user, setUser }) => {
                     </p>
                   </div>
 
-                  <div className="rounded-2xl border border-white/10 bg-white/4.5 p-5 sm:p-6">
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/6">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
                         <FiTarget size={17} />
                       </div>
 

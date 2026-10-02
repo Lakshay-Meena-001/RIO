@@ -204,6 +204,74 @@ export const getInterview = async (req, res, next) => {
 };
 
 /*
+ * =========================================================
+ * GET ACTIVE INTERVIEW
+ * =========================================================
+ */
+export const getActiveInterview = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+
+    const interview = await interviewService.getActiveInterview(userId);
+
+    return res.status(200).json({
+      success: true,
+      data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/*
+ * =========================================================
+ * GET RECENTLY TERMINATED INTERVIEW
+ * =========================================================
+ */
+
+export const getRecentlyTerminatedInterview = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+
+    const interview =
+      await interviewService.getRecentlyTerminatedInterview(userId);
+
+    return res.status(200).json({
+      success: true,
+      data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/*
+ * =========================================================
+ * DISMISS TERMINATION NOTICE
+ * =========================================================
+ */
+
+export const dismissTerminationNotice = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+
+    const interview = await interviewService.dismissTerminationNotice(
+      userId,
+      interviewId,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Termination notice dismissed.",
+      data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/*
 |--------------------------------------------------------------------------
 | Interview History
 |--------------------------------------------------------------------------

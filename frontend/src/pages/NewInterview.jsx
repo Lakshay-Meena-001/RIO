@@ -18,7 +18,7 @@ import {
 } from "react-icons/fi";
 
 import Sidebar from "../components/SideBar";
-import { startInterview } from "../api/interview.api";
+import { startInterview, getActiveInterview } from "../api/interview.api";
 
 const CustomSelect = ({ label, value, options, onChange }) => {
   const [open, setOpen] = useState(false);
@@ -131,6 +131,9 @@ const NewInterview = ({ user, setUser }) => {
 
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
+
+  const [checkingActiveInterview, setCheckingActiveInterview] = useState(true);
+  const [activeInterview, setActiveInterview] = useState(null);
 
   /*
    * ---------------------------------------------------------
@@ -285,6 +288,15 @@ const NewInterview = ({ user, setUser }) => {
    */
 
   const handleStartInterview = async () => {
+    if (checkingActiveInterview) {
+      return;
+    }
+
+    if (activeInterview?._id) {
+      navigate(`/mock-interview/${activeInterview._id}`);
+      return;
+    }
+
     const validationError = validateForm();
 
     if (validationError) {
@@ -353,6 +365,49 @@ const NewInterview = ({ user, setUser }) => {
         ? "border-white/25 bg-white/[0.09] text-white"
         : "border-white/10 bg-white/[0.035] text-[#A1A1AA] hover:border-white/15 hover:bg-white/[0.055]"
     }`;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkActiveInterview = async () => {
+      try {
+        const result = await getActiveInterview();
+
+        if (cancelled) return;
+
+        if (!result?.success) {
+          throw new Error(
+            result?.message || "Failed to check active interview.",
+          );
+        }
+
+        const active = result.data || null;
+
+        setActiveInterview(active);
+
+        if (active?._id) {
+          navigate(`/mock-interview/${active._id}`, {
+            replace: true,
+          });
+        }
+      } catch (err) {
+        if (cancelled) return;
+
+        console.error("Failed to check active interview:", err);
+        setActiveInterview(null);
+      } finally {
+        if (!cancelled) {
+          setCheckingActiveInterview(false);
+        }
+      }
+    };
+
+    checkActiveInterview();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [navigate]);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#17191C] text-white">
@@ -854,7 +909,7 @@ const NewInterview = ({ user, setUser }) => {
                     <button
                       type="button"
                       onClick={handleStartInterview}
-                      disabled={starting}
+                      disabled={starting || checkingActiveInterview}
                       className="hidden items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-[#17191C] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 sm:flex"
                     >
                       {starting ? (
@@ -865,7 +920,11 @@ const NewInterview = ({ user, setUser }) => {
                       ) : (
                         <>
                           <FiPlay size={15} />
-                          Start Interview
+                          {checkingActiveInterview
+                            ? "Checking active interview..."
+                            : starting
+                              ? "Starting..."
+                              : "Start Interview"}
                           <FiArrowRight size={15} />
                         </>
                       )}
@@ -883,7 +942,7 @@ const NewInterview = ({ user, setUser }) => {
         <button
           type="button"
           onClick={handleStartInterview}
-          disabled={starting}
+          disabled={starting || checkingActiveInterview}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3.5 text-sm font-semibold text-[#17191C] disabled:opacity-50"
         >
           {starting ? (
@@ -894,7 +953,11 @@ const NewInterview = ({ user, setUser }) => {
           ) : (
             <>
               <FiPlay size={15} />
-              Start Interview · 10 INR
+              {checkingActiveInterview
+                ? "Checking active interview..."
+                : starting
+                  ? "Starting..."
+                  : "Start Interview"}
               <FiArrowRight size={15} />
             </>
           )}

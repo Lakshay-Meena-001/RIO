@@ -873,6 +873,21 @@ export const startInterview = async (userId, interviewData) => {
       400,
     );
   }
+  const activeInterview = await Interview.findOne({
+    userId,
+    status: {
+      $in: ["created", "in-progress"],
+    },
+  }).sort({
+    createdAt: -1,
+  });
+
+  if (activeInterview) {
+    throw new AppError(
+      "You already have an active interview. Resume it before starting a new one.",
+      409,
+    );
+  }
 
   const balance = await getUserBalance(userId);
 
@@ -883,43 +898,61 @@ export const startInterview = async (userId, interviewData) => {
     );
   }
 
-  const interview = await Interview.create({
-    userId,
+  let interview;
 
-    role: interviewData.role,
+  try {
+    interview = await Interview.create({
+      userId,
 
-    experienceLevel: interviewData.experienceLevel,
+      role: interviewData.role,
 
-    interviewLevel: interviewData.interviewLevel,
+      experienceLevel: interviewData.experienceLevel,
 
-    interviewType: interviewData.interviewType,
+      interviewLevel: interviewData.interviewLevel,
 
-    subjects: interviewData.subjects || [],
+      interviewType: interviewData.interviewType,
 
-    language: interviewData.language || "english",
+      subjects: interviewData.subjects || [],
 
-    difficulty: interviewData.difficulty || "easy",
+      language: interviewData.language || "english",
 
-    timeLimit: interviewData.timeLimit || 30,
+      difficulty: interviewData.difficulty || "easy",
 
-    questionCount,
+      timeLimit: interviewData.timeLimit || 30,
 
-    techStack: interviewData.techStack || [],
+      questionCount,
 
-    projectContext: interviewData.projectContext || null,
+      techStack: interviewData.techStack || [],
 
-    status: "created",
+      projectContext: interviewData.projectContext || null,
 
-    startedAt: null,
+      status: "created",
 
-    endedAt: null,
+      startedAt: null,
 
-    terminationReason: null,
+      endedAt: null,
 
-    currentQuestionIndex: 0,
+      terminationReason: null,
 
-    questions: [],
-  });
+      currentQuestionIndex: 0,
+
+      questions: [],
+    });
+  } catch (error) {
+    /*
+     * The unique partial index on userId protects against
+     * two concurrent requests creating active interviews
+     * for the same account.
+     */
+    if (error?.code === 11000) {
+      throw new AppError(
+        "You already have an active interview. Resume it before starting a new one.",
+        409,
+      );
+    }
+
+    throw error;
+  }
 
   try {
     const graphState = buildGraphState(interview, {
@@ -1043,6 +1076,119 @@ export const beginInterview = async (userId, interviewId) => {
 
   return interview;
 };
+
+/*
+ * =========================================================
+ * GET ACTIVE INTERVIEW
+ * =========================================================
+ */
+export const getActiveInterview = async (userId) => {
+  let interview = await Interview.findOne({
+    userId,
+    status: {
+      $in: ["created", "in-progress"],
+    },
+  }).sort({
+    createdAt: -1,
+  });
+
+  if (!interview) {
+    return null;
+  }
+
+  /*
+   * An in-progress interview is only active while its
+   * backend deadline has not expired.
+   */
+  if (interview.status === "in-progress") {
+    const deadline = getInterviewDeadline(interview);
+
+    if (deadline && new Date() >= deadline) {
+      await expireInterviewIfNeeded(interview);
+
+      /*
+       * Re-read the interview because expireInterviewIfNeeded()
+       * may have changed its status.
+       */
+      interview = await Interview.findOne({
+        _id: interview._id,
+        userId,
+      });
+
+      if (
+        !interview ||
+        !["created", "in-progress"].includes(interview.status)
+      ) {
+        return null;
+      }
+    }
+  }
+
+  return interview;
+};
+
+/*
+ * =========================================================
+ * GET RECENTLY TERMINATED INTERVIEW
+ * =========================================================
+ *
+ * Returns only the latest interview that was automatically
+ * terminated because the time limit was reached.
+ *
+ * Dismissed notices are not shown again.
+ */
+export const getRecentlyTerminatedInterview = async (userId) => {
+  const interview = await Interview.findOne({
+    userId,
+    status: {
+      $in: ["completed", "abandoned"],
+    },
+    terminationReason: "time-limit",
+  }).sort({
+    endedAt: -1,
+  });
+
+  if (!interview || interview.terminationNoticeDismissedAt) {
+    return null;
+  }
+
+  return interview;
+};
+/*
+ * =========================================================
+ * DISMISS TERMINATION NOTICE
+ * =========================================================
+ */
+
+export const dismissTerminationNotice = async (userId, interviewId) => {
+  validateInterviewId(interviewId);
+
+  const interview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: {
+        $in: ["completed", "abandoned"],
+      },
+      terminationReason: "time-limit",
+    },
+    {
+      $set: {
+        terminationNoticeDismissedAt: new Date(),
+      },
+    },
+    {
+      returnDocument: "after",
+    },
+  );
+
+  if (!interview) {
+    throw new AppError("Termination notice not found.", 404);
+  }
+
+  return interview;
+};
+
 /*
  * =========================================================
  * NEXT QUESTION

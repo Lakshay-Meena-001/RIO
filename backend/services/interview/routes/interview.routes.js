@@ -3,6 +3,7 @@ import {
   startInterview,
   beginInterview,
   getInterview,
+  getActiveInterview,
   getInterviewHistory,
   getNextQuestion,
   getPreviousQuestion,
@@ -10,6 +11,8 @@ import {
   submitInterview,
   quitInterview,
   deleteInterview,
+  getRecentlyTerminatedInterview,
+  dismissTerminationNotice,
 } from "../controllers/interview.controller.js";
 
 import { validate } from "../middlewares/validate.js";
@@ -38,6 +41,8 @@ router.post("/:interviewId/begin", beginInterview);
 */
 
 router.get("/history", getInterviewHistory);
+router.get("/active", getActiveInterview);
+router.get("/recently-terminated", getRecentlyTerminatedInterview);
 
 /*
 |--------------------------------------------------------------------------
@@ -74,6 +79,10 @@ router.post("/:interviewId/submit", submitInterview);
 */
 
 router.patch("/:interviewId/quit", quitInterview);
+router.patch(
+  "/:interviewId/termination-notice/dismiss",
+  dismissTerminationNotice,
+);
 
 /*
 |--------------------------------------------------------------------------

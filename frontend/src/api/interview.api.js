@@ -15,6 +15,17 @@ export const startInterview = async (interviewData) => {
 };
 
 /*
+ * Get the authenticated user's active interview, if one exists.
+ *
+ * GET /api/interview/active
+ */
+export const getActiveInterview = async () => {
+  const response = await api.get("/api/interview/active");
+
+  return response.data;
+};
+
+/*
  * Begin an interview after the user accepts the rules.
  *
  * This is when the actual interview timer starts.
@@ -61,7 +72,6 @@ export const getPreviousQuestion = async (interviewId) => {
  *
  * POST /api/interview/:interviewId/jump
  */
-
 
 export const jumpToQuestion = async (interviewId, index) => {
   const response = await api.post(`/api/interview/${interviewId}/jump`, {
@@ -129,6 +139,19 @@ export const quitInterview = async (interviewId) => {
  */
 export const deleteInterview = async (interviewId) => {
   const response = await api.delete(`/api/interview/${interviewId}`);
+
+  return response.data;
+};
+
+export const getRecentlyTerminatedInterview = async () => {
+  const response = await api.get("/api/interview/recently-terminated");
+  return response.data;
+};
+
+export const dismissTerminationNotice = async (interviewId) => {
+  const response = await api.patch(
+    `/api/interview/${interviewId}/termination-notice/dismiss`,
+  );
 
   return response.data;
 };

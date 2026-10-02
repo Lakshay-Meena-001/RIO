@@ -201,7 +201,6 @@ const interviewSchema = new mongoose.Schema(
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      index: true,
     },
 
     role: {
@@ -364,6 +363,11 @@ const interviewSchema = new mongoose.Schema(
         "server-error",
         "failed",
       ],
+      default: null,
+    },
+
+    terminationNoticeDismissedAt: {
+      type: Date,
       default: null,
     },
 
@@ -531,6 +535,22 @@ interviewSchema.index({
   userId: 1,
   createdAt: -1,
 });
+
+/*
+ * Only one interview may be active for a user at a time.
+ * Completed, abandoned and failed interviews remain unrestricted.
+ */
+interviewSchema.index(
+  { userId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: {
+        $in: ["created", "in-progress"],
+      },
+    },
+  },
+);
 
 const Interview = mongoose.model("Interview", interviewSchema);
 
