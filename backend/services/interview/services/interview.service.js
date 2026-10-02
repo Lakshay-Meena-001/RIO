@@ -1354,6 +1354,84 @@ export const jumpToQuestion = async (userId, interviewId, index) => {
 
   return updatedInterview;
 };
+
+/*
+ * =========================================================
+ * SAVE DRAFT ANSWER
+ * =========================================================
+ *
+ * Saves the candidate's current answer without evaluating it.
+ *
+ * Draft saving:
+ * - does NOT submit the question
+ * - does NOT call LLM
+ * - does NOT charge coins
+ * - only updates question.answer
+ */
+export const saveDraftAnswer = async (
+  userId,
+  interviewId,
+  questionId,
+  answer,
+) => {
+  validateInterviewId(interviewId);
+
+  if (typeof questionId !== "string" || !questionId.trim()) {
+    throw new AppError("Question ID is required.", 400);
+  }
+
+  if (typeof answer !== "string") {
+    throw new AppError("Answer must be a string.", 400);
+  }
+
+  const interview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "in-progress",
+      "questions.questionId": questionId,
+      "questions.answerStatus": "not-submitted",
+    },
+    {
+      $set: {
+        "questions.$[question].answer": answer.trim(),
+      },
+    },
+    {
+      arrayFilters: [
+        {
+          "question.questionId": questionId,
+          "question.answerStatus": "not-submitted",
+        },
+      ],
+      returnDocument: "after",
+    },
+  );
+
+  if (!interview) {
+    const existingInterview = await findUserInterview(userId, interviewId);
+
+    if (existingInterview.status !== "in-progress") {
+      throw new AppError("Interview is not active.", 400);
+    }
+
+    const question = existingInterview.questions.find(
+      (item) => item.questionId === questionId,
+    );
+
+    if (!question) {
+      throw new AppError("Interview question not found.", 404);
+    }
+
+    if (question.answerStatus === "submitted" || question.submittedAt) {
+      throw new AppError("This question has already been submitted.", 400);
+    }
+
+    throw new AppError("Unable to save answer draft.", 409);
+  }
+
+  return interview;
+};
 /*
  * =========================================================
  * SUBMIT ENTIRE INTERVIEW

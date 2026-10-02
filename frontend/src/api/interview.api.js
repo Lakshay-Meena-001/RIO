@@ -82,6 +82,22 @@ export const jumpToQuestion = async (interviewId, index) => {
 };
 
 /*
+ * Save the current answer as a draft.
+ *
+ * This does NOT submit or evaluate the answer.
+ *
+ * PATCH /api/interview/:interviewId/draft
+ */
+export const saveDraftAnswer = async (interviewId, questionId, answer) => {
+  const response = await api.patch(`/api/interview/${interviewId}/draft`, {
+    questionId,
+    answer,
+  });
+
+  return response.data;
+};
+
+/*
  * Submit the complete interview.
  *
  * The backend evaluates all remaining unsubmitted

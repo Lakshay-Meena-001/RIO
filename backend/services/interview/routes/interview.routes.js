@@ -14,6 +14,7 @@ import {
   deleteInterview,
   getRecentlyTerminatedInterview,
   dismissTerminationNotice,
+  saveDraftAnswer,
 } from "../controllers/interview.controller.js";
 
 import { validate } from "../middlewares/validate.js";
@@ -54,6 +55,7 @@ router.get("/recently-terminated", getRecentlyTerminatedInterview);
 | All questions are generated when the interview starts.
 |
 */
+router.patch("/:interviewId/draft", saveDraftAnswer);
 
 router.post("/:interviewId/next", getNextQuestion);
 

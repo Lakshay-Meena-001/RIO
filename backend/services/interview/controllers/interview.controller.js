@@ -106,6 +106,35 @@ export const getNextQuestion = async (req, res, next) => {
 };
 
 /*
+ * |--------------------------------------------------------------------------
+ * | Save Draft Answer
+ * |--------------------------------------------------------------------------
+ */
+
+export const saveDraftAnswer = async (req, res, next) => {
+  try {
+    const userId = getUserId(req);
+    const { interviewId } = req.params;
+    const { questionId, answer } = req.body;
+
+    const interview = await interviewService.saveDraftAnswer(
+      userId,
+      interviewId,
+      questionId,
+      answer,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Answer draft saved.",
+      data: interview,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/*
 |--------------------------------------------------------------------------
 | Previous Question
 |--------------------------------------------------------------------------

@@ -22,6 +22,7 @@ import {
   quitInterview,
   submitInterview,
   jumpToQuestion,
+  saveDraftAnswer,
 } from "../api/interview.api";
 
 const Interview = () => {
@@ -32,12 +33,15 @@ const Interview = () => {
   const [answer, setAnswer] = useState("");
   const [draftAnswers, setDraftAnswers] = useState({});
   const draftAnswersRef = useRef({});
+  const draftSaveTimeoutRef = useRef(null);
+  const draftSaveRequestRef = useRef(null);
 
   const [loading, setLoading] = useState(true);
   const [navigating, setNavigating] = useState(false);
   const [questionNavigating, setQuestionNavigating] = useState(false);
   const [finalSubmitting, setFinalSubmitting] = useState(false);
   const [quitting, setQuitting] = useState(false);
+  const [autoSubmitFailed, setAutoSubmitFailed] = useState(false);
 
   const [error, setError] = useState("");
   const [showQuitModal, setShowQuitModal] = useState(false);
@@ -86,6 +90,14 @@ const Interview = () => {
        */
       if (data.status === "completed") {
         navigate(`/mock-interview/history?interview=${interviewId}`, {
+          replace: true,
+        });
+
+        return;
+      }
+
+      if (data.status === "abandoned") {
+        navigate("/mock-interview", {
           replace: true,
         });
 
@@ -312,6 +324,103 @@ const Interview = () => {
 
   /*
    * ---------------------------------------------------------
+   * Draft persistence
+   * ---------------------------------------------------------
+   */
+
+  const persistDraftAnswer = useCallback(
+    async (questionId, value) => {
+      if (!questionId || !interviewId) {
+        return;
+      }
+
+      const request = saveDraftAnswer(interviewId, questionId, value);
+
+      draftSaveRequestRef.current = request;
+
+      try {
+        await request;
+      } catch (err) {
+        console.error("Failed to save answer draft:", err);
+      } finally {
+        if (draftSaveRequestRef.current === request) {
+          draftSaveRequestRef.current = null;
+        }
+      }
+    },
+    [interviewId],
+  );
+
+  const scheduleDraftSave = useCallback(
+    (questionId, value) => {
+      if (!questionId || !interviewId) {
+        return;
+      }
+
+      if (draftSaveTimeoutRef.current) {
+        window.clearTimeout(draftSaveTimeoutRef.current);
+      }
+
+      draftSaveTimeoutRef.current = window.setTimeout(() => {
+        persistDraftAnswer(questionId, value);
+      }, 700);
+    },
+    [interviewId, persistDraftAnswer],
+  );
+
+  const flushDraftSave = useCallback(
+    async (questionId, value) => {
+      if (!questionId || !interviewId) {
+        return;
+      }
+
+      if (draftSaveTimeoutRef.current) {
+        window.clearTimeout(draftSaveTimeoutRef.current);
+        draftSaveTimeoutRef.current = null;
+      }
+
+      await persistDraftAnswer(questionId, value);
+    },
+    [interviewId, persistDraftAnswer],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (draftSaveTimeoutRef.current) {
+        window.clearTimeout(draftSaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleTerminalInterviewState = useCallback(
+    (data) => {
+      if (!data) {
+        return false;
+      }
+
+      if (data.status === "completed") {
+        setProcessingStage("report");
+        setReportReady(true);
+        setShowCompletionModal(true);
+        return true;
+      }
+
+      if (data.status === "abandoned") {
+        setShowCompletionModal(false);
+        setReportReady(false);
+        navigate("/mock-interview", {
+          replace: true,
+        });
+        return true;
+      }
+
+      return false;
+    },
+    [navigate],
+  );
+
+  /*
+   * ---------------------------------------------------------
    * Refresh interview
    * ---------------------------------------------------------
    */
@@ -323,7 +432,7 @@ const Interview = () => {
       throw new Error("Unable to refresh the interview.");
     }
 
-    if (result.data.status === "completed") {
+    if (handleTerminalInterviewState(result.data)) {
       return result.data;
     }
 
@@ -340,7 +449,7 @@ const Interview = () => {
     );
 
     return result.data;
-  }, [interviewId]);
+  }, [interviewId, handleTerminalInterviewState]);
 
   /*
    * ---------------------------------------------------------
@@ -363,6 +472,10 @@ const Interview = () => {
     try {
       setQuestionNavigating(true);
       setError("");
+
+      if (currentQuestion?.questionId) {
+        await flushDraftSave(currentQuestion.questionId, answer);
+      }
 
       const result = await getNextQuestion(interviewId);
 
@@ -426,6 +539,10 @@ const Interview = () => {
       setQuestionNavigating(true);
       setError("");
 
+      if (currentQuestion?.questionId) {
+        await flushDraftSave(currentQuestion.questionId, answer);
+      }
+
       const result = await getPreviousQuestion(interviewId);
 
       if (!result?.success || !result?.data) {
@@ -479,10 +596,13 @@ const Interview = () => {
     ) {
       return;
     }
-
     try {
       setQuestionNavigating(true);
       setError("");
+
+      if (currentQuestion?.questionId) {
+        await flushDraftSave(currentQuestion.questionId, answer);
+      }
 
       const result = await jumpToQuestion(interviewId, index);
 
@@ -522,7 +642,7 @@ const Interview = () => {
    * ---------------------------------------------------------
    */
   const handleSubmitInterview = useCallback(
-    async ({ automatic = false } = {}) => {
+    async ({ automatic = false, timerExpired = false } = {}) => {
       if (
         !interview ||
         finalSubmitting ||
@@ -544,11 +664,16 @@ const Interview = () => {
 
       try {
         setFinalSubmitting(true);
+        setAutoSubmitFailed(false);
         setError("");
         setShowInsufficientBalanceModal(false);
         setReportReady(false);
         setProcessingStage("evaluating");
         setShowCompletionModal(true);
+
+        if (currentQuestion?.questionId) {
+          await flushDraftSave(currentQuestion.questionId, answer);
+        }
 
         const finalDraftAnswers = {
           ...draftAnswersRef.current,
@@ -604,8 +729,23 @@ const Interview = () => {
         if (refreshed?.status === "completed") {
           setProcessingStage("report");
           setReportReady(true);
+          return;
+        }
+
+        if (refreshed?.status === "abandoned") {
+          setShowCompletionModal(false);
+          setReportReady(false);
+
+          navigate("/mock-interview", {
+            replace: true,
+          });
+
+          return;
         }
       } catch (err) {
+        if (timerExpired) {
+          setAutoSubmitFailed(true);
+        }
         console.error(
           automatic
             ? "Automatic interview submission failed:"
@@ -650,6 +790,8 @@ const Interview = () => {
       refreshInterview,
       answer,
       currentQuestion,
+      flushDraftSave,
+      navigate,
     ],
   );
 
@@ -658,6 +800,15 @@ const Interview = () => {
 
     await handleSubmitInterview({
       automatic: true,
+    });
+  }, [handleSubmitInterview]);
+
+  const handleRetryAutoSubmit = useCallback(async () => {
+    setAutoSubmitFailed(false);
+
+    await handleSubmitInterview({
+      automatic: true,
+      timerExpired: true,
     });
   }, [handleSubmitInterview]);
 
@@ -706,6 +857,7 @@ const Interview = () => {
 
         handleSubmitInterview({
           automatic: true,
+          timerExpired: true,
         });
       }
     };
@@ -722,6 +874,7 @@ const Interview = () => {
     interview?.timeLimit,
     isCompleted,
     finalSubmitting,
+    interview,
     handleSubmitInterview,
   ]);
 
@@ -732,6 +885,10 @@ const Interview = () => {
    */
 
   const handleQuit = async () => {
+    if (finalSubmitting || isCompleted) {
+      return;
+    }
+
     try {
       setQuitting(true);
       setError("");
@@ -779,6 +936,10 @@ const Interview = () => {
         window.location.href,
       );
 
+      if (finalSubmitting || isCompleted) {
+        return;
+      }
+
       setShowQuitModal(true);
     };
 
@@ -793,7 +954,7 @@ const Interview = () => {
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [interview, isCompleted]);
+  }, [interview, isCompleted, finalSubmitting]);
 
   /*
    * ---------------------------------------------------------
@@ -952,8 +1113,19 @@ const Interview = () => {
             {error && (
               <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-sm text-red-200">
                 <FiAlertCircle size={16} className="mt-0.5 shrink-0" />
+                <div>
+                  <p>{error}</p>
 
-                <p>{error}</p>
+                  {autoSubmitFailed && (
+                    <button
+                      type="button"
+                      onClick={handleRetryAutoSubmit}
+                      disabled={finalSubmitting}
+                    >
+                      {finalSubmitting ? "Retrying..." : "Retry Submission"}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
@@ -1031,13 +1203,16 @@ const Interview = () => {
                     setAnswer(value);
 
                     if (currentQuestion?.questionId) {
-                      draftAnswersRef.current[currentQuestion.questionId] =
-                        value;
+                      const questionId = currentQuestion.questionId;
+
+                      draftAnswersRef.current[questionId] = value;
 
                       setDraftAnswers((previous) => ({
                         ...previous,
-                        [currentQuestion.questionId]: value,
+                        [questionId]: value,
                       }));
+
+                      scheduleDraftSave(questionId, value);
                     }
                   }}
                   disabled={questionNavigating || quitting || finalSubmitting}
@@ -1511,7 +1686,7 @@ const Interview = () => {
               <button
                 type="button"
                 onClick={handleQuit}
-                disabled={quitting}
+                disabled={quitting || finalSubmitting}
                 className="flex-1 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] disabled:opacity-50"
               >
                 {quitting ? "Quitting..." : "Quit Interview"}
