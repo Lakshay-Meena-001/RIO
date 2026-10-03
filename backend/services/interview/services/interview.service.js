@@ -14,9 +14,138 @@ import AppError from "../utils/error.js";
 
 const INTERVIEW_COMPLETION_COST = 100;
 const FINALIZATION_LOCK_TIMEOUT_MS = 30 * 60 * 1000;
+const FINALIZATION_LEASE_DURATION_MS = 2 * 60 * 1000;
 
 const AUTH_SERVICE_URL =
   process.env.AUTH_SERVICE_URL || "http://localhost:8001";
+
+const refreshFinalizationLease = async (
+  userId,
+  interviewId,
+  finalizationKey,
+) => {
+  const leaseUntil = new Date(Date.now() + FINALIZATION_LEASE_DURATION_MS);
+
+  return Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "in-progress",
+      finalizationKey,
+
+      /*
+       * An expired lease can never be revived by the old owner.
+       *
+       * If the lease has already expired, the old heartbeat must
+       * fail so another request can safely acquire ownership.
+       */
+      finalizationLeaseUntil: {
+        $gt: new Date(),
+      },
+    },
+    {
+      $set: {
+        finalizationLeaseUntil: leaseUntil,
+      },
+    },
+    {
+      returnDocument: "after",
+    },
+  );
+};
+
+const saveFinalizationDocument = async (
+  interview,
+  userId,
+  interviewId,
+  finalizationKey,
+) => {
+  const update = interview.toObject();
+
+  delete update._id;
+  delete update.__v;
+  delete update.createdAt;
+  delete update.updatedAt;
+
+  // Finalization ownership/lease fields are managed separately.
+  // Never overwrite the heartbeat-refreshed lease with a stale
+  // value from the local interview document.
+  delete update.finalizationKey;
+  delete update.finalizationStartedAt;
+  delete update.finalizationLeaseUntil;
+
+  const updatedInterview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "in-progress",
+      finalizationKey,
+
+      /*
+       * The finalization owner must still hold a valid lease
+       * when persisting evaluation/report state.
+       *
+       * A stale owner must never be able to write after its
+       * lease has expired.
+       */
+      finalizationLeaseUntil: {
+        $gt: new Date(),
+      },
+    },
+    {
+      $set: update,
+    },
+    {
+      returnDocument: "after",
+      runValidators: true,
+    },
+  );
+
+  if (!updatedInterview) {
+    throw new AppError(
+      "Interview finalization ownership was lost. Please retry.",
+      409,
+    );
+  }
+
+  return updatedInterview;
+};
+
+const startFinalizationLeaseHeartbeat = (
+  userId,
+  interviewId,
+  finalizationKey,
+) => {
+  let leaseLost = false;
+
+  const interval = setInterval(async () => {
+    try {
+      const updatedInterview = await refreshFinalizationLease(
+        userId,
+        interviewId,
+        finalizationKey,
+      );
+
+      if (!updatedInterview) {
+        leaseLost = true;
+        clearInterval(interval);
+      }
+    } catch (error) {
+      console.error("Failed to refresh finalization lease:", error);
+
+      leaseLost = true;
+      clearInterval(interval);
+    }
+  }, 30 * 1000);
+
+  return {
+    stop: () => {
+      clearInterval(interval);
+    },
+
+    isLeaseLost: () => leaseLost,
+  };
+};
 
 /*
  * =========================================================
@@ -265,7 +394,12 @@ function markQuestionSubmitted(question, evaluation) {
  * No completion.
  * No coin deduction.
  */
-async function abandonForServerError(interview) {
+async function abandonForServerError(
+  interview,
+  userId,
+  interviewId,
+  finalizationKey,
+) {
   /*
    * Never abandon an interview after its payment has
    * already been charged.
@@ -283,16 +417,37 @@ async function abandonForServerError(interview) {
     );
   }
 
-  interview.status = "abandoned";
+  const abandonedInterview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "in-progress",
+      finalizationKey,
+    },
+    {
+      $set: {
+        status: "abandoned",
+        endedAt: new Date(),
+        terminationReason: "server-error",
+        finalizationKey: null,
+        finalizationStartedAt: null,
+        finalizationLeaseUntil: null,
+      },
+    },
+    {
+      returnDocument: "after",
+      runValidators: true,
+    },
+  );
 
-  interview.endedAt = new Date();
+  if (!abandonedInterview) {
+    throw new AppError(
+      "Interview finalization ownership was lost. Please retry.",
+      409,
+    );
+  }
 
-  interview.terminationReason = "server-error";
-
-  interview.finalizationKey = null;
-  interview.finalizationStartedAt = null;
-
-  await interview.save();
+  return abandonedInterview;
 }
 
 function generateFallbackReport(interview) {
@@ -623,12 +778,15 @@ async function finalizeInterviewWithCharge(
   report,
   terminationReason = "completed",
   lockAlreadyAcquired = false,
+  finalizationKey = null,
 ) {
   /*
    * ---------------------------------------------------------
    * Load the interview.
    * ---------------------------------------------------------
    */
+  let finalizationLeaseHeartbeat = null;
+
   let interview = await Interview.findOne({
     _id: interviewId,
     userId,
@@ -665,7 +823,7 @@ async function finalizeInterviewWithCharge(
    * ---------------------------------------------------------
    */
   if (!lockAlreadyAcquired) {
-    const finalizationKey = `finalize:${interviewId.toString()}`;
+    finalizationKey = `finalize:${interviewId.toString()}:${crypto.randomUUID()}`;
 
     const lockedInterview = await Interview.findOneAndUpdate(
       {
@@ -678,8 +836,14 @@ async function finalizeInterviewWithCharge(
           {
             finalizationKey: { $ne: null },
             $or: [
-              { finalizationStartedAt: null },
+              { finalizationLeaseUntil: null },
               {
+                finalizationLeaseUntil: {
+                  $lt: new Date(),
+                },
+              },
+              {
+                finalizationLeaseUntil: { $exists: false },
                 finalizationStartedAt: {
                   $lt: new Date(Date.now() - FINALIZATION_LOCK_TIMEOUT_MS),
                 },
@@ -692,6 +856,9 @@ async function finalizeInterviewWithCharge(
         $set: {
           finalizationKey,
           finalizationStartedAt: new Date(),
+          finalizationLeaseUntil: new Date(
+            Date.now() + FINALIZATION_LEASE_DURATION_MS,
+          ),
         },
       },
       {
@@ -715,11 +882,33 @@ async function finalizeInterviewWithCharge(
       );
     } else {
       interview = lockedInterview;
+
+      finalizationLeaseHeartbeat = startFinalizationLeaseHeartbeat(
+        userId,
+        interviewId,
+        finalizationKey,
+      );
     }
   }
-
   if (interview.status !== "in-progress") {
     throw new AppError("Interview is not active.", 400);
+  }
+
+  if (lockAlreadyAcquired) {
+    const leaseIsValid =
+      interview.finalizationLeaseUntil &&
+      new Date(interview.finalizationLeaseUntil) > new Date();
+
+    if (
+      !finalizationKey ||
+      interview.finalizationKey !== finalizationKey ||
+      !leaseIsValid
+    ) {
+      throw new AppError(
+        "Interview finalization ownership could not be verified.",
+        409,
+      );
+    }
   }
   /*
    * ---------------------------------------------------------
@@ -747,7 +936,12 @@ async function finalizeInterviewWithCharge(
     interview.paymentStatus = "charging";
     interview.paymentTransactionId = paymentTransactionId;
 
-    await interview.save();
+    interview = await saveFinalizationDocument(
+      interview,
+      userId,
+      interviewId,
+      finalizationKey,
+    );
 
     /*
      * Auth Service owns the actual coin deduction and
@@ -778,10 +972,44 @@ async function finalizeInterviewWithCharge(
         interview.paymentTransactionId = null;
 
         interview.finalizationKey = null;
-
         interview.finalizationStartedAt = null;
+        interview.finalizationLeaseUntil = null;
 
-        await interview.save();
+        const paymentRecoveryInterview = await Interview.findOneAndUpdate(
+          {
+            _id: interviewId,
+            userId,
+            status: "in-progress",
+            finalizationKey,
+          },
+          {
+            $set: {
+              paymentStatus: "not-charged",
+              paymentTransactionId: null,
+              finalizationKey: null,
+              finalizationStartedAt: null,
+              finalizationLeaseUntil: null,
+            },
+          },
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        );
+
+        if (!paymentRecoveryInterview) {
+          throw new AppError(
+            "Interview finalization ownership was lost. Please retry.",
+            409,
+          );
+        }
+
+        interview = paymentRecoveryInterview;
+
+        if (finalizationLeaseHeartbeat) {
+          finalizationLeaseHeartbeat.stop();
+          finalizationLeaseHeartbeat = null;
+        }
       }
 
       throw error;
@@ -840,10 +1068,59 @@ async function finalizeInterviewWithCharge(
    * now permanently completed.
    * ---------------------------------------------------------
    */
-  interview.finalizationKey = null;
-  interview.finalizationStartedAt = null;
+  const completedInterview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "in-progress",
+      finalizationKey,
 
-  await interview.save();
+      /*
+       * Completion is allowed only while the current finalizer
+       * still owns a valid lease.
+       */
+      finalizationLeaseUntil: {
+        $gt: new Date(),
+      },
+    },
+    {
+      $set: {
+        overallScore: interview.overallScore,
+        sectionScores: interview.sectionScores,
+        strengths: interview.strengths,
+        weaknesses: interview.weaknesses,
+        recommendations: interview.recommendations,
+        summary: interview.summary,
+        status: "completed",
+        endedAt: interview.endedAt,
+        terminationReason: interview.terminationReason,
+        finalizedAt: interview.finalizedAt,
+        finalizationKey: null,
+        finalizationStartedAt: null,
+        finalizationLeaseUntil: null,
+        paymentStatus: interview.paymentStatus,
+        paymentTransactionId: interview.paymentTransactionId,
+      },
+    },
+    {
+      returnDocument: "after",
+      runValidators: true,
+    },
+  );
+
+  if (!completedInterview) {
+    throw new AppError(
+      "Interview finalization ownership was lost. Please retry.",
+      409,
+    );
+  }
+
+  interview = completedInterview;
+
+  if (finalizationLeaseHeartbeat) {
+    finalizationLeaseHeartbeat.stop();
+    finalizationLeaseHeartbeat = null;
+  }
 
   return interview;
 }
@@ -873,7 +1150,7 @@ export const startInterview = async (userId, interviewData) => {
       400,
     );
   }
-  const activeInterview = await Interview.findOne({
+  let activeInterview = await Interview.findOne({
     userId,
     status: {
       $in: ["created", "in-progress"],
@@ -883,14 +1160,40 @@ export const startInterview = async (userId, interviewData) => {
   });
 
   if (activeInterview) {
-    throw new AppError(
-      "You already have an active interview. Starting a new interview will end your current interview and discard its progress.",
-      409,
-      {
-        code: "ACTIVE_INTERVIEW_EXISTS",
-        interviewId: activeInterview._id,
-      },
-    );
+    /*
+     * An in-progress interview whose backend deadline has already
+     * passed is no longer a genuinely active interview.
+     *
+     * Process its expiration before deciding whether the user
+     * can start a new interview.
+     */
+    if (activeInterview.status === "in-progress") {
+      const deadline = getInterviewDeadline(activeInterview);
+
+      if (deadline && new Date() >= deadline) {
+        await expireInterviewIfNeeded(activeInterview);
+
+        activeInterview = await Interview.findOne({
+          userId,
+          status: {
+            $in: ["created", "in-progress"],
+          },
+        }).sort({
+          createdAt: -1,
+        });
+      }
+    }
+
+    if (activeInterview) {
+      throw new AppError(
+        "You already have an active interview. Starting a new interview will end your current interview and discard its progress.",
+        409,
+        {
+          code: "ACTIVE_INTERVIEW_EXISTS",
+          interviewId: activeInterview._id,
+        },
+      );
+    }
   }
 
   const balance = await getUserBalance(userId);
@@ -1040,6 +1343,15 @@ export const replaceActiveInterview = async (userId) => {
     userId,
     status: {
       $in: ["created", "in-progress"],
+    },
+
+    // Never delete an interview that is being finalized.
+    $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
+
+    // Never delete an interview whose payment lifecycle
+    // has already started or completed.
+    paymentStatus: {
+      $nin: ["charging", "charged"],
     },
   });
 
@@ -1222,6 +1534,7 @@ export const getNextQuestion = async (userId, interviewId) => {
       _id: interviewId,
       userId,
       status: "in-progress",
+      currentQuestionIndex: interview.currentQuestionIndex,
     },
     {
       $set: {
@@ -1234,7 +1547,13 @@ export const getNextQuestion = async (userId, interviewId) => {
   );
 
   if (!updatedInterview) {
-    throw new AppError("Interview is no longer active.", 400);
+    const latestInterview = await findUserInterview(userId, interviewId);
+
+    if (latestInterview.status !== "in-progress") {
+      throw new AppError("Interview is no longer active.", 400);
+    }
+
+    return latestInterview;
   }
 
   return updatedInterview;
@@ -1277,6 +1596,7 @@ export const getPreviousQuestion = async (userId, interviewId) => {
       _id: interviewId,
       userId,
       status: "in-progress",
+      currentQuestionIndex: interview.currentQuestionIndex,
     },
     {
       $set: {
@@ -1289,7 +1609,13 @@ export const getPreviousQuestion = async (userId, interviewId) => {
   );
 
   if (!updatedInterview) {
-    throw new AppError("Interview is no longer active.", 400);
+    const latestInterview = await findUserInterview(userId, interviewId);
+
+    if (latestInterview.status !== "in-progress") {
+      throw new AppError("Interview is no longer active.", 400);
+    }
+
+    return latestInterview;
   }
 
   return updatedInterview;
@@ -1337,6 +1663,7 @@ export const jumpToQuestion = async (userId, interviewId, index) => {
       _id: interviewId,
       userId,
       status: "in-progress",
+      currentQuestionIndex: interview.currentQuestionIndex,
     },
     {
       $set: {
@@ -1349,7 +1676,13 @@ export const jumpToQuestion = async (userId, interviewId, index) => {
   );
 
   if (!updatedInterview) {
-    throw new AppError("Interview is no longer active.", 400);
+    const latestInterview = await findUserInterview(userId, interviewId);
+
+    if (latestInterview.status !== "in-progress") {
+      throw new AppError("Interview is no longer active.", 400);
+    }
+
+    return latestInterview;
   }
 
   return updatedInterview;
@@ -1389,8 +1722,32 @@ export const saveDraftAnswer = async (
       _id: interviewId,
       userId,
       status: "in-progress",
+      startedAt: { $ne: null },
+
+      /*
+       * Backend deadline is enforced atomically.
+       *
+       * This prevents a draft from being written after the
+       * interview time limit even if no other request has
+       * triggered expiration yet.
+       */
+      $expr: {
+        $gt: [
+          {
+            $add: [
+              "$startedAt",
+              {
+                $multiply: [{ $ifNull: ["$timeLimit", 30] }, 60 * 1000],
+              },
+            ],
+          },
+          new Date(),
+        ],
+      },
+
       "questions.questionId": questionId,
       "questions.answerStatus": "not-submitted",
+      $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
     },
     {
       $set: {
@@ -1413,6 +1770,17 @@ export const saveDraftAnswer = async (
 
     if (existingInterview.status !== "in-progress") {
       throw new AppError("Interview is not active.", 400);
+    }
+
+    const deadline = getInterviewDeadline(existingInterview);
+
+    if (deadline && new Date() >= deadline) {
+      await expireInterviewIfNeeded(existingInterview);
+
+      throw new AppError(
+        "Interview time has expired. The interview was finalized automatically.",
+        400,
+      );
     }
 
     const question = existingInterview.questions.find(
@@ -1498,6 +1866,8 @@ export const submitInterview = async (
 
   const isTimeExpired = deadline && new Date() >= deadline;
 
+  let finalizationLeaseHeartbeat = null;
+
   try {
     /*
      * -----------------------------------------------------
@@ -1511,56 +1881,127 @@ export const submitInterview = async (
      * They are NOT sent to the LLM.
      * -----------------------------------------------------
      */
-    const finalizationKey = `finalize:${interviewId.toString()}`;
 
-    const lockedInterview = await Interview.findOneAndUpdate(
-      {
-        _id: interviewId,
-        userId,
-        status: "in-progress",
-        $or: [
-          { finalizationKey: null },
-          { finalizationKey: { $exists: false } },
-          {
-            finalizationKey: { $ne: null },
-            $or: [
-              { finalizationStartedAt: null },
-              {
-                finalizationStartedAt: {
-                  $lt: new Date(Date.now() - FINALIZATION_LOCK_TIMEOUT_MS),
+    const finalizationKey = `finalize:${interviewId.toString()}:${crypto.randomUUID()}`;
+
+    const FINALIZATION_WAIT_TIMEOUT_MS = 2 * 60 * 1000;
+    const FINALIZATION_POLL_INTERVAL_MS = 1500;
+
+    const finalizationWaitStartedAt = Date.now();
+
+    while (true) {
+      const lockedInterview = await Interview.findOneAndUpdate(
+        {
+          _id: interviewId,
+          userId,
+          status: "in-progress",
+          $or: [
+            { finalizationKey: null },
+            { finalizationKey: { $exists: false } },
+            {
+              finalizationKey: { $ne: null },
+              $or: [
+                { finalizationLeaseUntil: null },
+                {
+                  finalizationLeaseUntil: {
+                    $lt: new Date(),
+                  },
                 },
-              },
-            ],
-          },
-        ],
-      },
-      {
-        $set: {
-          finalizationKey,
-          finalizationStartedAt: new Date(),
+                {
+                  finalizationLeaseUntil: { $exists: false },
+                  finalizationStartedAt: {
+                    $lt: new Date(Date.now() - FINALIZATION_LOCK_TIMEOUT_MS),
+                  },
+                },
+              ],
+            },
+          ],
         },
-      },
-      {
-        returnDocument: "after",
-      },
-    );
+        {
+          $set: {
+            finalizationKey,
+            finalizationStartedAt: new Date(),
+            finalizationLeaseUntil: new Date(
+              Date.now() + FINALIZATION_LEASE_DURATION_MS,
+            ),
+          },
+        },
+        {
+          returnDocument: "after",
+        },
+      );
 
-    if (!lockedInterview) {
+      // We successfully acquired the finalization lock.
+      if (lockedInterview) {
+        interview = lockedInterview;
+
+        finalizationLeaseHeartbeat = startFinalizationLeaseHeartbeat(
+          userId,
+          interviewId,
+          finalizationKey,
+        );
+
+        break;
+      }
+
+      // Another request is currently finalizing this interview.
       const latestInterview = await Interview.findOne({
         _id: interviewId,
         userId,
       });
 
+      // Another request finished successfully.
       if (latestInterview?.status === "completed") {
-        return latestInterview;
+        return {
+          interviewId: latestInterview._id,
+          status: latestInterview.status,
+          terminationReason: latestInterview.terminationReason,
+          overallScore: latestInterview.overallScore,
+          sectionScores: latestInterview.sectionScores,
+          strengths: latestInterview.strengths,
+          weaknesses: latestInterview.weaknesses,
+          recommendations: latestInterview.recommendations,
+          summary: latestInterview.summary,
+          alreadyFinalized: true,
+        };
       }
 
-      throw new AppError(
-        "Interview is already being finalized. Please retry.",
-        409,
-      );
-    } else {
-      interview = lockedInterview;
+      // Another request finalized the interview as abandoned.
+      if (latestInterview?.status === "abandoned") {
+        return {
+          interviewId: latestInterview._id,
+          status: latestInterview.status,
+          terminationReason: latestInterview.terminationReason,
+          coinsCharged: 0,
+          alreadyFinalized: false,
+        };
+      }
+
+      // Finalization is still in progress.
+      if (
+        latestInterview?.status === "in-progress" &&
+        latestInterview.finalizationKey
+      ) {
+        // Don't wait forever if the other request is genuinely stuck.
+        if (
+          Date.now() - finalizationWaitStartedAt >=
+          FINALIZATION_WAIT_TIMEOUT_MS
+        ) {
+          throw new AppError(
+            "Interview finalization is taking longer than expected. Please retry.",
+            409,
+          );
+        }
+
+        await new Promise((resolve) =>
+          setTimeout(resolve, FINALIZATION_POLL_INTERVAL_MS),
+        );
+
+        continue;
+      }
+
+      // Lock disappeared while the interview is still active.
+      // Try to acquire it again.
     }
 
     /*
@@ -1586,7 +2027,12 @@ export const submitInterview = async (
         }
       }
 
-      await interview.save();
+      interview = await saveFinalizationDocument(
+        interview,
+        userId,
+        interviewId,
+        finalizationKey,
+      );
     }
     const pendingAnsweredQuestions = interview.questions.filter(
       (question) =>
@@ -1597,17 +2043,43 @@ export const submitInterview = async (
     );
 
     for (const question of pendingAnsweredQuestions) {
+      /*
+       * The finalization lease may have been lost while
+       * another request took ownership of this interview.
+       *
+       * Never start another LLM evaluation after losing ownership.
+       */
+      if (finalizationLeaseHeartbeat?.isLeaseLost()) {
+        throw new AppError(
+          "Interview finalization lease was lost. Please retry.",
+          409,
+        );
+      }
+
       const { evaluation } = await evaluateQuestion(interview, question);
+
+      /*
+       * The LLM call may have taken long enough for the
+       * finalization lease to expire.
+       *
+       * Do not persist this evaluation if ownership was lost
+       * during the evaluation.
+       */
+      if (finalizationLeaseHeartbeat?.isLeaseLost()) {
+        throw new AppError(
+          "Interview finalization lease was lost. Please retry.",
+          409,
+        );
+      }
 
       markQuestionSubmitted(question, evaluation);
 
-      /*
-       * Persist after every successful evaluation.
-       *
-       * If a later question fails, earlier successful
-       * evaluations remain preserved.
-       */
-      await interview.save();
+      interview = await saveFinalizationDocument(
+        interview,
+        userId,
+        interviewId,
+        finalizationKey,
+      );
     }
 
     /*
@@ -1681,8 +2153,42 @@ export const submitInterview = async (
        */
       interview.finalizationKey = null;
       interview.finalizationStartedAt = null;
+      interview.finalizationLeaseUntil = null;
 
-      await interview.save();
+      const abandonedInterview = await Interview.findOneAndUpdate(
+        {
+          _id: interviewId,
+          userId,
+          status: "in-progress",
+          finalizationKey,
+        },
+        {
+          $set: {
+            status: "abandoned",
+            terminationReason: isTimeExpired ? "time-limit" : "no-answers",
+            endedAt: new Date(),
+            finalizationKey: null,
+            finalizationStartedAt: null,
+            finalizationLeaseUntil: null,
+          },
+        },
+        {
+          returnDocument: "after",
+          runValidators: true,
+        },
+      );
+
+      if (!abandonedInterview) {
+        throw new AppError(
+          "Interview finalization ownership was lost. Please retry.",
+          409,
+        );
+      }
+
+      if (finalizationLeaseHeartbeat) {
+        finalizationLeaseHeartbeat.stop();
+        finalizationLeaseHeartbeat = null;
+      }
 
       return {
         interviewId: interview._id,
@@ -1692,14 +2198,34 @@ export const submitInterview = async (
       };
     }
 
+    if (finalizationLeaseHeartbeat?.isLeaseLost()) {
+      throw new AppError(
+        "Interview finalization lease was lost. Please retry.",
+        409,
+      );
+    }
+
     const report = await generateInterviewSummary(interview);
 
     /*
      * -----------------------------------------------------
      * Finalize interview + charge coins.
      * -----------------------------------------------------
+     *
+     * The deadline may have been reached while answer
+     * evaluation or summary generation was running.
+     *
+     * Re-check the deadline using the latest interview state
+     * instead of relying only on the initial time check.
      */
-    const terminationReason = isTimeExpired ? "time-limit" : "completed";
+    const latestDeadline = getInterviewDeadline(interview);
+
+    const finalizationTimeExpired =
+      latestDeadline && new Date() >= latestDeadline;
+
+    const terminationReason = finalizationTimeExpired
+      ? "time-limit"
+      : "completed";
 
     const finalizedInterview = await finalizeInterviewWithCharge(
       userId,
@@ -1707,7 +2233,13 @@ export const submitInterview = async (
       report,
       terminationReason,
       true,
+      finalizationKey,
     );
+
+    if (finalizationLeaseHeartbeat) {
+      finalizationLeaseHeartbeat.stop();
+      finalizationLeaseHeartbeat = null;
+    }
 
     return {
       interviewId: finalizedInterview._id,
@@ -1724,6 +2256,10 @@ export const submitInterview = async (
     };
   } catch (error) {
     console.error("FINAL SUBMIT ROOT ERROR:", error);
+    if (finalizationLeaseHeartbeat) {
+      finalizationLeaseHeartbeat.stop();
+      finalizationLeaseHeartbeat = null;
+    }
     /*
      * -----------------------------------------------------
      * Business errors
@@ -1793,8 +2329,36 @@ export const submitInterview = async (
          */
         interview.finalizationKey = null;
         interview.finalizationStartedAt = null;
+        interview.finalizationLeaseUntil = null;
 
-        await interview.save();
+        const recoveredInterview = await Interview.findOneAndUpdate(
+          {
+            _id: interview._id,
+            userId,
+            status: "in-progress",
+            finalizationKey,
+          },
+          {
+            $set: {
+              finalizationKey: null,
+              finalizationStartedAt: null,
+              finalizationLeaseUntil: null,
+            },
+          },
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        );
+
+        if (!recoveredInterview) {
+          throw new AppError(
+            "Interview finalization ownership was lost. Please retry.",
+            409,
+          );
+        }
+
+        interview = recoveredInterview;
 
         throw new AppError(
           "Your interview is still being finalized. Please retry.",
@@ -1816,8 +2380,34 @@ export const submitInterview = async (
         // server/evaluation failure, not a user abandonment.
         currentInterview.finalizationKey = null;
         currentInterview.finalizationStartedAt = null;
+        currentInterview.finalizationLeaseUntil = null;
 
-        await currentInterview.save();
+        const recoveredInterview = await Interview.findOneAndUpdate(
+          {
+            _id: currentInterview._id,
+            userId,
+            status: "in-progress",
+            finalizationKey,
+          },
+          {
+            $set: {
+              finalizationKey: null,
+              finalizationStartedAt: null,
+              finalizationLeaseUntil: null,
+            },
+          },
+          {
+            returnDocument: "after",
+            runValidators: true,
+          },
+        );
+
+        if (!recoveredInterview) {
+          throw new AppError(
+            "Interview finalization ownership was lost. Please retry.",
+            409,
+          );
+        }
       }
     } catch (recoveryError) {
       if (recoveryError instanceof AppError) {
@@ -1861,10 +2451,13 @@ async function expireInterviewIfNeeded(interview) {
     return false;
   }
 
+  let finalizationLeaseHeartbeat = null;
+
   /*
    * The interview has reached its time limit strictly according
    * to the original deadline calculated from startedAt.
    */
+
   try {
     /*
      * -----------------------------------------------------
@@ -1875,7 +2468,7 @@ async function expireInterviewIfNeeded(interview) {
      * from evaluating/finalizing the same interview concurrently.
      * -----------------------------------------------------
      */
-    const finalizationKey = `finalize:${interview._id.toString()}`;
+    const finalizationKey = `finalize:${interview._id.toString()}:${crypto.randomUUID()}`;
 
     const lockedInterview = await Interview.findOneAndUpdate(
       {
@@ -1887,8 +2480,14 @@ async function expireInterviewIfNeeded(interview) {
           {
             finalizationKey: { $ne: null },
             $or: [
-              { finalizationStartedAt: null },
+              { finalizationLeaseUntil: null },
               {
+                finalizationLeaseUntil: {
+                  $lt: new Date(),
+                },
+              },
+              {
+                finalizationLeaseUntil: { $exists: false },
                 finalizationStartedAt: {
                   $lt: new Date(Date.now() - FINALIZATION_LOCK_TIMEOUT_MS),
                 },
@@ -1901,6 +2500,9 @@ async function expireInterviewIfNeeded(interview) {
         $set: {
           finalizationKey,
           finalizationStartedAt: new Date(),
+          finalizationLeaseUntil: new Date(
+            Date.now() + FINALIZATION_LEASE_DURATION_MS,
+          ),
         },
       },
       {
@@ -1940,6 +2542,12 @@ async function expireInterviewIfNeeded(interview) {
 
     interview = lockedInterview;
 
+    finalizationLeaseHeartbeat = startFinalizationLeaseHeartbeat(
+      lockedInterview.userId,
+      lockedInterview._id,
+      finalizationKey,
+    );
+
     /*
      * -----------------------------------------------------
      * Evaluate only answered questions that have not
@@ -1957,13 +2565,42 @@ async function expireInterviewIfNeeded(interview) {
     );
 
     for (const question of pendingQuestions) {
+      /*
+       * Never start another LLM evaluation after losing
+       * finalization ownership.
+       */
+      if (finalizationLeaseHeartbeat?.isLeaseLost()) {
+        throw new AppError(
+          "Interview finalization lease was lost. Please retry.",
+          409,
+        );
+      }
+
       const { evaluation } = await evaluateQuestion(interview, question);
+
+      /*
+       * The LLM call may have taken long enough for the
+       * finalization lease to expire.
+       *
+       * Do not persist this evaluation after ownership loss.
+       */
+      if (finalizationLeaseHeartbeat?.isLeaseLost()) {
+        throw new AppError(
+          "Interview finalization lease was lost. Please retry.",
+          409,
+        );
+      }
 
       markQuestionSubmitted(question, evaluation);
 
       // Persist every successful evaluation immediately.
       // If a later question fails, earlier evaluations remain saved.
-      await interview.save();
+      interview = await saveFinalizationDocument(
+        interview,
+        interview.userId,
+        interview._id,
+        finalizationKey,
+      );
     }
 
     /*
@@ -2014,10 +2651,58 @@ async function expireInterviewIfNeeded(interview) {
        */
       latestInterview.finalizationKey = null;
       latestInterview.finalizationStartedAt = null;
+      latestInterview.finalizationLeaseUntil = null;
 
-      await latestInterview.save();
+      const abandonedInterview = await Interview.findOneAndUpdate(
+        {
+          _id: latestInterview._id,
+          userId: latestInterview.userId,
+          status: "in-progress",
+          finalizationKey,
+        },
+        {
+          $set: {
+            status: "abandoned",
+            endedAt: new Date(),
+            terminationReason: "time-limit",
+            finalizedAt: new Date(),
+            finalizationKey: null,
+            finalizationStartedAt: null,
+            finalizationLeaseUntil: null,
+            overallScore: 0,
+            sectionScores: [],
+            strengths: [],
+            weaknesses: [],
+            recommendations: [],
+            summary: "Interview ended because the time limit was reached.",
+          },
+        },
+        {
+          returnDocument: "after",
+          runValidators: true,
+        },
+      );
 
-      return true;
+      if (!abandonedInterview) {
+        throw new AppError(
+          "Interview finalization ownership was lost. Please retry.",
+          409,
+        );
+      }
+
+      if (finalizationLeaseHeartbeat) {
+        finalizationLeaseHeartbeat.stop();
+        finalizationLeaseHeartbeat = null;
+      }
+
+      return abandonedInterview;
+    }
+
+    if (finalizationLeaseHeartbeat?.isLeaseLost()) {
+      throw new AppError(
+        "Interview finalization lease was lost. Please retry.",
+        409,
+      );
     }
 
     const report = await generateInterviewSummary(latestInterview);
@@ -2033,10 +2718,20 @@ async function expireInterviewIfNeeded(interview) {
       report,
       "time-limit",
       true,
+      finalizationKey,
     );
+
+    if (finalizationLeaseHeartbeat) {
+      finalizationLeaseHeartbeat.stop();
+      finalizationLeaseHeartbeat = null;
+    }
 
     return true;
   } catch (error) {
+    if (finalizationLeaseHeartbeat) {
+      finalizationLeaseHeartbeat.stop();
+      finalizationLeaseHeartbeat = null;
+    }
     /*
      * Time-limit processing failed.
      *
@@ -2068,34 +2763,42 @@ async function expireInterviewIfNeeded(interview) {
          * A later retry must finish finalization without
          * charging the user again.
          */
-        if (currentInterview.paymentStatus === "charged") {
-          currentInterview.finalizationKey = null;
-          currentInterview.finalizationStartedAt = null;
-
-          await currentInterview.save();
-
-          return true;
-        }
-
-        /*
-         * Payment may still be processing remotely.
-         *
-         * Do NOT abandon the interview.
-         * Release the lock so a later retry can continue
-         * the same idempotent payment transaction.
-         */
         if (currentInterview.paymentStatus === "charging") {
-          currentInterview.finalizationKey = null;
-          currentInterview.finalizationStartedAt = null;
+          const recoveredInterview = await Interview.findOneAndUpdate(
+            {
+              _id: interview._id,
+              userId,
+              status: "in-progress",
+              finalizationKey,
+            },
+            {
+              $set: {
+                finalizationKey: null,
+                finalizationStartedAt: null,
+                finalizationLeaseUntil: null,
+              },
+            },
+            {
+              returnDocument: "after",
+            },
+          );
 
-          await currentInterview.save();
+          if (!recoveredInterview) {
+            throw new AppError(
+              "Interview finalization ownership was lost. Please retry.",
+              409,
+            );
+          }
 
           return true;
         }
 
-        currentInterview.finalizationKey = null;
-
-        await abandonForServerError(currentInterview);
+        await abandonForServerError(
+          currentInterview,
+          userId,
+          interview._id,
+          finalizationKey,
+        );
       }
     } catch (abandonError) {
       console.error("Failed to abandon expired interview:", abandonError);
@@ -2139,6 +2842,21 @@ export const getInterview = async (userId, interviewId) => {
 export const quitInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
+  const existingInterview = await findUserInterview(userId, interviewId);
+
+  if (existingInterview.status === "in-progress") {
+    const deadline = getInterviewDeadline(existingInterview);
+
+    if (deadline && new Date() >= deadline) {
+      await expireInterviewIfNeeded(existingInterview);
+
+      throw new AppError(
+        "Interview time limit has ended. The interview was finalized automatically.",
+        400,
+      );
+    }
+  }
+
   const interview = await Interview.findOneAndUpdate(
     {
       _id: interviewId,
@@ -2156,6 +2874,7 @@ export const quitInterview = async (userId, interviewId) => {
         terminationReason: "quit",
         finalizationKey: null,
         finalizationStartedAt: null,
+        finalizationLeaseUntil: null,
       },
     },
     {
@@ -2166,8 +2885,6 @@ export const quitInterview = async (userId, interviewId) => {
   if (interview) {
     return interview;
   }
-
-  const existingInterview = await findUserInterview(userId, interviewId);
 
   if (
     existingInterview.status === "completed" ||

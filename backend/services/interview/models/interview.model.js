@@ -471,6 +471,11 @@ const interviewSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    finalizationLeaseUntil: {
+      type: Date,
+      default: null,
+    },
     /*
      * ---------------------------------------------------------
      * Final Interview Report
