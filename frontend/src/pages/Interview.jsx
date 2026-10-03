@@ -708,7 +708,7 @@ const Interview = () => {
         ) {
           /*
            * Empty submission is a silent discard.
-           * No report, no coins, and no intermediate screen.
+           * No report, no balance deduction, and no intermediate screen.
            */
           setShowCompletionModal(false);
           setReportReady(false);
@@ -743,9 +743,94 @@ const Interview = () => {
           return;
         }
       } catch (err) {
-        if (timerExpired) {
+        const statusCode = err?.response?.status;
+        const errorMessage =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Unable to submit the interview. Please try again.";
+
+        /*
+         * Automatic submission can race with the backend's
+         * server-side expiry/finalization.
+         *
+         * If another request is already finalizing the interview,
+         * this request receives 409. That is NOT a submission failure.
+         * Wait for the existing finalization to finish.
+         */
+        const alreadyFinalizing =
+          automatic &&
+          statusCode === 409 &&
+          errorMessage.toLowerCase().includes("already being finalized");
+
+        if (alreadyFinalizing) {
+          setError("");
+          setAutoSubmitFailed(false);
+          setShowCompletionModal(true);
+          setProcessingStage("evaluating");
+          setReportReady(false);
+
+          let attempts = 0;
+          const maxAttempts = 60;
+
+          while (attempts < maxAttempts) {
+            attempts += 1;
+
+            await new Promise((resolve) => {
+              window.setTimeout(resolve, 2000);
+            });
+
+            try {
+              const latest = await getInterview(interviewId);
+
+              if (!latest?.success || !latest?.data) {
+                continue;
+              }
+
+              const latestInterview = latest.data;
+
+              if (latestInterview.status === "completed") {
+                setInterview(latestInterview);
+                setProcessingStage("report");
+                setReportReady(true);
+                setShowCompletionModal(true);
+                return;
+              }
+
+              if (latestInterview.status === "abandoned") {
+                setShowCompletionModal(false);
+                setReportReady(false);
+
+                navigate("/mock-interview", {
+                  replace: true,
+                });
+
+                return;
+              }
+            } catch (pollError) {
+              console.error(
+                "Failed while waiting for interview finalization:",
+                pollError,
+              );
+            }
+          }
+
+          /*
+           * The backend did not finish finalization within the
+           * expected window.
+           */
+          setShowCompletionModal(false);
+          setReportReady(false);
           setAutoSubmitFailed(true);
+          setError(
+            "Your interview is still being finalized. Please retry in a moment.",
+          );
+
+          return;
         }
+
+        /*
+         * Normal submission failure.
+         */
         console.error(
           automatic
             ? "Automatic interview submission failed:"
@@ -756,10 +841,9 @@ const Interview = () => {
         setShowCompletionModal(false);
         setReportReady(false);
 
-        const errorMessage =
-          err?.response?.data?.message ||
-          err?.message ||
-          "Unable to submit the interview. Please try again.";
+        if (timerExpired) {
+          setAutoSubmitFailed(true);
+        }
 
         if (
           errorMessage.toLowerCase().includes("insufficient") &&
@@ -964,7 +1048,7 @@ const Interview = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#111315] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-[#111214] text-white">
         <div className="flex flex-col items-center gap-4">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
 
@@ -1012,16 +1096,30 @@ const Interview = () => {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#17191C] text-white">
+    <div className="relative min-h-screen overflow-hidden bg-[#111214] text-white">
+      <style>{`
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            scroll-behavior: auto !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
+        :focus-visible {
+          outline: 2px solid rgba(255,255,255,0.72);
+          outline-offset: 3px;
+        }
+`}</style>
       {/* =====================================================
           FIXED TOP BAR
       ====================================================== */}
-      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.08] bg-[#111315]/95 backdrop-blur-2xl">
+      <header className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.07] bg-[#111214]/88 backdrop-blur-xl">
         <div className="mx-auto flex h-[72px] max-w-[1500px] items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Left — Interview identity */}
           <div className="flex min-w-0 items-center gap-3">
             {/* RIO mark */}
-            <div className="hidden h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] shadow-[0_0_30px_rgba(255,255,255,0.025)] sm:flex">
+            <div className="hidden h-9 w-9 items-center justify-center rounded-2xl border border-white/[0.09] bg-white/[0.045] shadow-[0_16px_45px_rgba(0,0,0,0.16)] sm:flex">
               <RiBrainAi3Fill size={14} className="text-[#D4D4D8]" />
             </div>
 
@@ -1070,8 +1168,8 @@ const Interview = () => {
             <div
               className={`flex h-10 items-center gap-2 rounded-xl border px-3 transition-all ${
                 remainingSeconds !== null && remainingSeconds <= 60
-                  ? "border-red-400/25 bg-red-400/[0.06] text-red-300 shadow-[0_0_24px_rgba(248,113,113,0.06)]"
-                  : "border-white/[0.08] bg-white/[0.035] text-[#D4D4D8]"
+                  ? "border-white/[0.16] bg-white/[0.045] text-[#E4E4E7]"
+                  : "border-white/[0.10] bg-white/[0.045] text-[#D4D4D8]"
               }`}
             >
               <FiClock size={13} className="opacity-70" />
@@ -1111,8 +1209,11 @@ const Interview = () => {
         ==================================================== */}
 
             {error && (
-              <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-sm text-red-200">
-                <FiAlertCircle size={16} className="mt-0.5 shrink-0" />
+              <div className="mt-4 flex items-start gap-3 rounded-2xl border border-white/[0.10] bg-white/[0.035] px-4 py-3 text-sm text-[#D4D4D8] shadow-[0_14px_40px_rgba(0,0,0,0.14)]">
+                <FiAlertCircle
+                  size={16}
+                  className="mt-0.5 shrink-0 text-[#A1A1AA]"
+                />
                 <div>
                   <p>{error}</p>
 
@@ -1133,11 +1234,11 @@ const Interview = () => {
             QUESTION
         ==================================================== */}
 
-            <section className="relative mt-5 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.035]">
+            <section className="relative mt-6 overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)]">
               {/* Question ambient glow */}
               <div className="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full bg-white/[0.06] blur-[100px]" />
 
-              <div className="relative px-6 py-5 sm:px-7 sm:py-6">
+              <div className="relative px-6 py-6 sm:px-8 sm:py-8">
                 {/* Question Number */}
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-[0.16em] text-[#52525B]">
@@ -1151,7 +1252,7 @@ const Interview = () => {
                 </div>
 
                 {/* Question */}
-                <h1 className="mt-4 w-full font-sans text-[12px] font-medium leading-[1.4] tracking-[-0.01em] text-[#F4F4F5] sm:text-[15px] lg:text-[18px]">
+                <h1 className="mt-4 w-full font-sans text-[11px] font-medium leading-[1.45] tracking-[-0.005em] text-[#F4F4F5] sm:text-[14px] lg:text-[16px]">
                   {currentQuestion?.text || "Question unavailable."}
                 </h1>
               </div>
@@ -1165,7 +1266,7 @@ const Interview = () => {
     PREMIUM ANSWER WORKSPACE
 ==================================================== */}
 
-            <section className="relative mt-5 overflow-hidden rounded-[28px] border border-white/[0.08] bg-[#0D0F12]/80 shadow-[0_30px_100px_rgba(0,0,0,0.18)]">
+            <section className="relative mt-5 overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#0D0F12]/88 shadow-[0_30px_100px_rgba(0,0,0,0.18)]">
               {/* Editor glow */}
               <div className="pointer-events-none absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-white/[0.025] blur-[100px]" />
 
@@ -1181,8 +1282,9 @@ const Interview = () => {
                   </div>
 
                   <p className="mt-2 max-w-xl text-[11px] leading-5 text-[#52525B]">
-                    Structure your thoughts clearly. Explain your reasoning,
-                    assumptions, and approach as you would in a real interview.
+                    Think out loud. Explain the reasoning, assumptions,
+                    trade-offs, and approach you would give to a real
+                    interviewer.
                   </p>
                 </div>
 
@@ -1217,7 +1319,7 @@ const Interview = () => {
                   }}
                   disabled={questionNavigating || quitting || finalSubmitting}
                   placeholder="Start explaining your approach..."
-                  className="min-h-[300px] w-full resize-none bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
+                  className="min-h-[300px] w-full resize-none border-0 bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
                 />
 
                 {/* Bottom editor status */}
@@ -1279,7 +1381,14 @@ const Interview = () => {
                             : "border-white/[0.08] bg-white/[0.035] text-[#71717A] hover:bg-white/[0.07] hover:text-[#D4D4D8]",
                       ].join(" ")}
                     >
-                      {number}
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            isAnswered ? "bg-emerald-400" : "bg-white/40"
+                          }`}
+                        />
+                        <span>{number}</span>
+                      </div>
                     </button>
                   );
                 })}
@@ -1289,15 +1398,16 @@ const Interview = () => {
               <div className="flex-1" />
 
               {/* Navigation */}
-              {/* Navigation */}
-              <div className="border-t border-white/[0.07] pt-4">
+              <div className=" pt-4">
                 {/* Draft status */}
                 <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-center">
-                  <p className="text-[10px] leading-5 text-[#52525B]">
+                  <p className="text-[10px] font-semibold leading-5 text-[#818187]">
                     Your answer is saved as a draft until you submit the
                     interview.
                   </p>
                 </div>
+
+                <div className="mt-3 h-px bg-white/[0.06]" />
 
                 {/* Previous / Next */}
                 <div className="mt-2 grid grid-cols-2 gap-2">
@@ -1354,7 +1464,7 @@ const Interview = () => {
       {/* =====================================================
           FIXED BOTTOM BAR
       ====================================================== */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-4 py-3 backdrop-blur-xl sm:px-6 lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/92 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-6 lg:hidden">
         <div className="mx-auto max-w-[1100px]">
           <div className="flex items-center justify-between gap-3">
             <button
@@ -1405,7 +1515,7 @@ const Interview = () => {
       {showInterviewEndedModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#191B1E] p-6 text-center shadow-2xl">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-400">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.045] text-[#D4D4D8]">
               <FiAlertCircle size={22} />
             </div>
 
@@ -1470,12 +1580,12 @@ const Interview = () => {
 
               <p className="text-xs leading-5 text-[#A1A1AA]">
                 • If you haven't answered anything, no report will be generated
-                and no coins will be charged.
+                and no balance will be deducted.
               </p>
 
               <p className="text-xs leading-5 text-[#A1A1AA]">
                 • If you quit the interview, your attempt will be discarded. No
-                report will be generated and no coins will be charged.
+                report will be generated and no balance will be deducted.
               </p>
             </div>
 
@@ -1522,7 +1632,7 @@ const Interview = () => {
             <div
               className={`mx-auto flex h-12 w-12 items-center justify-center rounded-full border ${
                 reportReady
-                  ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-400"
+                  ? "border-white/[0.10] bg-white/[0.045] text-[#D4D4D8]"
                   : "border-white/10 bg-white/[0.05] text-[#A1A1AA]"
               }`}
             >
@@ -1587,7 +1697,7 @@ const Interview = () => {
       {showInsufficientBalanceModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E] p-6 text-center shadow-2xl">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-400">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.045] text-[#D4D4D8]">
               <FiAlertCircle size={22} />
             </div>
 
@@ -1596,7 +1706,7 @@ const Interview = () => {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
-              You need 100 coins to complete this interview.
+              You need ₹100 in your balance to complete this interview.
             </p>
 
             <button
@@ -1627,7 +1737,7 @@ const Interview = () => {
               You're about to finish this interview. Any answered questions that
               haven't been evaluated yet will be processed before the interview
               is finalized. If you haven't answered anything, no report will be
-              generated and no coins will be charged.
+              generated and no balance will be deducted.
             </p>
 
             {/* Divider */}
@@ -1670,7 +1780,7 @@ const Interview = () => {
 
             <p className="mt-2 text-sm leading-6 text-[#71717A]">
               If you quit now, this interview will be discarded. No report will
-              be generated and no coins will be charged.
+              be generated and no balance will be deducted.
             </p>
 
             <div className="mt-6 flex gap-2">

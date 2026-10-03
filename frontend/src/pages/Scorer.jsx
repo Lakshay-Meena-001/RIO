@@ -971,7 +971,17 @@ const ResultView = ({
           </div>
 
           <h1 className="break-words text-[38px] font-semibold tracking-[-0.05em] sm:text-[52px]">
-            Resume intelligence
+            Resume
+            <span
+              className="mx-4 mt-2 font-serif text-[#A1A1AA]"
+              style={{
+                fontStyle: "italic",
+                fontWeight: 400,
+                letterSpacing: "-0.055em",
+              }}
+            >
+              Intelligence
+            </span>
           </h1>
 
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/35 sm:text-base">

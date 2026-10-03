@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
 
 import {
@@ -13,7 +14,6 @@ import {
   FiTrash2,
   FiTrendingUp,
   FiX,
-  FiXCircle,
 } from "react-icons/fi";
 
 import { deleteInterview, getInterview } from "../api/interview.api";
@@ -37,7 +37,6 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
   };
 
   const interviewId = interviewIdProp || routeInterviewId;
-  const isEmbedded = Boolean(interviewIdProp);
 
   const [interview, setInterview] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -264,7 +263,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
 
   if (loading && !interview) {
     return (
-      <div className="min-h-full bg-[#17191C] px-4 py-10 text-white sm:px-6 lg:px-8">
+      <div className="min-h-full bg-[#111214] px-4 py-10 text-white sm:px-6 lg:px-8">
         <div className="flex min-h-[70vh] items-center justify-center">
           <div className="flex flex-col items-center gap-4">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
@@ -280,7 +279,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
 
   if (!interview) {
     return (
-      <div className="flex min-h-full items-center justify-center bg-[#17191C] px-5 py-20 text-white">
+      <div className="flex min-h-full items-center justify-center bg-[#111214] px-5 py-20 text-white">
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.045] p-6 text-center">
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-[#A1A1AA]">
             <FiAlertCircle size={18} />
@@ -321,43 +320,49 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
 
     if (!Number.isFinite(numericScore)) {
       return {
-        text: "text-[#E4E4E7]",
-        bar: "bg-[#A1A1AA]",
-        soft: "bg-white/[0.045]",
-        border: "border-white/10",
+        dot: "bg-[#A1A1AA]",
+        glow: "shadow-[0_0_14px_rgba(161,161,170,0.28)]",
       };
     }
 
     if (numericScore >= 7) {
       return {
-        text: "text-emerald-300",
-        bar: "bg-emerald-400",
-        soft: "bg-emerald-400/[0.06]",
-        border: "border-emerald-400/15",
+        dot: "bg-[#22C55E]",
+        glow: "shadow-[0_0_14px_rgba(34,197,94,0.42)]",
       };
     }
 
     if (numericScore >= 4) {
       return {
-        text: "text-amber-200",
-        bar: "bg-amber-300",
-        soft: "bg-amber-300/[0.055]",
-        border: "border-amber-300/15",
+        dot: "bg-[#EAB308]",
+        glow: "shadow-[0_0_14px_rgba(234,179,8,0.40)]",
       };
     }
 
     return {
-      text: "text-red-300",
-      bar: "bg-red-400",
-      soft: "bg-red-400/[0.055]",
-      border: "border-red-400/15",
+      dot: "bg-[#EF4444]",
+      glow: "shadow-[0_0_14px_rgba(239,68,68,0.40)]",
     };
   };
 
   const overallTone = getScoreTone(overallScore);
 
   return (
-    <div className="rio-report-page min-h-full bg-[#17191C] text-white">
+    <div className="rio-report-page min-h-full bg-[#111214] text-white">
+      <style>{`
+        @media (prefers-reduced-motion: reduce) {
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            scroll-behavior: auto !important;
+            transition-duration: 0.01ms !important;
+          }
+        }
+        :focus-visible {
+          outline: 2px solid rgba(255,255,255,0.72);
+          outline-offset: 3px;
+        }
+`}</style>
       <style>{`
         @keyframes rioReportEnter {
           from { opacity: 0; transform: translateY(10px); }
@@ -378,8 +383,8 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
           animation: 280ms cubic-bezier(.22,1,.36,1) both rioReportEnter;
         }
         .rio-report-page {
-          animation: rioReportEnter 320ms cubic-bezier(.22,1,.36,1);
-        }
+  animation: rioReportFade 320ms ease both;
+}
         .rio-report-section {
           animation: rioReportEnter 360ms cubic-bezier(.22,1,.36,1) both;
         }
@@ -396,13 +401,13 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
       `}</style>
       <div className="relative mx-auto w-full max-w-[1500px] px-4 pb-20 pt-6 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute right-[-12%] top-[-10%] h-[420px] w-[420px] rounded-full bg-emerald-400/[0.025] blur-3xl" />
-          <div className="absolute left-[-10%] top-[42%] h-[360px] w-[360px] rounded-full bg-amber-300/[0.02] blur-3xl" />
+          <div className="absolute right-[-12%] top-[-10%] h-[420px] w-[420px] rounded-full bg-white/[0.025] blur-3xl" />
+          <div className="absolute left-[-10%] top-[42%] h-[360px] w-[360px] rounded-full bg-[#EAB308]/[0.02] blur-3xl" />
         </div>
         {isRefreshing && (
           <div className="pointer-events-none fixed inset-0 z-40">
-            <div className="absolute inset-0 bg-[#17191C]/20 backdrop-blur-[1px]" />
-            <div className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-white/10 bg-[#17191C]/85 px-3 py-2 text-[10px] font-medium text-[#A1A1AA] shadow-xl backdrop-blur-xl">
+            <div className="absolute inset-0 bg-[#111214]/20 backdrop-blur-[1px]" />
+            <div className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-white/10 bg-[#111214]/85 px-3 py-2 text-[10px] font-medium text-[#A1A1AA] shadow-xl backdrop-blur-xl">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
               Loading report
             </div>
@@ -410,11 +415,11 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
         )}
         {/* Header */}
         <section className="rio-report-section mb-7">
-          {!isEmbedded && (
+          <div className="mb-6 border-b border-white/[0.08] pb-5">
             <button
               type="button"
               onClick={() => navigate("/mock-interview")}
-              className="group mb-6 inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors hover:text-white"
+              className="group inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors duration-200 hover:text-white"
             >
               <FiArrowLeft
                 size={13}
@@ -422,21 +427,10 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
               />
               Mock Interviews
             </button>
-          )}
+          </div>
 
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <button
-                type="button"
-                onClick={() => navigate("/mock-interview")}
-                className="group mb-6 inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors hover:text-white"
-              >
-                <FiArrowLeft
-                  size={13}
-                  className="transition-transform duration-200 group-hover:-translate-x-0.5"
-                />
-                Mock Interviews
-              </button>
               <p className="mb-2 hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71717A] sm:block">
                 Interview Report
               </p>
@@ -465,7 +459,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(true)}
-                className="hidden items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-semibold text-[#D4D4D8] transition-colors hover:border-red-400/20 hover:bg-red-400/[0.08] hover:text-red-300 sm:inline-flex"
+                className="hidden items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-semibold text-[#D4D4D8] transition-colors hover:border-white/15 hover:bg-white/[0.08] hover:text-white sm:inline-flex"
               >
                 <FiTrash2 size={15} />
                 Delete
@@ -485,8 +479,11 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
         </section>
 
         {!completed && (
-          <div className="mb-5 flex items-start gap-3 rounded-xl border border-yellow-400/20 bg-yellow-400/[0.05] px-4 py-3 text-sm text-yellow-200">
-            <FiAlertCircle size={16} className="mt-0.5 shrink-0" />
+          <div className="mb-5 flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] px-4 py-3 text-sm text-[#D4D4D8]">
+            <span
+              aria-hidden="true"
+              className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#EAB308] shadow-[0_0_12px_rgba(234,179,8,0.38)]"
+            />
 
             <p>
               This interview is not marked as completed, so the final report may
@@ -497,31 +494,26 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
 
         {/* Overall score */}
         <section className="grid gap-4 lg:grid-cols-[1.2fr_2fr]">
-          <div
-            className={`rounded-2xl border ${overallTone.border} ${overallTone.soft} p-6 shadow-[0_14px_40px_rgba(0,0,0,0.12)] sm:p-7`}
-          >
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
-                <FiTarget size={17} />
-              </div>
+          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:p-7">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                Overall performance
+              </p>
 
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                  Overall performance
-                </p>
+              <div className="mt-1 flex items-center gap-2.5">
+                <span
+                  aria-hidden="true"
+                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${overallTone.dot} ${overallTone.glow}`}
+                />
 
-                <h2
-                  className={`mt-1 text-sm font-semibold ${getScoreTone.text}`}
-                >
+                <h2 className="text-lg font-semibold text-white">
                   Final Score
                 </h2>
               </div>
             </div>
 
             <div className="mt-8 flex items-end gap-2">
-              <span
-                className={`text-5xl font-semibold tracking-[-0.05em] ${overallTone.text}`}
-              >
+              <span className="text-5xl font-semibold tracking-[-0.05em] text-white">
                 {Number.isFinite(overallScore) ? overallScore.toFixed(1) : "—"}
               </span>
 
@@ -530,7 +522,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
 
             <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/[0.07]">
               <div
-                className={`h-full rounded-full ${overallTone.bar} transition-[width] duration-700 ease-out`}
+                className="h-full rounded-full bg-white/80 transition-[width] duration-700 ease-out"
                 style={{ width: `${scorePercent}%` }}
               />
             </div>
@@ -628,12 +620,18 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
 
                 return (
                   <div key={section}>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-medium text-[#D4D4D8]">
-                        {formatSectionName(section)}
-                      </span>
+                    <div className="mb-2 flex items-center justify-between gap-4">
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <span
+                          aria-hidden="true"
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${getScoreTone(score).dot} ${getScoreTone(score).glow}`}
+                        />
+                        <span className="truncate text-xs font-medium text-[#D4D4D8]">
+                          {formatSectionName(section)}
+                        </span>
+                      </div>
 
-                      <span className="text-xs font-semibold text-white">
+                      <span className="shrink-0 text-xs font-semibold text-white">
                         {formatScore(score)}
                       </span>
                     </div>
@@ -666,18 +664,18 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
 
         {/* Strengths / weaknesses */}
         <section className="mt-4 grid gap-4 lg:grid-cols-2">
-          <div className="rio-report-section rounded-2xl border border-emerald-400/10 bg-gradient-to-br from-emerald-400/[0.035] to-white/[0.02] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
-                <FiCheckCircle size={17} />
-              </div>
+          <div className="rio-report-section rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                What went well
+              </p>
 
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                  What went well
-                </p>
-
-                <h2 className="mt-1 text-lg font-semibold">Strengths</h2>
+              <div className=" mt-1 flex items-center gap-2.5">
+                <span
+                  aria-hidden="true"
+                  className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#22C55E] shadow-[0_0_14px_rgba(34,197,94,0.42)]"
+                />
+                <h2 className=" text-lg font-semibold">Strengths</h2>
               </div>
             </div>
 
@@ -689,7 +687,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
                     key={`${strength}-${index}`}
                     className="flex gap-3 text-sm leading-6 text-[#D4D4D8]"
                   >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" />
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#22C55E]" />
                     <span>{strength}</span>
                   </li>
                 ))}
@@ -701,18 +699,20 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
             )}
           </div>
 
-          <div className="rio-report-section rounded-2xl border border-red-400/10 bg-gradient-to-br from-red-400/[0.035] to-white/[0.02] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
-                <FiXCircle size={17} />
-              </div>
-
+          <div className="rio-report-section rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
+            <div className="mt-1 flex items-center gap-3">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
                   What to improve
                 </p>
 
-                <h2 className="mt-1 text-lg font-semibold">Weaknesses</h2>
+                <div className=" mt-1 flex items-center gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#EF4444] shadow-[0_0_14px_rgba(239,68,68,0.40)]"
+                  />
+                  <h2 className=" text-lg font-semibold">Weaknesses</h2>
+                </div>
               </div>
             </div>
 
@@ -724,7 +724,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
                     key={`${weakness}-${index}`}
                     className="flex gap-3 text-sm leading-6 text-[#D4D4D8]"
                   >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" />
+                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#EF4444]" />
                     <span>{weakness}</span>
                   </li>
                 ))}
@@ -740,7 +740,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
         {/* Recommendations */}
         {Array.isArray(interview.recommendations) &&
           interview.recommendations.length > 0 && (
-            <section className="rio-report-section mt-4 rounded-2xl border border-sky-400/10 bg-gradient-to-br from-sky-400/[0.03] to-white/[0.02] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
+            <section className="rio-report-section mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
                   <FiTrendingUp size={17} />
@@ -761,7 +761,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
                 {interview.recommendations.map((recommendation, index) => (
                   <div
                     key={`${recommendation}-${index}`}
-                    className="rounded-xl border border-emerald-400/10 bg-emerald-400/[0.025] p-4"
+                    className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4"
                   >
                     <div className="flex gap-3">
                       <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-[10px] font-semibold text-[#A1A1AA]">
@@ -846,10 +846,14 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
                       </div>
 
                       <div className="flex shrink-0 items-center gap-3">
-                        <span
-                          className={`hidden text-xs font-semibold ${getScoreTone(evaluation.score).text} sm:block`}
-                        >
-                          {formatScore(evaluation.score)}
+                        <span className="hidden items-center gap-2 sm:flex">
+                          <span
+                            aria-hidden="true"
+                            className={`h-1.5 w-1.5 rounded-full ${getScoreTone(evaluation.score).dot} ${getScoreTone(evaluation.score).glow}`}
+                          />
+                          <span className="text-xs font-semibold text-[#D4D4D8]">
+                            {formatScore(evaluation.score)}
+                          </span>
                         </span>
 
                         <FiChevronDown
@@ -912,7 +916,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
                         )}
 
                         <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                          <div className="rounded-xl border border-red-400/10 bg-red-400/[0.025] p-4">
+                          <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
                             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717A]">
                               Strengths
                             </p>
@@ -925,7 +929,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
                                     key={`${item}-${itemIndex}`}
                                     className="flex gap-2 text-xs leading-5 text-[#D4D4D8]"
                                   >
-                                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-emerald-400" />
+                                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#22C55E]" />
                                     {item}
                                   </li>
                                 ))}
@@ -951,7 +955,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
                                       key={`${item}-${itemIndex}`}
                                       className="flex gap-2 text-xs leading-5 text-[#D4D4D8]"
                                     >
-                                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-red-400" />
+                                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#EF4444]" />
                                       {item}
                                     </li>
                                   ),
@@ -966,7 +970,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
                         </div>
 
                         {evaluation.betterAnswer && (
-                          <div className="mt-5 rounded-xl border border-sky-400/10 bg-sky-400/[0.025] p-4">
+                          <div className="mt-5 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
                             <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717A]">
                               Better answer
                             </p>
@@ -1032,74 +1036,79 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
             </button>
           </div>
         </div>
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#17191C]/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:hidden">
-          <div className="mx-auto max-w-xl">
-            <button
-              type="button"
-              onClick={() => setShowDeleteModal(true)}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-400/[0.08] px-4 py-3 text-xs font-semibold text-white transition-colors active:bg-red-400/[0.14]"
-            >
-              <FiTrash2 size={14} />
-              Delete Interview
-            </button>
-          </div>
-        </div>
+        {createPortal(
+          <div className="fixed inset-x-0 bottom-0 z-[100] border-t border-white/[0.08] bg-[#111214]/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:hidden">
+            <div className="mx-auto max-w-xl">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-xs font-semibold black-[#D4D4D8] transition-colors hover:bg-black/[0.8] active:bg-white/[0.10]"
+              >
+                <FiTrash2 size={14} />
+                Delete Interview
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
       </div>
 
-      {showDeleteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-          <div className="rio-modal w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E]/95 p-6 shadow-2xl backdrop-blur-xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-base font-semibold text-white">
-                  Delete interview?
-                </h2>
+      {showDeleteModal &&
+        createPortal(
+          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
+            <div className="rio-modal w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E]/95 p-6 shadow-2xl backdrop-blur-xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-base font-semibold text-white">
+                    Delete interview?
+                  </h2>
 
-                <p className="mt-2 text-xs leading-5 text-[#71717A]">
-                  This will permanently remove this completed interview and its
-                  report from your history.
-                </p>
+                  <p className="mt-2 text-xs leading-5 text-[#71717A]">
+                    This will permanently remove this completed interview and
+                    its report from your history.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  disabled={deleting}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#71717A] transition-colors hover:bg-white/[0.05] hover:text-white disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <FiX size={15} />
+                </button>
               </div>
 
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                disabled={deleting}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#71717A] transition-colors hover:bg-white/[0.05] hover:text-white disabled:opacity-50"
-                aria-label="Close"
-              >
-                <FiX size={15} />
-              </button>
+              {deleteError && (
+                <p className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 text-xs leading-5 text-[#D4D4D8]">
+                  {deleteError}
+                </p>
+              )}
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeDeleteModal}
+                  disabled={deleting}
+                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-medium text-white transition-colors hover:bg-white/[0.08] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDeleteInterview}
+                  disabled={deleting}
+                  className="flex-1 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#111214] transition-colors hover:bg-[#EDEDEF] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deleting ? "Deleting..." : "Delete"}
+                </button>
+              </div>
             </div>
-
-            {deleteError && (
-              <p className="mt-4 rounded-xl border border-red-400/10 bg-red-400/[0.06] px-3 py-2.5 text-xs leading-5 text-red-300">
-                {deleteError}
-              </p>
-            )}
-
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                onClick={closeDeleteModal}
-                disabled={deleting}
-                className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-medium text-white transition-colors hover:bg-white/[0.08] disabled:opacity-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={handleDeleteInterview}
-                disabled={deleting}
-                className="flex-1 rounded-xl bg-red-500 px-4 py-3 text-xs font-semibold text-white transition-colors hover:bg-red-500/90 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

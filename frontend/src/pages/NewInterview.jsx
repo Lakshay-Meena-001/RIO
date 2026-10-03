@@ -357,13 +357,13 @@ const NewInterview = ({ user, setUser }) => {
    */
 
   const inputClass =
-    "w-full rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm text-white outline-none transition-colors placeholder:text-[#52525B] focus:border-white/25 focus:bg-white/[0.06]";
+    "w-full rounded-[13px] border border-white/[0.10] bg-white/[0.045] px-4 py-3 text-sm text-white outline-none transition-all duration-200 placeholder:text-[#52525B] hover:border-white/[0.14] focus:border-white/[0.22] focus:bg-white/[0.06]";
 
   const optionClass = (active) =>
-    `cursor-pointer rounded-xl border px-4 py-3 transition-all ${
+    `cursor-pointer rounded-[13px] border px-4 py-3 transition-all duration-200 ${
       active
-        ? "border-white/25 bg-white/[0.09] text-white"
-        : "border-white/10 bg-white/[0.035] text-[#A1A1AA] hover:border-white/15 hover:bg-white/[0.055]"
+        ? "border-white/[0.20] bg-white/[0.085] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+        : "border-white/[0.09] bg-white/[0.028] text-[#A1A1AA] hover:border-white/[0.15] hover:bg-white/[0.05] hover:text-white"
     }`;
 
   useEffect(() => {
@@ -410,7 +410,7 @@ const NewInterview = ({ user, setUser }) => {
   }, [navigate]);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#17191C] text-white">
+    <div className="relative min-h-[100dvh] w-full overflow-x-hidden bg-[#17191C] text-white">
       {/* Background */}
       <div className="pointer-events-none absolute inset-0">
         <div
@@ -418,16 +418,15 @@ const NewInterview = ({ user, setUser }) => {
           style={{
             background: `
               radial-gradient(
-                ellipse 90% 70% at 100% 0%,
-                rgba(255,255,255,0.055) 0%,
-                rgba(255,255,255,0.022) 35%,
+                ellipse 85% 65% at 100% 0%,
+                rgba(255,255,255,0.065) 0%,
+                rgba(255,255,255,0.022) 36%,
                 transparent 72%
               ),
               radial-gradient(
-                ellipse 80% 65% at 0% 100%,
-                rgba(255,255,255,0.028) 0%,
-                rgba(255,255,255,0.012) 38%,
-                transparent 72%
+                ellipse 75% 60% at 0% 100%,
+                rgba(255,255,255,0.025) 0%,
+                transparent 70%
               ),
               linear-gradient(
                 115deg,
@@ -443,11 +442,11 @@ const NewInterview = ({ user, setUser }) => {
 
       <div className="relative z-10">
         {/* Mobile top bar */}
-        <header className="fixed left-3 right-3 top-3 z-40 mx-3 flex h-14 items-center justify-between rounded-full border border-white/[0.12] bg-[#17191C]/55 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:hidden">
+        <header className="fixed left-3 right-3 top-3 z-40 mx-3 flex h-14 items-center justify-between rounded-full border border-white/[0.12] bg-[#17191C]/60 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white transition hover:bg-white/[0.1]"
             aria-label="Open navigation"
           >
             <FiMenu size={18} />
@@ -480,7 +479,7 @@ const NewInterview = ({ user, setUser }) => {
               sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
             }`}
           >
-            <div className="mx-auto w-full max-w-[1200px] px-4 pb-32 pt-[86px] sm:px-6 lg:px-8 lg:py-8 lg:pb-12">
+            <div className="mx-auto w-full max-w-[1400px] px-4 pb-32 pt-[86px] sm:px-6 lg:px-8 lg:py-8 lg:pb-12">
               {/* Header */}
               <div className="mb-8">
                 <button
@@ -494,50 +493,75 @@ const NewInterview = ({ user, setUser }) => {
 
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div>
-                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71717A]">
+                    <p className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#777A82]">
+                      <span className="h-1.5 w-1.5 rounded-full bg-white/75" />
                       Interview configuration
                     </p>
 
-                    <h1 className="text-[30px] font-semibold tracking-[-0.035em] sm:text-[38px]">
-                      Create Mock Interview
+                    <h1 className="text-[32px] font-semibold leading-[1] tracking-[-0.05em] sm:text-[44px]">
+                      Build the interview
+                      <br />
+                      <span
+                        className="font-serif font-normal italic text-[#B9BAC0]"
+                        style={{
+                          fontFamily: 'Georgia, "Times New Roman", serif',
+                        }}
+                      >
+                        you want to practice.
+                      </span>
                     </h1>
 
-                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#A1A1AA]">
-                      Configure the interview around the role, level and skills
-                      you want to practice.
+                    <p className="mt-4 max-w-2xl text-sm leading-6 text-[#9699A1] sm:text-[15px]">
+                      Shape the role, depth and format before you step into the
+                      room. RIO will use this setup to create a focused mock
+                      interview around your goals.
                     </p>
                   </div>
 
-                  <div className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 lg:flex">
-                    <span className="text-sm font-medium">INR(₹)</span>
-                    <span className="text-sm font-medium">10 / interview</span>
+                  <div className="hidden items-center gap-3 rounded-[17px] border border-white/[0.11] bg-[#ffffff] px-4 py-3 shadow-[0_16px_40px_rgba(0,0,0,0.16)] lg:flex">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-black/20 bg-black/[0.05]">
+                      <span className="text-xl  text-[#17191C] font-semibold">
+                        ₹
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#6F727A]">
+                        Practice session
+                      </p>
+                      <p className="mt-0.5 text-sm font-semibold text-[#17191C]">
+                        ₹100 / interview
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
 
               {/* Error */}
               {error && (
-                <div className="mb-5 flex items-start gap-3 rounded-xl border border-red-400/20 bg-red-400/[0.06] px-4 py-3 text-sm text-[#FCA5A5]">
-                  <FiX size={16} className="mt-0.5 shrink-0" />
+                <div className="mb-5 flex items-start gap-3 rounded-[16px] border border-white/[0.11] bg-[#17191C] px-4 py-3 text-sm text-[#D4D4D8] shadow-[0_12px_35px_rgba(0,0,0,0.14)]">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#F2A97B]" />
                   <p>{error}</p>
                 </div>
               )}
 
-              <div className="space-y-4">
+              <div className="overflow-hidden rounded-[22px] border border-white/[0.12] bg-[#111315] shadow-[0_26px_75px_rgba(0,0,0,0.22)]">
                 {/* Basic configuration */}
-                <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
+                <section className="relative overflow-hidden border-b border-white/[0.08] p-5 sm:p-7">
                   <div className="mb-6 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
+                    <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[#A1A1AA] sm:flex">
                       <FiUser size={17} />
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                        Profile
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#6F727A]">
+                        01 · Profile
                       </p>
-                      <h2 className="mt-1 text-lg font-semibold">
-                        Target role
+                      <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                        Start with the role.
                       </h2>
+                      <p className="mt-1.5 text-xs leading-5 text-[#777A82]">
+                        Tell the interviewer who you are preparing to become.
+                      </p>
                     </div>
                   </div>
 
@@ -610,19 +634,22 @@ const NewInterview = ({ user, setUser }) => {
                 </section>
 
                 {/* Interview type */}
-                <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
+                <section className="border-b border-white/[0.08] p-5 sm:p-7">
                   <div className="mb-6 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
+                    <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[#A1A1AA] sm:flex">
                       <FiLayers size={17} />
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                        Format
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#6F727A]">
+                        02 · Format
                       </p>
-                      <h2 className="mt-1 text-lg font-semibold">
-                        Interview type
+                      <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                        Choose the conversation.
                       </h2>
+                      <p className="mt-1.5 text-xs leading-5 text-[#777A82]">
+                        Pick the kind of pressure you want to practice today.
+                      </p>
                     </div>
                   </div>
 
@@ -640,9 +667,9 @@ const NewInterview = ({ user, setUser }) => {
                         key={value}
                         type="button"
                         onClick={() => updateField("interviewType", value)}
-                        className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all ${
+                        className={`flex items-center gap-3 rounded-[13px] border px-4 py-3 text-left transition-all duration-200 ${
                           form.interviewType === value
-                            ? "border-white/25 bg-white/[0.09] text-white"
+                            ? "border-white/[0.20] bg-white/[0.085] text-white"
                             : "border-white/10 bg-white/[0.035] text-[#A1A1AA] hover:bg-white/[0.055]"
                         }`}
                       >
@@ -659,7 +686,7 @@ const NewInterview = ({ user, setUser }) => {
 
                 {/* Core subjects */}
                 {form.interviewType === "core" && (
-                  <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
+                  <section className="border-b border-white/[0.08] p-5 sm:p-7">
                     <p className="mb-4 text-xs font-medium text-[#A1A1AA]">
                       Select Core CS subjects
                     </p>
@@ -683,7 +710,7 @@ const NewInterview = ({ user, setUser }) => {
 
                 {/* Development stack */}
                 {form.interviewType === "development" && (
-                  <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
+                  <section className="border-b border-white/[0.08] p-5 sm:p-7">
                     <p className="mb-2 text-xs font-medium text-[#A1A1AA]">
                       Technology stack
                     </p>
@@ -741,7 +768,7 @@ const NewInterview = ({ user, setUser }) => {
                 {/* Project context */}
                 {(form.interviewType === "project" ||
                   form.interviewType === "full") && (
-                  <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
+                  <section className="border-b border-white/[0.08] p-5 sm:p-7">
                     <div className="mb-5">
                       <p className="text-xs font-medium text-[#A1A1AA]">
                         Project context
@@ -814,19 +841,23 @@ const NewInterview = ({ user, setUser }) => {
                 )}
 
                 {/* Interview settings */}
-                <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
+                <section className="border-b border-white/[0.08] p-5 sm:p-7">
                   <div className="mb-6 flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
+                    <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[#A1A1AA] sm:flex">
                       <FiTarget size={17} />
                     </div>
 
                     <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                        Settings
+                      <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#6F727A]">
+                        03 · Settings
                       </p>
-                      <h2 className="mt-1 text-lg font-semibold">
-                        Interview difficulty & length
+                      <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em]">
+                        Set the pressure.
                       </h2>
+                      <p className="mt-1.5 text-xs leading-5 text-[#777A82]">
+                        Control difficulty, time and how much ground the session
+                        covers.
+                      </p>
                     </div>
                   </div>
 
@@ -881,7 +912,7 @@ const NewInterview = ({ user, setUser }) => {
                 </section>
 
                 {/* Cost / CTA desktop */}
-                <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:p-6">
+                <section className="p-5 sm:p-7">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="flex items-center gap-2">
@@ -899,7 +930,7 @@ const NewInterview = ({ user, setUser }) => {
 
                       <div className="mt-2 flex items-center gap-2">
                         <span className="text-sm font-semibold">INR(₹)</span>
-                        <span className="text-sm font-semibold">10</span>
+                        <span className="text-sm font-semibold">100</span>
                         <span className="text-xs text-[#71717A]">
                           per interview
                         </span>
@@ -910,7 +941,7 @@ const NewInterview = ({ user, setUser }) => {
                       type="button"
                       onClick={handleStartInterview}
                       disabled={starting || checkingActiveInterview}
-                      className="hidden items-center justify-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-semibold text-[#17191C] transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 sm:flex"
+                      className="hidden items-center justify-center gap-2 rounded-[13px] bg-white px-6 py-3.5 text-sm font-semibold text-[#17191C] shadow-[0_12px_30px_rgba(0,0,0,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(0,0,0,0.24)] disabled:cursor-not-allowed disabled:opacity-50 sm:flex"
                     >
                       {starting ? (
                         <>
