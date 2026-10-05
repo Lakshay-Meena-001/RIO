@@ -21,6 +21,11 @@ export async function interviewNode(state) {
 
     projectContext: state.projectContext || null,
 
+    /*
+     * Programming language selected for Coding interviews.
+     */
+    codingLanguage: state.codingLanguage || null,
+
     difficulty: state.difficulty,
 
     questionCount: state.questionCount,
@@ -45,7 +50,7 @@ export async function interviewNode(state) {
  * ========================================================
  * FEEDBACK NODE
  * ========================================================
- * Evaluates the candidate's selected answer.
+ * Evaluates the candidate's selected answer/code.
  */
 export async function feedbackNode(state) {
   if (!state.currentQuestion) {
@@ -68,6 +73,12 @@ export async function feedbackNode(state) {
     role: state.role,
 
     interviewLevel: state.interviewLevel,
+
+    /*
+     * Required by the Coding evaluator so it can interpret
+     * language-specific source code correctly.
+     */
+    codingLanguage: state.codingLanguage || null,
   });
 
   return {

@@ -147,7 +147,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
 
   const formatInterviewType = (type) => {
     const labels = {
-      dsa: "DSA",
+      coding: "Coding",
       core: "Core CS",
       development: "Development",
       project: "Project",
@@ -867,13 +867,27 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
 
                     {isExpanded && (
                       <div className="border-t border-white/[0.06] bg-black/[0.08] px-5 py-6 sm:px-6">
-                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                        <div
+                          className={`grid grid-cols-2 gap-2 ${
+                            question.section === "coding"
+                              ? "sm:grid-cols-3 lg:grid-cols-6"
+                              : "sm:grid-cols-5"
+                          }`}
+                        >
                           {[
                             ["Score", evaluation.score],
                             ["Correctness", evaluation.correctness],
                             ["Clarity", evaluation.clarity],
                             ["Relevance", evaluation.relevance],
                             ["Communication", evaluation.communication],
+                            ...(question.section === "coding"
+                              ? [
+                                  ["Logic", evaluation.logic],
+                                  ["Complexity", evaluation.complexity],
+                                  ["Edge Cases", evaluation.edgeCases],
+                                  ["Code Quality", evaluation.codeQuality],
+                                ]
+                              : []),
                           ].map(([label, value]) => (
                             <div
                               key={label}

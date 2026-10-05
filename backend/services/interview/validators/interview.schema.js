@@ -12,8 +12,11 @@ const interviewLevelSchema = z.enum(["fresher", "sde-1", "sde-2"]);
 
 const experienceLevelSchema = z.enum(["fresher", "experienced"]);
 
+/*
+ * DSA has been completely replaced by Coding.
+ */
 const interviewTypeSchema = z.enum([
-  "dsa",
+  "coding",
   "core",
   "development",
   "project",
@@ -24,8 +27,16 @@ const interviewTypeSchema = z.enum([
 
 const coreSubjectSchema = z.enum(["dbms", "os", "cn", "sql", "oop"]);
 
+const codingLanguageSchema = z.enum([
+  "cpp",
+  "python",
+  "javascript",
+  "typescript",
+  "java",
+]);
+
 const questionSectionSchema = z.enum([
-  "dsa",
+  "coding",
   "dbms",
   "os",
   "cn",
@@ -72,6 +83,13 @@ export const startInterviewSchema = z.object({
 
   language: z.literal("english").default("english"),
 
+  /*
+   * Programming language used by the candidate for Coding interviews.
+   *
+   * For non-coding interviews this may be omitted.
+   */
+  codingLanguage: codingLanguageSchema.nullable().default(null),
+
   difficulty: difficultySchema.default("easy"),
 
   timeLimit: z.number().int().min(1).max(180).default(30),
@@ -83,7 +101,6 @@ export const startInterviewSchema = z.object({
   projectContext: projectContextSchema.nullable().default(null),
 });
 
-
 /*
 |--------------------------------------------------------------------------
 | Interview Question
@@ -93,6 +110,13 @@ export const startInterviewSchema = z.object({
 export const interviewQuestionSchema = z.object({
   questionId: z.string().trim().min(1),
 
+  /*
+   * Coding problem title.
+   *
+   * Empty/not required for non-coding questions.
+   */
+  title: z.string().trim().default(""),
+
   text: z.string().trim().min(1),
 
   section: questionSectionSchema,
@@ -100,6 +124,24 @@ export const interviewQuestionSchema = z.object({
   type: z.enum(["primary"]).default("primary"),
 
   difficulty: z.enum(["easy", "medium", "hard"]),
+
+  /*
+   * Coding problem constraints.
+   */
+  constraints: z.array(z.string()).default([]),
+
+  /*
+   * Coding problem examples.
+   */
+  examples: z
+    .array(
+      z.object({
+        input: z.string().default(""),
+        output: z.string().default(""),
+        explanation: z.string().default(""),
+      }),
+    )
+    .default([]),
 });
 
 /*
@@ -132,6 +174,17 @@ export const feedbackSchema = z.object({
   relevance: z.number().min(0).max(10),
 
   communication: z.number().min(0).max(10),
+
+  /*
+   * Coding-specific evaluation dimensions.
+   */
+  logic: z.number().min(0).max(10),
+
+  complexity: z.number().min(0).max(10),
+
+  edgeCases: z.number().min(0).max(10),
+
+  codeQuality: z.number().min(0).max(10),
 
   feedback: z.string(),
 

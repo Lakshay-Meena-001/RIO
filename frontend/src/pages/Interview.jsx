@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Editor from "@monaco-editor/react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
   FiAlertCircle,
@@ -25,12 +26,21 @@ import {
   saveDraftAnswer,
 } from "../api/interview.api";
 
+const MONACO_LANGUAGE_MAP = {
+  cpp: "cpp",
+  python: "python",
+  javascript: "javascript",
+  typescript: "typescript",
+  java: "java",
+};
+
 const Interview = () => {
   const { interviewId } = useParams();
   const navigate = useNavigate();
 
   const [interview, setInterview] = useState(null);
   const [answer, setAnswer] = useState("");
+  const [editorValue, setEditorValue] = useState("");
   const [draftAnswers, setDraftAnswers] = useState({});
   const draftAnswersRef = useRef({});
   const draftSaveTimeoutRef = useRef(null);
@@ -118,10 +128,17 @@ const Interview = () => {
         ? data.questions[data.currentQuestionIndex]
         : null;
 
-      setAnswer(
+      const savedAnswer =
         draftAnswersRef.current[loadedQuestion?.questionId] ??
-          loadedQuestion?.answer ??
-          "",
+        loadedQuestion?.answer ??
+        "";
+
+      setAnswer(savedAnswer);
+
+      setEditorValue(
+        data.interviewType === "coding"
+          ? savedAnswer || loadedQuestion?.starterCode || ""
+          : savedAnswer,
       );
     } catch (err) {
       if (!isMountedRef.current || requestId !== loadRequestIdRef.current) {
@@ -384,6 +401,27 @@ const Interview = () => {
     [interviewId, persistDraftAnswer],
   );
 
+  const handleAnswerChange = useCallback(
+    (value) => {
+      setAnswer(value);
+      setEditorValue(value);
+
+      if (currentQuestion?.questionId) {
+        const questionId = currentQuestion.questionId;
+
+        draftAnswersRef.current[questionId] = value;
+
+        setDraftAnswers((previous) => ({
+          ...previous,
+          [questionId]: value,
+        }));
+
+        scheduleDraftSave(questionId, value);
+      }
+    },
+    [currentQuestion, scheduleDraftSave],
+  );
+
   useEffect(() => {
     return () => {
       if (draftSaveTimeoutRef.current) {
@@ -442,10 +480,17 @@ const Interview = () => {
       ? result.data.questions[result.data.currentQuestionIndex]
       : null;
 
-    setAnswer(
+    const refreshedSavedAnswer =
       draftAnswersRef.current[refreshedQuestion?.questionId] ??
-        refreshedQuestion?.answer ??
-        "",
+      refreshedQuestion?.answer ??
+      "";
+
+    setAnswer(refreshedSavedAnswer);
+
+    setEditorValue(
+      result.data.interviewType === "coding"
+        ? refreshedSavedAnswer || refreshedQuestion?.starterCode || ""
+        : refreshedSavedAnswer,
     );
 
     return result.data;
@@ -500,10 +545,17 @@ const Interview = () => {
         };
       });
 
-      setAnswer(
+      const nextSavedAnswer =
         draftAnswersRef.current[nextQuestion?.questionId] ??
-          nextQuestion?.answer ??
-          "",
+        nextQuestion?.answer ??
+        "";
+
+      setAnswer(nextSavedAnswer);
+
+      setEditorValue(
+        interview.interviewType === "coding"
+          ? nextSavedAnswer || nextQuestion?.starterCode || ""
+          : nextSavedAnswer,
       );
     } catch (err) {
       console.error("Failed to move to next question:", err);
@@ -559,10 +611,17 @@ const Interview = () => {
         ? updatedInterview.questions[updatedInterview.currentQuestionIndex]
         : null;
 
-      setAnswer(
+      const previousSavedAnswer =
         draftAnswersRef.current[previousQuestion?.questionId] ??
-          previousQuestion?.answer ??
-          "",
+        previousQuestion?.answer ??
+        "";
+
+      setAnswer(previousSavedAnswer);
+
+      setEditorValue(
+        updatedInterview.interviewType === "coding"
+          ? previousSavedAnswer || previousQuestion?.starterCode || ""
+          : previousSavedAnswer,
       );
     } catch (err) {
       console.error("Failed to move to previous question:", err);
@@ -618,10 +677,17 @@ const Interview = () => {
 
       setInterview(updatedInterview);
 
-      setAnswer(
+      const jumpedSavedAnswer =
         draftAnswersRef.current[jumpedQuestion?.questionId] ??
-          jumpedQuestion?.answer ??
-          "",
+        jumpedQuestion?.answer ??
+        "";
+
+      setAnswer(jumpedSavedAnswer);
+
+      setEditorValue(
+        updatedInterview.interviewType === "coding"
+          ? jumpedSavedAnswer || jumpedQuestion?.starterCode || ""
+          : jumpedSavedAnswer,
       );
     } catch (err) {
       console.error("Failed to jump to question:", err);
@@ -1252,9 +1318,75 @@ const Interview = () => {
                 </div>
 
                 {/* Question */}
-                <h1 className="mt-4 w-full font-sans text-[11px] font-medium leading-[1.45] tracking-[-0.005em] text-[#F4F4F5] sm:text-[14px] lg:text-[16px]">
-                  {currentQuestion?.text || "Question unavailable."}
-                </h1>
+                {currentQuestion?.section === "coding" ? (
+                  <div className="mt-4">
+                    <h1 className="text-lg font-semibold leading-7 text-[#F4F4F5] sm:text-xl">
+                      {currentQuestion?.title || "Coding Problem"}
+                    </h1>
+
+                    <div className="mt-4 whitespace-pre-wrap text-[13px] leading-7 text-[#D4D4D8] sm:text-[14px]">
+                      {currentQuestion?.text || "Question unavailable."}
+                    </div>
+
+                    {Array.isArray(currentQuestion?.constraints) &&
+                      currentQuestion.constraints.length > 0 && (
+                        <div className="mt-6">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                            Constraints
+                          </p>
+
+                          <ul className="mt-3 space-y-2">
+                            {currentQuestion.constraints.map(
+                              (constraint, index) => (
+                                <li
+                                  key={index}
+                                  className="text-[12px] leading-6 text-[#A1A1AA] sm:text-[13px]"
+                                >
+                                  • {constraint}
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        </div>
+                      )}
+
+                    {Array.isArray(currentQuestion?.examples) &&
+                      currentQuestion.examples.length > 0 && (
+                        <div className="mt-6">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                            Examples
+                          </p>
+
+                          <div className="mt-3 space-y-3">
+                            {currentQuestion.examples.map((example, index) => (
+                              <div
+                                key={index}
+                                className="rounded-xl border border-white/[0.06] bg-black/20 p-4"
+                              >
+                                <p className="font-mono text-[12px] leading-6 text-[#D4D4D8]">
+                                  Input: {example.input}
+                                </p>
+
+                                <p className="mt-1 font-mono text-[12px] leading-6 text-[#D4D4D8]">
+                                  Output: {example.output}
+                                </p>
+
+                                {example.explanation && (
+                                  <p className="mt-2 text-[11px] leading-5 text-[#71717A]">
+                                    {example.explanation}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                ) : (
+                  <h1 className="mt-4 w-full font-sans text-[11px] font-medium leading-[1.45] tracking-[-0.005em] text-[#F4F4F5] sm:text-[14px] lg:text-[16px]">
+                    {currentQuestion?.text || "Question unavailable."}
+                  </h1>
+                )}
               </div>
             </section>
 
@@ -1273,18 +1405,25 @@ const Interview = () => {
               {/* Editor header */}
               <div className="relative flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5 sm:px-7">
                 <div>
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
 
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">
                       Your response
                     </p>
+
+                    {currentQuestion?.section === "coding" &&
+                      interview?.codingLanguage && (
+                        <span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-[#71717A]">
+                          {interview.codingLanguage}
+                        </span>
+                      )}
                   </div>
 
                   <p className="mt-2 max-w-xl text-[11px] leading-5 text-[#52525B]">
-                    Think out loud. Explain the reasoning, assumptions,
-                    trade-offs, and approach you would give to a real
-                    interviewer.
+                    {currentQuestion?.section === "coding"
+                      ? "Write your solution below. Your code will be evaluated by AI after final submission."
+                      : "Think out loud. Explain the reasoning, assumptions, trade-offs, and approach you would give to a real interviewer."}
                   </p>
                 </div>
 
@@ -1297,30 +1436,42 @@ const Interview = () => {
 
               {/* Writing area */}
               <div className="relative">
-                <textarea
-                  value={answer}
-                  onChange={(e) => {
-                    const value = e.target.value;
-
-                    setAnswer(value);
-
-                    if (currentQuestion?.questionId) {
-                      const questionId = currentQuestion.questionId;
-
-                      draftAnswersRef.current[questionId] = value;
-
-                      setDraftAnswers((previous) => ({
-                        ...previous,
-                        [questionId]: value,
-                      }));
-
-                      scheduleDraftSave(questionId, value);
+                {currentQuestion?.section === "coding" ? (
+                  <Editor
+                    height="420px"
+                    language={
+                      MONACO_LANGUAGE_MAP[interview?.codingLanguage] ||
+                      "plaintext"
                     }
-                  }}
-                  disabled={questionNavigating || quitting || finalSubmitting}
-                  placeholder="Start explaining your approach..."
-                  className="min-h-[300px] w-full resize-none border-0 bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
-                />
+                    theme="vs-dark"
+                    value={editorValue}
+                    onChange={(value) => handleAnswerChange(value ?? "")}
+                    options={{
+                      minimap: {
+                        enabled: false,
+                      },
+                      fontSize: 14,
+                      lineNumbers: "on",
+                      automaticLayout: true,
+                      wordWrap: "off",
+                      scrollBeyondLastLine: false,
+                      padding: {
+                        top: 16,
+                        bottom: 16,
+                      },
+                      readOnly:
+                        questionNavigating || quitting || finalSubmitting,
+                    }}
+                  />
+                ) : (
+                  <textarea
+                    value={answer}
+                    onChange={(e) => handleAnswerChange(e.target.value)}
+                    disabled={questionNavigating || quitting || finalSubmitting}
+                    placeholder="Start explaining your approach..."
+                    className="min-h-[300px] w-full resize-none border-0 bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
+                  />
+                )}
 
                 {/* Bottom editor status */}
                 <div className="flex items-center justify-between border-t border-white/[0.05] px-6 py-3.5 sm:px-7">

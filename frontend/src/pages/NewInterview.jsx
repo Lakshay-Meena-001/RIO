@@ -126,6 +126,21 @@ const CustomSelect = ({ label, value, options, onChange }) => {
 const NewInterview = ({ user, setUser }) => {
   const navigate = useNavigate();
 
+  const CODING_QUESTION_RULES = {
+    easy: {
+      averageTime: 9,
+      maximum: 9,
+    },
+    medium: {
+      averageTime: 30,
+      maximum: 6,
+    },
+    hard: {
+      averageTime: 45,
+      maximum: 3,
+    },
+  };
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -158,9 +173,28 @@ const NewInterview = ({ user, setUser }) => {
     timeLimit: 30,
     questionCount: 10,
     language: "english",
+    codingLanguage: "cpp",
   });
 
   const [techStackInput, setTechStackInput] = useState("");
+
+  const getCodingQuestionLimit = (difficulty, timeLimit) => {
+    const rule = CODING_QUESTION_RULES[difficulty];
+
+    if (!rule) {
+      return 1;
+    }
+
+    return Math.max(
+      1,
+      Math.min(rule.maximum, Math.floor(Number(timeLimit) / rule.averageTime)),
+    );
+  };
+
+  const codingMaxQuestions = getCodingQuestionLimit(
+    form.difficulty,
+    form.timeLimit,
+  );
 
   /*
    * ---------------------------------------------------------
@@ -256,6 +290,9 @@ const NewInterview = ({ user, setUser }) => {
    */
 
   const validateForm = () => {
+    if (form.interviewType === "coding" && !form.codingLanguage) {
+      return "Select a programming language for the coding interview.";
+    }
     if (!form.role.trim()) {
       return "Please enter the role you want to practice for.";
     }
@@ -328,6 +365,8 @@ const NewInterview = ({ user, setUser }) => {
         timeLimit: Number(form.timeLimit),
         questionCount: Number(form.questionCount),
         language: form.language,
+        codingLanguage:
+          form.interviewType === "coding" ? form.codingLanguage : null,
       };
 
       const result = await startInterview(payload);
@@ -655,7 +694,7 @@ const NewInterview = ({ user, setUser }) => {
 
                   <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                     {[
-                      ["dsa", "DSA", FiCode],
+                      ["coding", "Coding", FiCode],
                       ["core", "Core CS", FiBookOpen],
                       ["development", "Development", FiBriefcase],
                       ["project", "Project", FiFileText],
@@ -666,7 +705,26 @@ const NewInterview = ({ user, setUser }) => {
                       <button
                         key={value}
                         type="button"
-                        onClick={() => updateField("interviewType", value)}
+                        onClick={() => {
+                          if (value === "coding") {
+                            setForm((previous) => ({
+                              ...previous,
+                              interviewType: "coding",
+                              difficulty: "easy",
+                              questionCount: getCodingQuestionLimit(
+                                "easy",
+                                previous.timeLimit,
+                              ),
+                            }));
+                          } else {
+                            setForm((previous) => ({
+                              ...previous,
+                              interviewType: value,
+                            }));
+                          }
+
+                          setError("");
+                        }}
                         className={`flex items-center gap-3 rounded-[13px] border px-4 py-3 text-left transition-all duration-200 ${
                           form.interviewType === value
                             ? "border-white/[0.20] bg-white/[0.085] text-white"
@@ -683,6 +741,45 @@ const NewInterview = ({ user, setUser }) => {
                     ))}
                   </div>
                 </section>
+
+                {/* Coding language */}
+                {form.interviewType === "coding" && (
+                  <section className="border-b border-white/[0.08] p-5 sm:p-7">
+                    <div className="mb-5">
+                      <p className="text-xs font-medium text-[#A1A1AA]">
+                        Programming language
+                      </p>
+
+                      <p className="mt-1 text-[11px] text-[#71717A]">
+                        Choose the language you will use to solve the coding
+                        problems.
+                      </p>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                      {[
+                        ["cpp", "C++"],
+                        ["python", "Python"],
+                        ["javascript", "JavaScript"],
+                        ["typescript", "TypeScript"],
+                        ["java", "Java"],
+                      ].map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => updateField("codingLanguage", value)}
+                          className={optionClass(form.codingLanguage === value)}
+                        >
+                          <span>{label}</span>
+
+                          {form.codingLanguage === value && (
+                            <FiCheck size={14} className="ml-auto" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
                 {/* Core subjects */}
                 {form.interviewType === "core" && (
@@ -866,13 +963,36 @@ const NewInterview = ({ user, setUser }) => {
                       <CustomSelect
                         label="Difficulty"
                         value={form.difficulty}
-                        onChange={(value) => updateField("difficulty", value)}
-                        options={[
-                          { value: "adaptive", label: "Adaptive" },
-                          { value: "easy", label: "Easy" },
-                          { value: "medium", label: "Medium" },
-                          { value: "hard", label: "Hard" },
-                        ]}
+                        onChange={(value) => {
+                          if (form.interviewType === "coding") {
+                            setForm((previous) => ({
+                              ...previous,
+                              difficulty: value,
+                              questionCount: getCodingQuestionLimit(
+                                value,
+                                previous.timeLimit,
+                              ),
+                            }));
+                            setError("");
+                            return;
+                          }
+
+                          updateField("difficulty", value);
+                        }}
+                        options={
+                          form.interviewType === "coding"
+                            ? [
+                                { value: "easy", label: "Easy" },
+                                { value: "medium", label: "Medium" },
+                                { value: "hard", label: "Hard" },
+                              ]
+                            : [
+                                { value: "adaptive", label: "Adaptive" },
+                                { value: "easy", label: "Easy" },
+                                { value: "medium", label: "Medium" },
+                                { value: "hard", label: "Hard" },
+                              ]
+                        }
                       />
                     </div>
 
@@ -880,9 +1000,24 @@ const NewInterview = ({ user, setUser }) => {
                       <CustomSelect
                         label="Time limit"
                         value={form.timeLimit}
-                        onChange={(value) =>
-                          updateField("timeLimit", Number(value))
-                        }
+                        onChange={(value) => {
+                          const timeLimit = Number(value);
+
+                          if (form.interviewType === "coding") {
+                            setForm((previous) => ({
+                              ...previous,
+                              timeLimit,
+                              questionCount: getCodingQuestionLimit(
+                                previous.difficulty,
+                                timeLimit,
+                              ),
+                            }));
+                            setError("");
+                            return;
+                          }
+
+                          updateField("timeLimit", timeLimit);
+                        }}
                         options={[
                           { value: 15, label: "15 minutes" },
                           { value: 30, label: "30 minutes" },
@@ -897,15 +1032,44 @@ const NewInterview = ({ user, setUser }) => {
                       <CustomSelect
                         label="Questions"
                         value={form.questionCount}
-                        onChange={(value) =>
-                          updateField("questionCount", Number(value))
+                        onChange={(value) => {
+                          const questionCount = Number(value);
+
+                          if (form.interviewType === "coding") {
+                            setForm((previous) => ({
+                              ...previous,
+                              questionCount: Math.min(
+                                questionCount,
+                                getCodingQuestionLimit(
+                                  previous.difficulty,
+                                  previous.timeLimit,
+                                ),
+                              ),
+                            }));
+                            setError("");
+                            return;
+                          }
+
+                          updateField("questionCount", questionCount);
+                        }}
+                        options={
+                          form.interviewType === "coding"
+                            ? Array.from(
+                                { length: codingMaxQuestions },
+                                (_, index) => ({
+                                  value: index + 1,
+                                  label: `${index + 1} ${
+                                    index === 0 ? "question" : "questions"
+                                  }`,
+                                }),
+                              )
+                            : [
+                                { value: 5, label: "5 questions" },
+                                { value: 10, label: "10 questions" },
+                                { value: 15, label: "15 questions" },
+                                { value: 20, label: "20 questions" },
+                              ]
                         }
-                        options={[
-                          { value: 5, label: "5 questions" },
-                          { value: 10, label: "10 questions" },
-                          { value: 15, label: "15 questions" },
-                          { value: 20, label: "20 questions" },
-                        ]}
                       />
                     </div>
                   </div>

@@ -8,6 +8,7 @@ const interviewPrompt = ({
   projectContext = null,
   difficulty = "easy",
   questionCount = 10,
+  codingLanguage = null,
 }) => {
   const projectInformation = projectContext
     ? `
@@ -18,6 +19,16 @@ Project Context:
 - GitHub URL: ${projectContext.githubUrl || "not provided"}
 `
     : "Project Context: Not provided.";
+
+  const codingLanguageInformation = codingLanguage
+    ? `
+Candidate Coding Language:
+${codingLanguage}
+`
+    : `
+Candidate Coding Language:
+Not applicable.
+`;
 
   return `
 You are a professional AI interviewer conducting a realistic software engineering interview.
@@ -53,6 +64,8 @@ ${subjects.length > 0 ? subjects.join(", ") : "None"}
 
 Technology Stack:
 ${techStack.length > 0 ? techStack.join(", ") : "None"}
+
+${codingLanguageInformation}
 
 ${projectInformation}
 
@@ -103,12 +116,54 @@ sde-2:
 INTERVIEW TYPE RULES
 ==================================================
 
-DSA:
-- Generate questions focused on coding, problem-solving, algorithms,
-  data structures, complexity, or DSA concepts.
-- Focus on reasoning and approach.
-- Do not provide solutions.
-- Every generated question must be relevant to DSA.
+CODING:
+- Coding is a complete replacement for DSA.
+- DO NOT generate DSA theory questions.
+- DO NOT ask questions such as:
+  "What is a binary tree?"
+  "Explain Big-O."
+  "What is dynamic programming?"
+  "What is a hash table?"
+  "Explain recursion."
+- Every Coding question MUST be an actual programming problem
+  that requires the candidate to write code.
+- The candidate will solve the problem in the selected programming language.
+- Problems should test algorithmic problem solving, data structures,
+  implementation ability, edge-case handling, and complexity reasoning.
+- The problem must be self-contained.
+- Clearly describe:
+  1. What needs to be implemented.
+  2. The expected input.
+  3. The expected output.
+  4. Important constraints.
+- Provide realistic examples.
+- Do NOT provide the solution.
+- Do NOT provide pseudocode.
+- Do NOT provide hints.
+- Do NOT reveal the intended algorithm.
+- Do NOT include code in the generated problem.
+- The problem must be solvable by writing a function/program.
+- The problem must be language-independent even though the candidate
+  has selected a programming language.
+- The same problem statement must work for C++, Python, JavaScript,
+  TypeScript, Java, or another supported language.
+- In addition to the language-independent problem statement, generate
+  a "starterCode" field specifically for the candidate's selected
+  programming language.
+- starterCode is only a coding template / function skeleton.
+- starterCode MUST NOT contain the solution, algorithm, optimization,
+  hints, or meaningful implementation logic.
+- starterCode SHOULD contain the appropriate class/function/method
+  signature required to solve the problem.
+- The candidate should be able to start solving by filling in the
+  function/method body instead of writing boilerplate from scratch.
+- The starterCode must match the selected coding language.
+- Use clean interview-platform style boilerplate.
+- Do not include comments that reveal the intended algorithm.
+- Do not include example solutions inside starterCode.
+- The problem statement itself must remain language-independent.
+- starterCode is the only field that may contain programming-language
+  specific code.
 
 CORE:
 - Ask only from the selected subjects.
@@ -159,6 +214,31 @@ FULL:
 - Use only sections that are relevant to the candidate's configuration.
 - Every question must correctly identify its section.
 - Maintain reasonable variety across the generated question set.
+- If a Coding question is generated, it MUST follow all Coding rules above.
+
+==================================================
+CODING PROBLEM QUALITY
+==================================================
+
+For every Coding question:
+
+- It must be a genuine programming problem.
+- It must have a clear objective.
+- It must contain enough information to implement a solution.
+- It must define expected input.
+- It must define expected output.
+- It must contain meaningful constraints.
+- It must contain at least one example.
+- Examples must be internally consistent.
+- The problem must have a deterministic expected outcome.
+- Avoid ambiguous requirements.
+- Avoid requiring external APIs, files, databases, network access,
+  third-party services, or environment-specific behavior.
+- Avoid problems that require code execution outside the candidate's program.
+- Avoid trick questions.
+- Avoid theory-only questions.
+- Avoid asking the candidate to explain an algorithm instead of implementing it.
+- Do not reveal the expected approach.
 
 ==================================================
 QUESTION DIVERSITY RULES
@@ -169,12 +249,18 @@ The generated question set must be diverse.
 - Do NOT repeat a question.
 - Do NOT generate substantially equivalent questions.
 - Do NOT ask the same concept using only slightly different wording.
-- Prefer different concepts, scenarios, angles, or engineering decisions.
+- Prefer different concepts, scenarios, algorithms, data structures,
+  or engineering decisions.
 - When multiple subjects or sections are configured, distribute questions
   reasonably across the relevant context where appropriate.
 - Avoid unnecessary repetition of the same topic.
 - Questions should feel like a coherent real interview rather than
   a collection of duplicated prompts.
+
+For Coding questions specifically:
+- Avoid generating multiple problems that use the exact same pattern
+  unless the configured question count makes repetition unavoidable.
+- Prefer meaningful variation in problem-solving patterns.
 
 ==================================================
 QUESTION QUALITY
@@ -207,8 +293,49 @@ QUESTION SET REQUIREMENTS
 - Every question must have a difficulty of easy, medium, or hard.
 - Every question must have type "primary".
 - Do not generate empty questions.
-- Do not add extra fields.
+- Do not add fields other than the fields defined below.
 - Do not include explanations outside the JSON response.
+
+For NON-CODING questions:
+
+{
+  "questions": [
+    {
+      "questionId": "unique-question-id-1",
+      "title": "Problem title or empty string",
+      "text": "The complete interview question",
+      "section": "coding | dbms | os | cn | sql | oop | development | project | system-design | behavioral",
+      "type": "primary",
+      "difficulty": "easy | medium | hard",
+      "constraints": [],
+      "examples": [],
+      "starterCode": ""
+    }
+  ]
+}
+
+For CODING questions:
+
+{
+  "questionId": "unique-question-id",
+  "title": "Coding problem title",
+  "text": "Complete programming problem statement including input and output requirements",
+  "section": "coding",
+  "type": "primary",
+  "difficulty": "easy | medium | hard",
+  "constraints": [
+    "Constraint 1",
+    "Constraint 2"
+  ],
+  "examples": [
+    {
+      "input": "Example input",
+      "output": "Example output",
+      "explanation": "Why this output is produced"
+    }
+  ],
+  "starterCode": "Language-specific function/class skeleton without solution logic"
+}
 
 ==================================================
 OUTPUT FORMAT
@@ -227,21 +354,31 @@ Use exactly this structure:
   "questions": [
     {
       "questionId": "unique-question-id-1",
-      "text": "The interview question",
-      "section": "dsa | dbms | os | cn | sql | oop | development | project | system-design | behavioral",
+      "title": "Problem title or empty string",
+      "text": "The complete interview question",
+      "section": "coding | dbms | os | cn | sql | oop | development | project | system-design | behavioral",
       "type": "primary",
-      "difficulty": "easy | medium | hard"
+      "difficulty": "easy | medium | hard",
+      "constraints": [],
+      "examples": []
     }
   ]
 }
 
-FINAL REQUIREMENTS:
+==================================================
+FINAL REQUIREMENTS
+==================================================
 
 1. Generate exactly ${questionCount} questions.
 2. The "questions" array MUST contain exactly ${questionCount} questions.
 3. Every questionId MUST be unique.
 4. Do NOT repeat or substantially duplicate questions.
-5. Return ONLY the JSON object.
+5. Coding means actual coding problems, NOT DSA theory.
+6. Every Coding question must contain constraints, examples, and starterCode.
+7. starterCode must contain only a language-specific class/function/method skeleton.
+8. starterCode must NOT contain the solution, algorithm, optimization, hints,
+   or meaningful implementation logic.
+9. Do NOT provide solutions, hints, pseudocode, or intended algorithms.
 `;
 };
 

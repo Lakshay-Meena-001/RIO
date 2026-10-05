@@ -23,6 +23,18 @@ const InterviewState = Annotation.Root({
 
   language: Annotation(),
 
+  /*
+   * Programming language selected for Coding interviews.
+   *
+   * Examples:
+   * cpp
+   * python
+   * javascript
+   * typescript
+   * java
+   */
+  codingLanguage: Annotation(),
+
   difficulty: Annotation(),
 
   timeLimit: Annotation(),

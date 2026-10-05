@@ -4,7 +4,7 @@ import mongoose from "mongoose";
  * ---------------------------------------------------------
  * Evaluation Schema
  * ---------------------------------------------------------
- * AI evaluation of one candidate answer.
+ * AI evaluation of one candidate answer/code.
  */
 const evaluationSchema = new mongoose.Schema(
   {
@@ -37,6 +37,34 @@ const evaluationSchema = new mongoose.Schema(
     },
 
     communication: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 10,
+    },
+
+    logic: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 10,
+    },
+
+    complexity: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 10,
+    },
+
+    edgeCases: {
+      type: Number,
+      default: 0,
+      min: 0,
+      max: 10,
+    },
+
+    codeQuality: {
       type: Number,
       default: 0,
       min: 0,
@@ -82,12 +110,27 @@ const evaluationSchema = new mongoose.Schema(
  * IMPORTANT:
  * Questions are generated when the interview is created.
  * Navigation between questions is independent of submission.
+ *
+ * For Coding interviews, the complete coding problem is
+ * permanently stored here so refresh/navigation never causes
+ * a different problem to be generated.
  */
 const questionSchema = new mongoose.Schema(
   {
     questionId: {
       type: String,
       required: true,
+      trim: true,
+    },
+
+    /*
+     * Coding problem title.
+     *
+     * Empty for non-coding interview questions.
+     */
+    title: {
+      type: String,
+      default: "",
       trim: true,
     },
 
@@ -100,7 +143,7 @@ const questionSchema = new mongoose.Schema(
     section: {
       type: String,
       enum: [
-        "dsa",
+        "coding",
         "dbms",
         "os",
         "cn",
@@ -127,14 +170,53 @@ const questionSchema = new mongoose.Schema(
     },
 
     /*
+     * Coding problem constraints.
+     */
+    constraints: {
+      type: [String],
+      default: [],
+    },
+
+    /*
+     * Coding problem examples.
+     */
+    examples: {
+      type: [
+        {
+          input: {
+            type: String,
+            default: "",
+          },
+
+          output: {
+            type: String,
+            default: "",
+          },
+
+          explanation: {
+            type: String,
+            default: "",
+          },
+        },
+      ],
+      default: [],
+    },
+
+    starterCode: {
+      type: String,
+      default: "",
+    },
+
+    /*
      * -----------------------------------------------------
      * Candidate Answer
      * -----------------------------------------------------
      *
-     * This stores the candidate's current answer/draft.
+     * For normal interview questions:
+     *   answer = candidate's textual answer.
      *
-     * submittedAt is the source of truth for whether
-     * evaluation has been successfully completed.
+     * For Coding questions:
+     *   answer = candidate's source code.
      */
     answer: {
       type: String,
@@ -230,7 +312,7 @@ const interviewSchema = new mongoose.Schema(
     interviewType: {
       type: String,
       enum: [
-        "dsa",
+        "coding",
         "core",
         "development",
         "project",
@@ -255,6 +337,17 @@ const interviewSchema = new mongoose.Schema(
       type: String,
       enum: ["english"],
       default: "english",
+    },
+
+    /*
+     * Programming language selected for Coding interview.
+     *
+     * This is separate from the interview language.
+     */
+    codingLanguage: {
+      type: String,
+      enum: ["cpp", "python", "javascript", "typescript", "java"],
+      default: null,
     },
 
     difficulty: {
@@ -412,9 +505,9 @@ const interviewSchema = new mongoose.Schema(
     },
 
     /*
-     * ---------------------------------------------------------
+     * -----------------------------------------------------
      * Payment Lifecycle
-     * ---------------------------------------------------------
+     * -----------------------------------------------------
      *
      * Tracks the coin transaction belonging to this interview.
      *
@@ -443,9 +536,9 @@ const interviewSchema = new mongoose.Schema(
     },
 
     /*
-     * ---------------------------------------------------------
+     * -----------------------------------------------------
      * Finalization Lock
-     * ---------------------------------------------------------
+     * -----------------------------------------------------
      *
      * Prevents concurrent final-submit requests from attempting
      * to finalize the same interview at the same time.
@@ -457,9 +550,9 @@ const interviewSchema = new mongoose.Schema(
     },
 
     /*
-     * ---------------------------------------------------------
+     * -----------------------------------------------------
      * Finalization Lock Timestamp
-     * ---------------------------------------------------------
+     * -----------------------------------------------------
      *
      * Stores when the finalization lock was acquired.
      *
@@ -476,10 +569,11 @@ const interviewSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
     /*
-     * ---------------------------------------------------------
+     * -----------------------------------------------------
      * Final Interview Report
-     * ---------------------------------------------------------
+     * -----------------------------------------------------
      */
 
     overallScore: {
