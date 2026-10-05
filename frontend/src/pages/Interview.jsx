@@ -42,6 +42,7 @@ const Interview = () => {
   const [answer, setAnswer] = useState("");
   const [editorValue, setEditorValue] = useState("");
   const [draftAnswers, setDraftAnswers] = useState({});
+  const [questionPanelWidth, setQuestionPanelWidth] = useState(50);
   const draftAnswersRef = useRef({});
   const draftSaveTimeoutRef = useRef(null);
   const draftSaveRequestRef = useRef(null);
@@ -421,6 +422,20 @@ const Interview = () => {
     },
     [currentQuestion, scheduleDraftSave],
   );
+
+  const handleQuestionPanelResize = useCallback((event) => {
+    const container = event.currentTarget.parentElement;
+    if (!container) {
+      return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const percentage = ((event.clientX - rect.left) / rect.width) * 100;
+
+    const clampedWidth = Math.min(70, Math.max(30, percentage));
+
+    setQuestionPanelWidth(clampedWidth);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -1299,192 +1314,238 @@ const Interview = () => {
             {/* ===================================================
             QUESTION
         ==================================================== */}
+            <div
+              className={
+                currentQuestion?.section === "coding"
+                  ? "mt-6 grid min-h-0 w-full lg:h-[calc(100vh-104px)]"
+                  : ""
+              }
+              style={
+                currentQuestion?.section === "coding"
+                  ? {
+                      gridTemplateColumns: `minmax(0, ${questionPanelWidth}fr) 8px minmax(0, ${
+                        100 - questionPanelWidth
+                      }fr)`,
+                    }
+                  : undefined
+              }
+            >
+              <section className="relative min-h-0 overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)]">
+                {/* Question ambient glow */}
+                <div className="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full bg-white/[0.06] blur-[100px]" />
 
-            <section className="relative mt-6 overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)]">
-              {/* Question ambient glow */}
-              <div className="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full bg-white/[0.06] blur-[100px]" />
+                <div className="relative h-full overflow-y-auto px-6 py-6 sm:px-8 sm:py-8 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.15)_transparent]">
+                  {/* Question Number */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase tracking-[0.16em] text-[#52525B]">
+                      Question {questionNumber}
+                    </span>
 
-              <div className="relative px-6 py-6 sm:px-8 sm:py-8">
-                {/* Question Number */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-[0.16em] text-[#52525B]">
-                    Question {questionNumber}
-                  </span>
-
-                  <span className="font-mono text-[10px] text-[#52525B]">
-                    {String(questionNumber).padStart(2, "0")} /{" "}
-                    {String(totalQuestions).padStart(2, "0")}
-                  </span>
-                </div>
-
-                {/* Question */}
-                {currentQuestion?.section === "coding" ? (
-                  <div className="mt-4">
-                    <h1 className="text-lg font-semibold leading-7 text-[#F4F4F5] sm:text-xl">
-                      {currentQuestion?.title || "Coding Problem"}
-                    </h1>
-
-                    <div className="mt-4 whitespace-pre-wrap text-[13px] leading-7 text-[#D4D4D8] sm:text-[14px]">
-                      {currentQuestion?.text || "Question unavailable."}
-                    </div>
-
-                    {Array.isArray(currentQuestion?.constraints) &&
-                      currentQuestion.constraints.length > 0 && (
-                        <div className="mt-6">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                            Constraints
-                          </p>
-
-                          <ul className="mt-3 space-y-2">
-                            {currentQuestion.constraints.map(
-                              (constraint, index) => (
-                                <li
-                                  key={index}
-                                  className="text-[12px] leading-6 text-[#A1A1AA] sm:text-[13px]"
-                                >
-                                  • {constraint}
-                                </li>
-                              ),
-                            )}
-                          </ul>
-                        </div>
-                      )}
-
-                    {Array.isArray(currentQuestion?.examples) &&
-                      currentQuestion.examples.length > 0 && (
-                        <div className="mt-6">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                            Examples
-                          </p>
-
-                          <div className="mt-3 space-y-3">
-                            {currentQuestion.examples.map((example, index) => (
-                              <div
-                                key={index}
-                                className="rounded-xl border border-white/[0.06] bg-black/20 p-4"
-                              >
-                                <p className="font-mono text-[12px] leading-6 text-[#D4D4D8]">
-                                  Input: {example.input}
-                                </p>
-
-                                <p className="mt-1 font-mono text-[12px] leading-6 text-[#D4D4D8]">
-                                  Output: {example.output}
-                                </p>
-
-                                {example.explanation && (
-                                  <p className="mt-2 text-[11px] leading-5 text-[#71717A]">
-                                    {example.explanation}
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                    <span className="font-mono text-[10px] text-[#52525B]">
+                      {String(questionNumber).padStart(2, "0")} /{" "}
+                      {String(totalQuestions).padStart(2, "0")}
+                    </span>
                   </div>
-                ) : (
-                  <h1 className="mt-4 w-full font-sans text-[11px] font-medium leading-[1.45] tracking-[-0.005em] text-[#F4F4F5] sm:text-[14px] lg:text-[16px]">
-                    {currentQuestion?.text || "Question unavailable."}
-                  </h1>
-                )}
-              </div>
-            </section>
 
-            {/* ===================================================
-            ANSWER
-        ==================================================== */}
+                  {/* Question */}
+                  {currentQuestion?.section === "coding" ? (
+                    <div className="mt-4">
+                      <h1 className="text-lg font-semibold leading-7 text-[#F4F4F5] sm:text-xl">
+                        {currentQuestion?.title || "Coding Problem"}
+                      </h1>
 
-            {/* ===================================================
+                      <div className="mt-4 whitespace-pre-wrap text-[13px] leading-7 text-[#D4D4D8] sm:text-[14px]">
+                        {currentQuestion?.text || "Question unavailable."}
+                      </div>
+
+                      {Array.isArray(currentQuestion?.constraints) &&
+                        currentQuestion.constraints.length > 0 && (
+                          <div className="mt-6">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                              Constraints
+                            </p>
+
+                            <ul className="mt-3 space-y-2">
+                              {currentQuestion.constraints.map(
+                                (constraint, index) => (
+                                  <li
+                                    key={index}
+                                    className="text-[12px] leading-6 text-[#A1A1AA] sm:text-[13px]"
+                                  >
+                                    • {constraint}
+                                  </li>
+                                ),
+                              )}
+                            </ul>
+                          </div>
+                        )}
+
+                      {Array.isArray(currentQuestion?.examples) &&
+                        currentQuestion.examples.length > 0 && (
+                          <div className="mt-6">
+                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                              Examples
+                            </p>
+
+                            <div className="mt-3 space-y-3">
+                              {currentQuestion.examples.map(
+                                (example, index) => (
+                                  <div
+                                    key={index}
+                                    className="rounded-xl border border-white/[0.06] bg-black/20 p-4"
+                                  >
+                                    <p className="font-mono text-[12px] leading-6 text-[#D4D4D8]">
+                                      Input: {example.input}
+                                    </p>
+
+                                    <p className="mt-1 font-mono text-[12px] leading-6 text-[#D4D4D8]">
+                                      Output: {example.output}
+                                    </p>
+
+                                    {example.explanation && (
+                                      <p className="mt-2 text-[11px] leading-5 text-[#71717A]">
+                                        {example.explanation}
+                                      </p>
+                                    )}
+                                  </div>
+                                ),
+                              )}
+                            </div>
+                          </div>
+                        )}
+                    </div>
+                  ) : (
+                    <h1 className="mt-4 w-full font-sans text-[11px] font-medium leading-[1.45] tracking-[-0.005em] text-[#F4F4F5] sm:text-[14px] lg:text-[16px]">
+                      {currentQuestion?.text || "Question unavailable."}
+                    </h1>
+                  )}
+                </div>
+              </section>
+
+              {currentQuestion?.section === "coding" && (
+                <div
+                  role="separator"
+                  aria-label="Resize question and editor panels"
+                  onPointerDown={(event) => {
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    event.currentTarget.onpointermove =
+                      handleQuestionPanelResize;
+                  }}
+                  onPointerUp={(event) => {
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                    event.currentTarget.onpointermove = null;
+                  }}
+                  onPointerCancel={(event) => {
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                    event.currentTarget.onpointermove = null;
+                  }}
+                  className="hidden cursor-col-resize items-center justify-center rounded-full bg-white/[0.08] transition hover:bg-white/[0.18] lg:flex"
+                >
+                  <div className="h-12 w-0.5 rounded-full bg-white/20" />
+                </div>
+              )}
+
+              {/* ===================================================
     PREMIUM ANSWER WORKSPACE
 ==================================================== */}
 
-            <section className="relative mt-5 overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#0D0F12]/88 shadow-[0_30px_100px_rgba(0,0,0,0.18)]">
-              {/* Editor glow */}
-              <div className="pointer-events-none absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-white/[0.025] blur-[100px]" />
+              <section className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#0D0F12]/88 shadow-[0_30px_100px_rgba(0,0,0,0.18)]">
+                {/* Editor glow */}
+                <div className="pointer-events-none absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-white/[0.025] blur-[100px]" />
 
-              {/* Editor header */}
-              <div className="relative flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5 sm:px-7">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/40" />
+                {/* Editor header */}
+                <div className="relative flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5 sm:px-7">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">
+                        Your response
+                      </p>
 
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">
-                      Your response
+                      {currentQuestion?.section === "coding" &&
+                        interview?.codingLanguage && (
+                          <span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-[#71717A]">
+                            {interview.codingLanguage}
+                          </span>
+                        )}
+                    </div>
+
+                    <p className="mt-2 max-w-xl text-[11px] leading-5 text-[#52525B]">
+                      {currentQuestion?.section === "coding"
+                        ? "Write your solution below. Your code will be evaluated by AI after final submission."
+                        : "Think out loud. Explain the reasoning, assumptions, trade-offs, and approach you would give to a real interviewer."}
                     </p>
-
-                    {currentQuestion?.section === "coding" &&
-                      interview?.codingLanguage && (
-                        <span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2.5 py-1 font-mono text-[9px] font-medium uppercase tracking-[0.12em] text-[#71717A]">
-                          {interview.codingLanguage}
-                        </span>
-                      )}
                   </div>
 
-                  <p className="mt-2 max-w-xl text-[11px] leading-5 text-[#52525B]">
-                    {currentQuestion?.section === "coding"
-                      ? "Write your solution below. Your code will be evaluated by AI after final submission."
-                      : "Think out loud. Explain the reasoning, assumptions, trade-offs, and approach you would give to a real interviewer."}
-                  </p>
+                  {answer.trim().length > 0 && (
+                    <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#71717A]">
+                      Draft saved
+                    </span>
+                  )}
                 </div>
 
-                {answer.trim().length > 0 && (
-                  <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] text-[#71717A]">
-                    Draft saved
-                  </span>
-                )}
-              </div>
+                {/* Writing area */}
+                <div className="relative flex min-h-0 flex-1 flex-col">
+                  {currentQuestion?.section === "coding" ? (
+                    <Editor
+                      height={
+                        currentQuestion?.section === "coding" ? "100%" : "420px"
+                      }
+                      language={
+                        MONACO_LANGUAGE_MAP[interview?.codingLanguage] ||
+                        "plaintext"
+                      }
+                      theme="vs-dark"
+                      value={editorValue}
+                      onChange={(value) => handleAnswerChange(value ?? "")}
+                      options={{
+                        minimap: {
+                          enabled: false,
+                        },
+                        fontSize: 14,
+                        lineNumbers: "on",
+                        automaticLayout: true,
+                        wordWrap: "off",
+                        scrollBeyondLastLine: false,
+                        scrollbar: {
+                          vertical: "visible",
+                          horizontal: "visible",
+                          verticalScrollbarSize: 6,
+                          horizontalScrollbarSize: 6,
+                          useShadows: false,
+                        },
+                        padding: {
+                          top: 16,
+                          bottom: 16,
+                        },
+                        readOnly:
+                          questionNavigating || quitting || finalSubmitting,
+                      }}
+                    />
+                  ) : (
+                    <textarea
+                      value={answer}
+                      onChange={(e) => handleAnswerChange(e.target.value)}
+                      disabled={
+                        questionNavigating || quitting || finalSubmitting
+                      }
+                      placeholder="Start explaining your approach..."
+                      className="min-h-[300px] w-full resize-none border-0 bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
+                    />
+                  )}
 
-              {/* Writing area */}
-              <div className="relative">
-                {currentQuestion?.section === "coding" ? (
-                  <Editor
-                    height="420px"
-                    language={
-                      MONACO_LANGUAGE_MAP[interview?.codingLanguage] ||
-                      "plaintext"
-                    }
-                    theme="vs-dark"
-                    value={editorValue}
-                    onChange={(value) => handleAnswerChange(value ?? "")}
-                    options={{
-                      minimap: {
-                        enabled: false,
-                      },
-                      fontSize: 14,
-                      lineNumbers: "on",
-                      automaticLayout: true,
-                      wordWrap: "off",
-                      scrollBeyondLastLine: false,
-                      padding: {
-                        top: 16,
-                        bottom: 16,
-                      },
-                      readOnly:
-                        questionNavigating || quitting || finalSubmitting,
-                    }}
-                  />
-                ) : (
-                  <textarea
-                    value={answer}
-                    onChange={(e) => handleAnswerChange(e.target.value)}
-                    disabled={questionNavigating || quitting || finalSubmitting}
-                    placeholder="Start explaining your approach..."
-                    className="min-h-[300px] w-full resize-none border-0 bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
-                  />
-                )}
+                  {/* Bottom editor status */}
+                  <div className="flex items-center justify-between border-t border-white/[0.05] px-6 py-3.5 sm:px-7">
+                    <span className="text-[9px] uppercase tracking-[0.16em] text-[#3F3F46]">
+                      Interview response
+                    </span>
 
-                {/* Bottom editor status */}
-                <div className="flex items-center justify-between border-t border-white/[0.05] px-6 py-3.5 sm:px-7">
-                  <span className="text-[9px] uppercase tracking-[0.16em] text-[#3F3F46]">
-                    Interview response
-                  </span>
-
-                  <span className="font-mono text-[10px] text-[#52525B]">
-                    {answer.trim().length} characters
-                  </span>
+                    <span className="font-mono text-[10px] text-[#52525B]">
+                      {answer.trim().length} characters
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </section>
+              </section>
+            </div>
           </div>
 
           <aside className="fixed right-6 top-[88px] z-30 hidden w-[280px] lg:flex lg:flex-col">
@@ -1533,11 +1594,6 @@ const Interview = () => {
                       ].join(" ")}
                     >
                       <div className="flex items-center gap-2">
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            isAnswered ? "bg-emerald-400" : "bg-white/40"
-                          }`}
-                        />
                         <span>{number}</span>
                       </div>
                     </button>
@@ -1596,7 +1652,11 @@ const Interview = () => {
                   type="button"
                   onClick={() => setShowSubmitModal(true)}
                   disabled={
-                    !canSubmitFinal || finalSubmitting || navigating || quitting
+                    !canSubmitFinal ||
+                    !isLastQuestion ||
+                    finalSubmitting ||
+                    navigating ||
+                    quitting
                   }
                   className={`mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition ${
                     isLastQuestion

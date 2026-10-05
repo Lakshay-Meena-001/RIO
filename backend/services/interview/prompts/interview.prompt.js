@@ -360,7 +360,8 @@ Use exactly this structure:
       "type": "primary",
       "difficulty": "easy | medium | hard",
       "constraints": [],
-      "examples": []
+      "examples": [],
+      "starterCode": ""
     }
   ]
 }

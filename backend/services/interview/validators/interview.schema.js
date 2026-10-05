@@ -142,6 +142,7 @@ export const interviewQuestionSchema = z.object({
       }),
     )
     .default([]),
+  starterCode: z.string().default(""),
 });
 
 /*
