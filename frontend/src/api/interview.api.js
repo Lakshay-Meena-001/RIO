@@ -88,11 +88,22 @@ export const jumpToQuestion = async (interviewId, index) => {
  *
  * PATCH /api/interview/:interviewId/draft
  */
-export const saveDraftAnswer = async (interviewId, questionId, answer) => {
-  const response = await api.patch(`/api/interview/${interviewId}/draft`, {
-    questionId,
-    answer,
-  });
+export const saveDraftAnswer = async (
+  interviewId,
+  questionId,
+  answer,
+  signal,
+) => {
+  const response = await api.patch(
+    `/api/interview/${interviewId}/draft`,
+    {
+      questionId,
+      answer,
+    },
+    {
+      signal,
+    },
+  );
 
   return response.data;
 };

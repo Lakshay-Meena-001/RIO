@@ -346,23 +346,43 @@ const Interview = () => {
    * ---------------------------------------------------------
    */
 
+  const draftSaveControllerRef = useRef(null);
+
   const persistDraftAnswer = useCallback(
     async (questionId, value) => {
       if (!questionId || !interviewId) {
         return;
       }
 
-      const request = saveDraftAnswer(interviewId, questionId, value);
+      if (draftSaveControllerRef.current) {
+        draftSaveControllerRef.current.abort();
+      }
+
+      const controller = new AbortController();
+      draftSaveControllerRef.current = controller;
+
+      const request = saveDraftAnswer(
+        interviewId,
+        questionId,
+        value,
+        controller.signal,
+      );
 
       draftSaveRequestRef.current = request;
 
       try {
         await request;
       } catch (err) {
-        console.error("Failed to save answer draft:", err);
+        if (err?.code !== "ERR_CANCELED" && err?.name !== "CanceledError") {
+          console.error("Failed to save answer draft:", err);
+        }
       } finally {
         if (draftSaveRequestRef.current === request) {
           draftSaveRequestRef.current = null;
+        }
+
+        if (draftSaveControllerRef.current === controller) {
+          draftSaveControllerRef.current = null;
         }
       }
     },
@@ -441,6 +461,12 @@ const Interview = () => {
     return () => {
       if (draftSaveTimeoutRef.current) {
         window.clearTimeout(draftSaveTimeoutRef.current);
+        draftSaveTimeoutRef.current = null;
+      }
+
+      if (draftSaveControllerRef.current) {
+        draftSaveControllerRef.current.abort();
+        draftSaveControllerRef.current = null;
       }
     };
   }, []);
@@ -752,7 +778,17 @@ const Interview = () => {
         setProcessingStage("evaluating");
         setShowCompletionModal(true);
 
-        if (currentQuestion?.questionId) {
+        if (automatic && draftSaveTimeoutRef.current) {
+          window.clearTimeout(draftSaveTimeoutRef.current);
+          draftSaveTimeoutRef.current = null;
+        }
+
+        if (automatic && draftSaveControllerRef.current) {
+          draftSaveControllerRef.current.abort();
+          draftSaveControllerRef.current = null;
+        }
+
+        if (!automatic && currentQuestion?.questionId) {
           await flushDraftSave(currentQuestion.questionId, answer);
         }
 
@@ -1278,7 +1314,7 @@ const Interview = () => {
           />
         </div>
       </header>{" "}
-      <main className="min-h-screen w-full px-4 pb-32 pt-20 sm:px-6 lg:px-8">
+      <main className="min-h-screen w-full px-4 pb-4 pt-20 sm:px-6 lg:px-8">
         {/* ===================================================
             DESKTOP QUESTION NAVIGATOR
         ==================================================== */}
@@ -1317,24 +1353,30 @@ const Interview = () => {
             <div
               className={
                 currentQuestion?.section === "coding"
-                  ? "mt-6 grid min-h-0 w-full lg:h-[calc(100vh-104px)]"
+                  ? "mt-4 flex min-h-0 w-full flex-col gap-3 lg:grid lg:h-[calc(100dvh-104px)] lg:overflow-hidden"
                   : ""
               }
               style={
                 currentQuestion?.section === "coding"
                   ? {
-                      gridTemplateColumns: `minmax(0, ${questionPanelWidth}fr) 8px minmax(0, ${
+                      gridTemplateColumns: `minmax(0, ${questionPanelWidth}fr) 12px minmax(0, ${
                         100 - questionPanelWidth
                       }fr)`,
                     }
                   : undefined
               }
             >
-              <section className="relative min-h-0 overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)]">
+              <section
+                className={
+                  currentQuestion?.section === "coding"
+                    ? "relative min-h-0 max-h-[55dvh] overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)] lg:h-full lg:max-h-none"
+                    : "relative min-h-0 overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)]"
+                }
+              >
                 {/* Question ambient glow */}
                 <div className="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full bg-white/[0.06] blur-[100px]" />
 
-                <div className="relative h-full overflow-y-auto px-6 py-6 sm:px-8 sm:py-8 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.15)_transparent]">
+                <div className="relative h-full max-h-[55dvh] overflow-y-auto px-5 py-5 sm:px-8 sm:py-8 lg:max-h-none [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.15)_transparent]">
                   {/* Question Number */}
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase tracking-[0.16em] text-[#52525B]">
@@ -1439,9 +1481,9 @@ const Interview = () => {
                     event.currentTarget.releasePointerCapture(event.pointerId);
                     event.currentTarget.onpointermove = null;
                   }}
-                  className="hidden cursor-col-resize items-center justify-center rounded-full bg-white/[0.08] transition hover:bg-white/[0.18] lg:flex"
+                  className="group hidden cursor-col-resize items-center justify-center bg-transparent lg:flex"
                 >
-                  <div className="h-12 w-0.5 rounded-full bg-white/20" />
+                  <div className="h-16 w-px rounded-full bg-white/20 transition-colors group-hover:bg-white/30" />
                 </div>
               )}
 
@@ -1449,7 +1491,7 @@ const Interview = () => {
     PREMIUM ANSWER WORKSPACE
 ==================================================== */}
 
-              <section className="relative flex min-h-0 flex-col overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#0D0F12]/88 shadow-[0_30px_100px_rgba(0,0,0,0.18)]">
+              <section className="relative flex h-[55dvh] min-h-[420px] w-full flex-col overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#0D0F12]/88 shadow-[0_30px_100px_rgba(0,0,0,0.18)] lg:h-auto lg:min-h-0">
                 {/* Editor glow */}
                 <div className="pointer-events-none absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-white/[0.025] blur-[100px]" />
 

@@ -399,7 +399,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
           }
         }
       `}</style>
-      <div className="relative mx-auto w-full max-w-[1500px] px-4 pb-20 pt-6 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
+      <div className="relative mx-auto w-full max-w-[1500px] px-4 pb-4 pt-6 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute right-[-12%] top-[-10%] h-[420px] w-[420px] rounded-full bg-white/[0.025] blur-3xl" />
           <div className="absolute left-[-10%] top-[42%] h-[360px] w-[360px] rounded-full bg-[#EAB308]/[0.02] blur-3xl" />
