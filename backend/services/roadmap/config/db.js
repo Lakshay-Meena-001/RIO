@@ -10,7 +10,7 @@ export const connectDB = async () => {
   try {
     await mongoose.connect(mongoUrl);
 
-    console.log("Connected to MongoDB");
+    console.log("Roadmap service connected to MongoDB.");
   } catch (error) {
     console.error("MongoDB connection failed:", error);
     throw error;

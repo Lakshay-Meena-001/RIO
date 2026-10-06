@@ -1,19 +1,23 @@
 import "dotenv/config";
 import dns from "node:dns";
 import express from "express";
+
 import { connectDB } from "./config/db.js";
+import roadmapRoutes from "./routes/roadmap.routes.js";
+import { errorHandler } from "./middlewares/errorHandler.js";
 
 const app = express();
-const PORT = process.env.PORT || 8004;
 
-// DNS
+const PORT = Number(process.env.PORT) || 8004;
+
+// Use reliable public DNS resolvers for external API requests.
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
-// Middlewares
+// Parse JSON request bodies.
 app.use(express.json({ limit: "1mb" }));
 
-// Health Check
-app.get("/", (req, res) => {
+// Service health check.
+app.get("/health", (req, res) => {
   return res.status(200).json({
     success: true,
     service: "roadmap-service",
@@ -21,10 +25,10 @@ app.get("/", (req, res) => {
   });
 });
 
-// Routes
+// Roadmap API routes.
 app.use("/api/roadmap", roadmapRoutes);
 
-// 404 Handler
+// Handle unknown routes.
 app.use((req, res) => {
   return res.status(404).json({
     success: false,
@@ -32,17 +36,20 @@ app.use((req, res) => {
   });
 });
 
+// Handle application errors.
+app.use(errorHandler);
 
-// Server Startup
-
+// Start the service only after MongoDB connection succeeds.
 const startServer = async () => {
   try {
     await connectDB();
+
     app.listen(PORT, () => {
-      console.log(`Roadmap service running on port ${PORT}`);
+      console.log(`Roadmap service running on port ${PORT}.`);
     });
   } catch (error) {
     console.error("Roadmap service failed to start:", error);
+
     process.exit(1);
   }
 };
