@@ -19,6 +19,7 @@ const FRONTEND_URL =
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL;
 const RESUME_SERVICE_URL = process.env.RESUME_SERVICE_URL;
 const INTERVIEW_SERVICE_URL = process.env.INTERVIEW_SERVICE_URL;
+const ROADMAP_SERVICE_URL = process.env.ROADMAP_SERVICE_URL;
 
 // Basic request parsing and cookie support.
 app.use(express.json());
@@ -57,6 +58,10 @@ if (!INTERVIEW_SERVICE_URL) {
   throw new Error("INTERVIEW_SERVICE_URL is not defined");
 }
 
+if (!ROADMAP_SERVICE_URL) {
+  throw new Error("ROADMAP_SERVICE_URL is not defined");
+}
+
 // Gateway health check.
 app.get("/health", (req, res) => {
   res.status(200).json({
@@ -86,6 +91,12 @@ app.use(
   "/api/interview",
   isAuth,
   proxyWithHeaders(INTERVIEW_SERVICE_URL, true),
+);
+
+app.use(
+  "/api/roadmap",
+  isAuth,
+  proxyWithHeaders(ROADMAP_SERVICE_URL, true),
 );
 
 // Current authenticated user.
