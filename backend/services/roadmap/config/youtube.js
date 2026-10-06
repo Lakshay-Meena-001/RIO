@@ -1,5 +1,4 @@
 
-
 const getApiKey = () => {
   const apiKey = process.env.YOUTUBE_API_KEY;
 
@@ -12,6 +11,18 @@ const getApiKey = () => {
   return apiKey;
 };
 
+const getApiUrl = () => {
+  const apiUrl = process.env.YOUTUBE_API_URL;
+
+  if (!apiUrl) {
+    throw new Error(
+      "YOUTUBE_API_URL is not configured.",
+    );
+  }
+
+  return apiUrl;
+};
+
 const youtubeRequest = async (endpoint, params) => {
   const query = new URLSearchParams({
     ...params,
@@ -19,7 +30,7 @@ const youtubeRequest = async (endpoint, params) => {
   });
 
   const response = await fetch(
-    `${YOUTUBE_API_URL}/${endpoint}?${query.toString()}`,
+    `${getApiUrl()}/${endpoint}?${query.toString()}`,
   );
 
   if (!response.ok) {

@@ -6,7 +6,7 @@ import { getResourcesForRoadmap } from "../agents/resource.agent.js";
 import {
   LEARNING_SYSTEM,
   LEARNING_SYSTEM_VERSION,
-} from "../constants/learning-system.js";
+} from "../constants/learning.system.js";
 
 const generateRoadmapNode = async (state) => {
   const roadmap = await generateRoadmap({
