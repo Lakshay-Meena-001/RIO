@@ -6,7 +6,7 @@ import {
   getRoadmapHistoryController,
   deleteRoadmapController,
   updateRoadmapProgressController,
-} from "../controllers/roadmap.controller.js";
+} from "../controllers/roadmap.controllers.js";
 
 const router = express.Router();
 
