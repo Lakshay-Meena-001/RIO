@@ -4,13 +4,9 @@ import { compiledRoadmapGraph } from "../graph/roadmap.graph.js";
 import {
   LEARNING_SYSTEM,
   LEARNING_SYSTEM_VERSION,
-} from "../constants/learning-system.js";
+} from "../constants/learning.system.js";
 
-import {
-  getCache,
-  setCache,
-  deleteCache,
-} from "../utils/cache.js";
+import { getCache, setCache, deleteCache } from "../utils/cache.js";
 
 const CACHE_TTL = 60 * 10;
 
@@ -34,9 +30,7 @@ const attachLearningSystem = (roadmap) => {
 
     learningSystem: {
       ...LEARNING_SYSTEM,
-      version:
-        roadmap.learningSystemVersion ??
-        LEARNING_SYSTEM_VERSION,
+      version: roadmap.learningSystemVersion ?? LEARNING_SYSTEM_VERSION,
     },
   };
 };
@@ -74,8 +68,7 @@ const normalizeRoadmapForStorage = ({
 
     version: 1,
 
-    learningSystemVersion:
-      LEARNING_SYSTEM_VERSION,
+    learningSystemVersion: LEARNING_SYSTEM_VERSION,
   };
 };
 
@@ -107,33 +100,20 @@ export const generateRoadmapService = async ({
     targetPackage,
   });
 
-  const roadmap = await Roadmap.create(
-    roadmapData,
-  );
+  const roadmap = await Roadmap.create(roadmapData);
 
   const roadmapObject = roadmap.toObject();
 
-  const roadmapResponse =
-    attachLearningSystem(roadmapObject);
+  const roadmapResponse = attachLearningSystem(roadmapObject);
 
-  const cacheKey = getRoadmapCacheKey(
-    userId,
-    roadmapObject._id.toString(),
-  );
+  const cacheKey = getRoadmapCacheKey(userId, roadmapObject._id.toString());
 
-  await setCache(
-    cacheKey,
-    roadmapResponse,
-    CACHE_TTL,
-  );
+  await setCache(cacheKey, roadmapResponse, CACHE_TTL);
 
   return roadmapResponse;
 };
 
-export const getRoadmapByIdService = async ({
-  userId,
-  roadmapId,
-}) => {
+export const getRoadmapByIdService = async ({ userId, roadmapId }) => {
   if (!userId) {
     throw new Error("User ID is required.");
   }
@@ -142,13 +122,9 @@ export const getRoadmapByIdService = async ({
     throw new Error("Roadmap ID is required.");
   }
 
-  const cacheKey = getRoadmapCacheKey(
-    userId,
-    roadmapId,
-  );
+  const cacheKey = getRoadmapCacheKey(userId, roadmapId);
 
-  const cachedRoadmap =
-    await getCache(cacheKey);
+  const cachedRoadmap = await getCache(cacheKey);
 
   if (cachedRoadmap) {
     return cachedRoadmap;
@@ -163,14 +139,9 @@ export const getRoadmapByIdService = async ({
     throw new Error("Roadmap not found.");
   }
 
-  const roadmapResponse =
-    attachLearningSystem(roadmap);
+  const roadmapResponse = attachLearningSystem(roadmap);
 
-  await setCache(
-    cacheKey,
-    roadmapResponse,
-    CACHE_TTL,
-  );
+  await setCache(cacheKey, roadmapResponse, CACHE_TTL);
 
   return roadmapResponse;
 };
@@ -184,32 +155,24 @@ export const getRoadmapHistoryService = async ({
     throw new Error("User ID is required.");
   }
 
-  const safePage = Math.max(
-    Number(page) || 1,
-    1,
-  );
+  const safePage = Math.max(Number(page) || 1, 1);
 
-  const safeLimit = Math.min(
-    Math.max(Number(limit) || 10, 1),
-    50,
-  );
+  const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
 
-  const skip =
-    (safePage - 1) * safeLimit;
+  const skip = (safePage - 1) * safeLimit;
 
-  const [roadmaps, total] =
-    await Promise.all([
-      Roadmap.find({ userId })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(safeLimit)
-        .select(
-          "_id title role targetPackage level duration currentModule completedModules version learningSystemVersion createdAt updatedAt",
-        )
-        .lean(),
+  const [roadmaps, total] = await Promise.all([
+    Roadmap.find({ userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .select(
+        "_id title role targetPackage level duration currentModule completedModules version learningSystemVersion createdAt updatedAt",
+      )
+      .lean(),
 
-      Roadmap.countDocuments({ userId }),
-    ]);
+    Roadmap.countDocuments({ userId }),
+  ]);
 
   return {
     roadmaps,
@@ -218,17 +181,12 @@ export const getRoadmapHistoryService = async ({
       page: safePage,
       limit: safeLimit,
       total,
-      totalPages: Math.ceil(
-        total / safeLimit,
-      ),
+      totalPages: Math.ceil(total / safeLimit),
     },
   };
 };
 
-export const deleteRoadmapService = async ({
-  userId,
-  roadmapId,
-}) => {
+export const deleteRoadmapService = async ({ userId, roadmapId }) => {
   if (!userId) {
     throw new Error("User ID is required.");
   }
@@ -237,20 +195,16 @@ export const deleteRoadmapService = async ({
     throw new Error("Roadmap ID is required.");
   }
 
-  const roadmap =
-    await Roadmap.findOneAndDelete({
-      _id: roadmapId,
-      userId,
-    });
+  const roadmap = await Roadmap.findOneAndDelete({
+    _id: roadmapId,
+    userId,
+  });
 
   if (!roadmap) {
     throw new Error("Roadmap not found.");
   }
 
-  const cacheKey = getRoadmapCacheKey(
-    userId,
-    roadmapId,
-  );
+  const cacheKey = getRoadmapCacheKey(userId, roadmapId);
 
   await deleteCache(cacheKey);
 
@@ -260,179 +214,152 @@ export const deleteRoadmapService = async ({
   };
 };
 
-export const updateRoadmapProgressService =
-  async ({
-    userId,
-    roadmapId,
-    moduleOrder,
-    completed,
-  }) => {
-    if (!userId) {
-      throw new Error(
-        "User ID is required.",
-      );
-    }
+export const updateRoadmapProgressService = async ({
+  userId,
+  roadmapId,
+  moduleOrder,
+  completed,
+}) => {
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
 
-    if (!roadmapId) {
-      throw new Error(
-        "Roadmap ID is required.",
-      );
-    }
+  if (!roadmapId) {
+    throw new Error("Roadmap ID is required.");
+  }
 
-    const updatedRoadmap =
-      await Roadmap.findOneAndUpdate(
-        {
-          _id: roadmapId,
-          userId,
-          "modules.order": moduleOrder,
-        },
-        [
-          {
-            $set: {
-              modules: {
-                $map: {
-                  input: "$modules",
-                  as: "module",
+  const updatedRoadmap = await Roadmap.findOneAndUpdate(
+    {
+      _id: roadmapId,
+      userId,
+      "modules.order": moduleOrder,
+    },
+    [
+      {
+        $set: {
+          modules: {
+            $map: {
+              input: "$modules",
+              as: "module",
 
-                  in: {
-                    $cond: [
-                      {
-                        $eq: [
-                          "$$module.order",
-                          moduleOrder,
-                        ],
-                      },
+              in: {
+                $cond: [
+                  {
+                    $eq: ["$$module.order", moduleOrder],
+                  },
+
+                  {
+                    $mergeObjects: [
+                      "$$module",
 
                       {
-                        $mergeObjects: [
-                          "$$module",
+                        completed,
 
-                          {
+                        completedAt: {
+                          $cond: [
                             completed,
 
-                            completedAt: {
-                              $cond: [
-                                completed,
-
-                                {
-                                  $ifNull: [
-                                    "$$module.completedAt",
-                                    "$$NOW",
-                                  ],
-                                },
-
-                                null,
-                              ],
+                            {
+                              $ifNull: ["$$module.completedAt", "$$NOW"],
                             },
-                          },
-                        ],
-                      },
 
-                      "$$module",
+                            null,
+                          ],
+                        },
+                      },
                     ],
                   },
+
+                  "$$module",
+                ],
+              },
+            },
+          },
+        },
+      },
+
+      {
+        $set: {
+          completedModules: {
+            $size: {
+              $filter: {
+                input: "$modules",
+                as: "module",
+
+                cond: {
+                  $eq: ["$$module.completed", true],
                 },
               },
             },
           },
+        },
+      },
 
-          {
-            $set: {
-              completedModules: {
-                $size: {
+      {
+        $set: {
+          currentModule: {
+            $let: {
+              vars: {
+                incompleteModules: {
                   $filter: {
                     input: "$modules",
                     as: "module",
 
                     cond: {
-                      $eq: [
-                        "$$module.completed",
-                        true,
-                      ],
+                      $eq: ["$$module.completed", false],
                     },
                   },
                 },
               },
-            },
-          },
 
-          {
-            $set: {
-              currentModule: {
-                $let: {
-                  vars: {
-                    incompleteModules: {
-                      $filter: {
-                        input: "$modules",
-                        as: "module",
+              in: {
+                $ifNull: [
+                  {
+                    $arrayElemAt: [
+                      {
+                        $map: {
+                          input: "$$incompleteModules",
 
-                        cond: {
-                          $eq: [
-                            "$$module.completed",
-                            false,
-                          ],
+                          as: "module",
+
+                          in: "$$module.order",
                         },
                       },
-                    },
-                  },
 
-                  in: {
-                    $ifNull: [
-                      {
-                        $arrayElemAt: [
-                          {
-                            $map: {
-                              input:
-                                "$$incompleteModules",
-
-                              as: "module",
-
-                              in: "$$module.order",
-                            },
-                          },
-
-                          0,
-                        ],
-                      },
-
-                      {
-                        $size: "$modules",
-                      },
+                      0,
                     ],
                   },
-                },
+
+                  {
+                    $size: "$modules",
+                  },
+                ],
               },
             },
           },
-        ],
-        {
-          new: true,
-          lean: true,
         },
-      );
+      },
+    ],
+    {
+      returnDocument: "after",
+      updatePipeline: true,
+      lean:true,
+    },
+    {
+      returnDocument: "after",
+      lean: true,
+    },
+  );
 
-    if (!updatedRoadmap) {
-      throw new Error(
-        "Roadmap or module not found.",
-      );
-    }
+  if (!updatedRoadmap) {
+    throw new Error("Roadmap or module not found.");
+  }
 
-    const roadmapResponse =
-      attachLearningSystem(
-        updatedRoadmap,
-      );
+  const roadmapResponse = attachLearningSystem(updatedRoadmap);
 
-    const cacheKey =
-      getRoadmapCacheKey(
-        userId,
-        roadmapId,
-      );
+  const cacheKey = getRoadmapCacheKey(userId, roadmapId);
 
-    await setCache(
-      cacheKey,
-      roadmapResponse,
-      CACHE_TTL,
-    );
+  await setCache(cacheKey, roadmapResponse, CACHE_TTL);
 
-    return roadmapResponse;
-  };
+  return roadmapResponse;
+};

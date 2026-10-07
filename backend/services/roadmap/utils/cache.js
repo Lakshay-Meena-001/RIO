@@ -1,4 +1,4 @@
-import redis from "../../shared/redis/redis.js";
+import redis from "../../../shared/redis/redis.js";
 
 const DEFAULT_TTL = 60 * 10;
 

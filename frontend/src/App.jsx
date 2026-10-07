@@ -2,10 +2,17 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 
+// Existing pages
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Scorer from "./pages/Scorer";
 import ResumeBuilder from "./pages/ResumeBuilder";
+import RoadmapPage from "./pages/roadmap/RoadmapPage";
+import RoadmapDetailPage from "./pages/roadmap/RoadmapDetailPage";
+
+// // Roadmap pages
+// import RoadmapPage from "./pages/roadmap/RoadmapPage";
+// import RoadmapDetailPage from "./pages/roadmap/RoadmapDetailPage";
 
 // Mock Interview pages
 import MockInterview from "./pages/MockInterview";
@@ -13,9 +20,11 @@ import NewInterview from "./pages/NewInterview";
 import Interview from "./pages/Interview";
 import InterviewHistory from "./pages/InterviewHistory";
 
+// APIs
 import { getCurrentUser } from "./api/user.api";
 import { getResume } from "./api/resume.api";
 
+// Redux
 import { setResume } from "./redux/resumeSlice";
 
 const App = () => {
@@ -24,10 +33,15 @@ const App = () => {
 
   const dispatch = useDispatch();
 
+  // --------------------------------------------------
+  // Fetch current user
+  // --------------------------------------------------
+
   useEffect(() => {
     const getUser = async () => {
       try {
         const data = await getCurrentUser();
+
         setUser(data?.user || null);
       } catch (error) {
         console.error("Failed to fetch current user:", error);
@@ -39,6 +53,10 @@ const App = () => {
 
     getUser();
   }, []);
+
+  // --------------------------------------------------
+  // Fetch user's resume
+  // --------------------------------------------------
 
   useEffect(() => {
     if (!user) return;
@@ -58,10 +76,14 @@ const App = () => {
     getResumeData();
   }, [user, dispatch]);
 
+  // --------------------------------------------------
+  // Initial loading
+  // --------------------------------------------------
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#17191C] flex items-center justify-center">
-        <div className="h-8 w-8 rounded-full border-2 border-[#52525E] border-t-white animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-white" />
       </div>
     );
   }
@@ -69,11 +91,13 @@ const App = () => {
   const isAuthenticated = Boolean(user);
   const isProfileComplete = user?.profileCompleted === true;
 
+  const isProtected = isAuthenticated && isProfileComplete;
+
   return (
     <Routes>
-      {/* -------------------------------------------------- */}
-      {/* Public / Home */}
-      {/* -------------------------------------------------- */}
+      {/* ==================================================
+          PUBLIC / HOME
+      ================================================== */}
 
       <Route
         path="/"
@@ -86,14 +110,14 @@ const App = () => {
         }
       />
 
-      {/* -------------------------------------------------- */}
-      {/* Dashboard */}
-      {/* -------------------------------------------------- */}
+      {/* ==================================================
+          DASHBOARD
+      ================================================== */}
 
       <Route
         path="/dashboard"
         element={
-          isAuthenticated && isProfileComplete ? (
+          isProtected ? (
             <Dashboard user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
@@ -101,14 +125,14 @@ const App = () => {
         }
       />
 
-      {/* -------------------------------------------------- */}
-      {/* Resume Scorer */}
-      {/* -------------------------------------------------- */}
+      {/* ==================================================
+          RESUME SCORER
+      ================================================== */}
 
       <Route
         path="/scorer"
         element={
-          isAuthenticated && isProfileComplete ? (
+          isProtected ? (
             <Scorer user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
@@ -116,14 +140,14 @@ const App = () => {
         }
       />
 
-      {/* -------------------------------------------------- */}
-      {/* Resume Builder */}
-      {/* -------------------------------------------------- */}
+      {/* ==================================================
+          RESUME BUILDER
+      ================================================== */}
 
       <Route
         path="/builder"
         element={
-          isAuthenticated && isProfileComplete ? (
+          isProtected ? (
             <ResumeBuilder user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
@@ -131,14 +155,40 @@ const App = () => {
         }
       />
 
-      {/* -------------------------------------------------- */}
-      {/* Mock Interview */}
-      {/* -------------------------------------------------- */}
+      {/* ==================================================
+    ROADMAP
+================================================== */}
+
+      <Route
+        path="/roadmap"
+        element={
+          isProtected ? (
+            <RoadmapPage user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/roadmap/:roadmapId"
+        element={
+          isProtected ? (
+            <RoadmapDetailPage user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      {/* ==================================================
+          MOCK INTERVIEW
+      ================================================== */}
 
       <Route
         path="/mock-interview"
         element={
-          isAuthenticated && isProfileComplete ? (
+          isProtected ? (
             <MockInterview user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
@@ -146,14 +196,14 @@ const App = () => {
         }
       />
 
-      {/* -------------------------------------------------- */}
-      {/* New Interview Configuration */}
-      {/* -------------------------------------------------- */}
+      {/* ==================================================
+          NEW INTERVIEW
+      ================================================== */}
 
       <Route
         path="/mock-interview/new"
         element={
-          isAuthenticated && isProfileComplete ? (
+          isProtected ? (
             <NewInterview user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
@@ -161,14 +211,14 @@ const App = () => {
         }
       />
 
-      {/* -------------------------------------------------- */}
-      {/* Active Interview */}
-      {/* -------------------------------------------------- */}
+      {/* ==================================================
+          ACTIVE INTERVIEW
+      ================================================== */}
 
       <Route
         path="/mock-interview/:interviewId"
         element={
-          isAuthenticated && isProfileComplete ? (
+          isProtected ? (
             <Interview user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
@@ -176,21 +226,26 @@ const App = () => {
         }
       />
 
-      {/* --------------------------------------------------
-    Interview History
--------------------------------------------------- */}
+      {/* ==================================================
+          INTERVIEW HISTORY
+      ================================================== */}
 
       <Route
         path="/mock-interview/history"
         element={
-          isAuthenticated && isProfileComplete ? (
+          isProtected ? (
             <InterviewHistory user={user} setUser={setUser} />
           ) : (
-            <Navigate to="/login" replace />
+            <Navigate to="/" replace />
           )
         }
       />
-      
+
+      {/* ==================================================
+          FALLBACK
+      ================================================== */}
+
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 };
