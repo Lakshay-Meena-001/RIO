@@ -1,8 +1,8 @@
 import Roadmap from "../models/roadmap.model.js";
 
 import {
-  ROADMAP_NODE_STATUSES,
-  ROADMAP_STATUSES,
+  NODE_STATUS,
+  ROADMAP_STATUS,
 } from "../constants/roadmap.constants.js";
 
 import { loadRoadmap, loadRoadmapNode } from "../knowledge/loader.js";
@@ -65,15 +65,15 @@ class ProgressService {
     const total = nodes.length;
 
     const completed = nodes.filter(
-      (node) => node.status === ROADMAP_NODE_STATUSES.COMPLETED,
+      (node) => node.status === NODE_STATUS.COMPLETED,
     ).length;
 
     const learning = nodes.filter(
-      (node) => node.status === ROADMAP_NODE_STATUSES.LEARNING,
+      (node) => node.status === NODE_STATUS.LEARNING,
     ).length;
 
     const skipped = nodes.filter(
-      (node) => node.status === ROADMAP_NODE_STATUSES.SKIPPED,
+      (node) => node.status === NODE_STATUS.SKIPPED,
     ).length;
 
     const remaining = total - completed - skipped;
@@ -106,7 +106,7 @@ class ProgressService {
    */
   getCurrentFocus(nodes = [], roadmapTemplate) {
     const learningNode = nodes.find(
-      (node) => node.status === ROADMAP_NODE_STATUSES.LEARNING,
+      (node) => node.status === NODE_STATUS.LEARNING,
     );
 
     if (learningNode) {
@@ -114,7 +114,7 @@ class ProgressService {
     }
 
     const nextNode = nodes.find(
-      (node) => node.status === ROADMAP_NODE_STATUSES.NOT_STARTED,
+      (node) => node.status === NODE_STATUS.NOT_STARTED,
     );
 
     if (nextNode) {
@@ -213,14 +213,14 @@ class ProgressService {
      * No remaining work means roadmap is complete.
      */
     if (progress.total > 0 && progress.remaining === 0) {
-      roadmap.status = ROADMAP_STATUSES.COMPLETED;
+      roadmap.status = ROADMAP_STATUS.COMPLETED;
     } else {
       /**
        * If user previously completed the roadmap
        * but resets/skips something, reopen it.
        */
-      if (roadmap.status === ROADMAP_STATUSES.COMPLETED) {
-        roadmap.status = ROADMAP_STATUSES.ACTIVE;
+      if (roadmap.status === ROADMAP_STATUS.COMPLETED) {
+        roadmap.status = ROADMAP_STATUS.ACTIVE;
       }
     }
 
@@ -236,7 +236,7 @@ class ProgressService {
   async updateNodeStatus(userId, roadmapId, nodeId, status) {
     const roadmap = await this.getOwnedRoadmap(userId, roadmapId);
 
-    const validStatuses = Object.values(ROADMAP_NODE_STATUSES);
+    const validStatuses = Object.values(NODE_STATUS);
 
     if (!validStatuses.includes(status)) {
       throw new Error(`Invalid roadmap node status: ${status}`);
@@ -262,7 +262,7 @@ class ProgressService {
     // LEARNING
     // --------------------------------------------------------
 
-    if (status === ROADMAP_NODE_STATUSES.LEARNING) {
+    if (status === NODE_STATUS.LEARNING) {
       /**
        * Don't overwrite the original start time
        * if the user returns to a learning node.
@@ -280,7 +280,7 @@ class ProgressService {
     // COMPLETED
     // --------------------------------------------------------
 
-    if (status === ROADMAP_NODE_STATUSES.COMPLETED) {
+    if (status === NODE_STATUS.COMPLETED) {
       /**
        * A node cannot be completed without
        * having effectively started.
@@ -298,7 +298,7 @@ class ProgressService {
     // SKIPPED
     // --------------------------------------------------------
 
-    if (status === ROADMAP_NODE_STATUSES.SKIPPED) {
+    if (status === NODE_STATUS.SKIPPED) {
       roadmapNode.completedAt = null;
     }
 
@@ -306,7 +306,7 @@ class ProgressService {
     // NOT STARTED
     // --------------------------------------------------------
 
-    if (status === ROADMAP_NODE_STATUSES.NOT_STARTED) {
+    if (status === NODE_STATUS.NOT_STARTED) {
       roadmapNode.completedAt = null;
 
       roadmapNode.skippedReason = null;
@@ -326,7 +326,7 @@ class ProgressService {
       userId,
       roadmapId,
       nodeId,
-      ROADMAP_NODE_STATUSES.COMPLETED,
+      NODE_STATUS.COMPLETED,
     );
   }
 
@@ -339,7 +339,7 @@ class ProgressService {
       userId,
       roadmapId,
       nodeId,
-      ROADMAP_NODE_STATUSES.LEARNING,
+      NODE_STATUS.LEARNING,
     );
   }
 
@@ -352,7 +352,7 @@ class ProgressService {
       userId,
       roadmapId,
       nodeId,
-      ROADMAP_NODE_STATUSES.NOT_STARTED,
+      NODE_STATUS.NOT_STARTED,
     );
   }
 
@@ -373,7 +373,7 @@ class ProgressService {
       throw error;
     }
 
-    roadmapNode.status = ROADMAP_NODE_STATUSES.SKIPPED;
+    roadmapNode.status = NODE_STATUS.SKIPPED;
 
     roadmapNode.skippedReason =
       typeof reason === "string" ? reason.trim() || null : null;

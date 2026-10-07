@@ -154,7 +154,7 @@ async function shutdown(signal) {
     // CLOSE DATABASE
     // --------------------------------------------------------
 
-    await disconnectDB();
+    await disconnectDatabase();
 
     console.log("[Roadmap Service] shutdown complete");
 

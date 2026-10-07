@@ -13,9 +13,9 @@
 
 import { createRoadmapTemplate } from "../../index.js";
 
-import { frontendPhases } from "./phases.js";
-import { frontendNodes } from "./nodes.js";
-import { frontendEdges } from "./edges.js";
+import { frontendPhases } from "./phase.js";
+import { frontendNodes } from "./node.js";
+import { frontendEdges } from "./edge.js";
 
 const frontendDeveloperRoadmap = createRoadmapTemplate({
   id: "frontend-developer",

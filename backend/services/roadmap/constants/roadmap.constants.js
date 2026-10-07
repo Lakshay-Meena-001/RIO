@@ -212,3 +212,10 @@ export const CACHE_TTL = Object.freeze({
   USER_ROADMAP: 60 * 10,
   USER_DRAFT: 60 * 30,
 });
+
+
+export const ROADMAP_GENERATION_MODES = Object.freeze({
+  STANDARD: "standard",
+  RESUME: "resume",
+  CUSTOM: "custom",
+});

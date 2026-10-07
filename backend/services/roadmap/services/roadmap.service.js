@@ -2,9 +2,8 @@ import Roadmap from "../models/roadmap.model.js";
 
 import {
   ROADMAP_GENERATION_MODES,
-  ROADMAP_STATUSES,
-  ROADMAP_NODE_STATUSES,
-  ROADMAP_DEFAULTS,
+  ROADMAP_STATUS,
+  NODE_STATUS,
 } from "../constants/roadmap.constants.js";
 
 import {
@@ -167,7 +166,7 @@ function createFingerprint({ userId, input }) {
 function initializeNodes(template, statuses = {}) {
   return template.nodes.map((knowledgeNode) => {
     const status =
-      statuses[knowledgeNode.id] || ROADMAP_NODE_STATUSES.NOT_STARTED;
+      statuses[knowledgeNode.id] || NODE_STATUS.NOT_STARTED;
 
     const now = new Date();
 
@@ -176,9 +175,9 @@ function initializeNodes(template, statuses = {}) {
 
       status,
 
-      startedAt: status === ROADMAP_NODE_STATUSES.LEARNING ? now : null,
+      startedAt: status === NODE_STATUS.LEARNING ? now : null,
 
-      completedAt: status === ROADMAP_NODE_STATUSES.COMPLETED ? now : null,
+      completedAt: status === NODE_STATUS.COMPLETED ? now : null,
 
       skippedReason: null,
 
@@ -195,15 +194,15 @@ function calculateProgress(nodes = []) {
   const total = nodes.length;
 
   const completed = nodes.filter(
-    (node) => node.status === ROADMAP_NODE_STATUSES.COMPLETED,
+    (node) => node.status === NODE_STATUS.COMPLETED,
   ).length;
 
   const learning = nodes.filter(
-    (node) => node.status === ROADMAP_NODE_STATUSES.LEARNING,
+    (node) => node.status === NODE_STATUS.LEARNING,
   ).length;
 
   const skipped = nodes.filter(
-    (node) => node.status === ROADMAP_NODE_STATUSES.SKIPPED,
+    (node) => node.status === NODE_STATUS.SKIPPED,
   ).length;
 
   const remaining = total - completed - skipped;
@@ -232,12 +231,12 @@ function calculateProgress(nodes = []) {
 
 function buildCurrentFocus(nodes, template) {
   const learningNode = nodes.find(
-    (node) => node.status === ROADMAP_NODE_STATUSES.LEARNING,
+    (node) => node.status === NODE_STATUS.LEARNING,
   );
 
   const nextNode =
     learningNode ||
-    nodes.find((node) => node.status === ROADMAP_NODE_STATUSES.NOT_STARTED);
+    nodes.find((node) => node.status === NODE_STATUS.NOT_STARTED);
 
   if (!nextNode) {
     return null;
@@ -340,8 +339,8 @@ function buildRoadmapPayload({
 
     status:
       progress.remaining === 0
-        ? ROADMAP_STATUSES.COMPLETED
-        : ROADMAP_STATUSES.ACTIVE,
+        ? ROADMAP_STATUS.COMPLETED
+        : ROADMAP_STATUS.ACTIVE,
 
     nodes,
 
@@ -373,7 +372,7 @@ async function generateStandardRoadmap({ userId, input, template }) {
   const adaptedNodes = template.nodes.map((node) => ({
     nodeId: node.id,
 
-    status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+    status: NODE_STATUS.NOT_STARTED,
   }));
 
   return buildRoadmapPayload({

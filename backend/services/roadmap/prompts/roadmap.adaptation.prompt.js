@@ -1,7 +1,4 @@
-import {
-  ROADMAP_GENERATION_MODES,
-  ROADMAP_NODE_STATUSES,
-} from "../constants/roadmap.constants.js";
+import { ROADMAP_GENERATION_MODES } from "../constants/roadmap.constants.js";
 
 // ============================================================
 // HELPERS

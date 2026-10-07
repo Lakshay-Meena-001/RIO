@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import {
   ROADMAP_GENERATION_MODES,
-  ROADMAP_LEVELS,
+  EXPERIENCE_LEVELS,
   ROADMAP_INPUT_SOURCES,
 } from "../constants/roadmap.constants.js";
 
@@ -14,7 +14,7 @@ import { roadmapExists } from "../knowledge/loader.js";
 
 const generationModeSchema = z.enum(Object.values(ROADMAP_GENERATION_MODES));
 
-const levelSchema = z.enum(Object.values(ROADMAP_LEVELS));
+const levelSchema = z.enum(Object.values(EXPERIENCE_LEVELS));
 
 const targetSchema = z
   .object({
@@ -74,7 +74,7 @@ const generateRoadmapSchema = z
 
     role: z.string().trim().max(200).optional().default(""),
 
-    level: levelSchema.default(ROADMAP_LEVELS.BEGINNER),
+    level: levelSchema.default(EXPERIENCE_LEVELS.BEGINNER),
 
     availableHoursPerDay: z.coerce.number().min(0).max(24).default(2),
 

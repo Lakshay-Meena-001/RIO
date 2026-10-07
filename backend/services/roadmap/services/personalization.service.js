@@ -1,6 +1,6 @@
 import {
   ROADMAP_GENERATION_MODES,
-  ROADMAP_NODE_STATUSES,
+  NODE_STATUS,
 } from "../constants/roadmap.constants.js";
 
 import { loadRoadmap } from "../knowledge/loader.js";
@@ -166,7 +166,7 @@ function validateAdaptedNodes({ template, nodes }) {
 
     seenIds.add(node.nodeId);
 
-    if (!Object.values(ROADMAP_NODE_STATUSES).includes(node.status)) {
+    if (!Object.values(NODE_STATUS).includes(node.status)) {
       throw new Error(`Invalid personalized node status: ${node.status}`);
     }
   }
@@ -192,7 +192,7 @@ function normalizeNodeOrder({ template, nodes }) {
       return {
         nodeId: canonicalNode.id,
 
-        status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+        status: NODE_STATUS.NOT_STARTED,
       };
     }
 
@@ -334,7 +334,7 @@ function getStandardNodes(templateId) {
   return template.nodes.map((node) => ({
     nodeId: node.id,
 
-    status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+    status: NODE_STATUS.NOT_STARTED,
   }));
 }
 

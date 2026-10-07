@@ -5,7 +5,7 @@ import RoadmapDraft from "../models/roadmapDraft.model.js";
 import {
   ROADMAP_GENERATION_MODES,
   ROADMAP_INPUT_SOURCES,
-  ROADMAP_LEVELS,
+  EXPERIENCE_LEVELS,
 } from "../constants/roadmap.constants.js";
 
 // ============================================================
@@ -79,7 +79,7 @@ class DraftService {
         unit: normalizeString(input.target?.unit || "LPA"),
       },
 
-      level: input.level || ROADMAP_LEVELS.BEGINNER,
+      level: input.level || EXPERIENCE_LEVELS.BEGINNER,
 
       availableHoursPerDay: Number(input.availableHoursPerDay ?? 2),
 

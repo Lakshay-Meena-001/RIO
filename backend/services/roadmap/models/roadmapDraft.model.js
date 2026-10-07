@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 
 import {
   ROADMAP_GENERATION_MODES,
-  ROADMAP_LEVELS,
+  EXPERIENCE_LEVELS,
   ROADMAP_INPUT_SOURCES,
 } from "../constants/roadmap.constants.js";
 
@@ -148,9 +148,9 @@ const roadmapDraftSchema = new mongoose.Schema(
     level: {
       type: String,
 
-      enum: Object.values(ROADMAP_LEVELS),
+      enum: Object.values(EXPERIENCE_LEVELS),
 
-      default: ROADMAP_LEVELS.BEGINNER,
+      default: EXPERIENCE_LEVELS.BEGINNER,
     },
 
     // --------------------------------------------------------

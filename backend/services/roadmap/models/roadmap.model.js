@@ -21,9 +21,9 @@ import mongoose from "mongoose";
 
 import {
   ROADMAP_GENERATION_MODES,
-  ROADMAP_STATUSES,
-  ROADMAP_NODE_STATUSES,
-  ROADMAP_LEVELS,
+  ROADMAP_STATUS,
+  NODE_STATUS,
+  EXPERIENCE_LEVELS,
   ROADMAP_INPUT_SOURCES,
 } from "../constants/roadmap.constants.js";
 
@@ -66,8 +66,8 @@ const profileSchema = new mongoose.Schema(
   {
     level: {
       type: String,
-      enum: Object.values(ROADMAP_LEVELS),
-      default: ROADMAP_LEVELS.BEGINNER,
+      enum: Object.values(EXPERIENCE_LEVELS),
+      default: EXPERIENCE_LEVELS.BEGINNER,
     },
 
     availableHoursPerDay: {
@@ -118,8 +118,8 @@ const roadmapNodeSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: Object.values(ROADMAP_NODE_STATUSES),
-      default: ROADMAP_NODE_STATUSES.NOT_STARTED,
+      enum: Object.values(NODE_STATUS),
+      default: NODE_STATUS.NOT_STARTED,
     },
 
     skippedReason: {
@@ -476,8 +476,8 @@ const roadmapSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: Object.values(ROADMAP_STATUSES),
-      default: ROADMAP_STATUSES.ACTIVE,
+      enum: Object.values(ROADMAP_STATUS),
+      default: ROADMAP_STATUS.ACTIVE,
       index: true,
     },
 

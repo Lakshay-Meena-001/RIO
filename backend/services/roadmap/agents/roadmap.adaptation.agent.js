@@ -1,9 +1,9 @@
 import {
   ROADMAP_GENERATION_MODES,
-  ROADMAP_NODE_STATUSES,
+  NODE_STATUS,
 } from "../constants/roadmap.constants.js";
 
-import { loadRoadmap, findKnowledgeNode } from "../knowledge/index.js";
+import { loadRoadmap } from "../knowledge/loader.js";
 
 import { buildRoadmapAdaptationPrompt } from "../prompts/roadmap.adaptation.prompt.js";
 
@@ -47,7 +47,7 @@ function validateMode(generationMode) {
 // ============================================================
 
 function isValidNodeStatus(status) {
-  return Object.values(ROADMAP_NODE_STATUSES).includes(status);
+  return Object.values(NODE_STATUS).includes(status);
 }
 
 // ============================================================
@@ -206,7 +206,7 @@ function normalizeAdaptedNodes(template, adaptedNodes) {
       return {
         nodeId: canonicalNode.id,
 
-        status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+        status: NODE_STATUS.NOT_STARTED,
       };
     }
 
