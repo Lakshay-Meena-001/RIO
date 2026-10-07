@@ -1,201 +1,492 @@
-import {
-  generateRoadmapSchema,
-  roadmapIdSchema,
-  updateProgressSchema,
-} from "../validators/roadmap.validator.js";
+import roadmapService from "../services/roadmap.service.js";
+import roadmapValidator from "../validators/roadmap.validator.js";
+import progressService from "../services/progress.service.js";
 
-import {
-  generateRoadmapService,
-  getRoadmapByIdService,
-  getRoadmapHistoryService,
-  deleteRoadmapService,
-  updateRoadmapProgressService,
-} from "../services/roadmap.service.js";
+/*
+|--------------------------------------------------------------------------
+| Helpers
+|--------------------------------------------------------------------------
+*/
 
-const getUserId = (req) => {
-  return req.userId || req.headers["x-user-id"];
-};
+/**
+ * Get authenticated user ID.
+ *
+ * Your gateway/auth middleware may expose the user
+ * in a different property. Keep this helper isolated
+ * so only one place needs changing if required.
+ */
+function getUserId(req) {
+  return (
+    req.user?.id ||
+    req.user?._id ||
+    req.auth?.userId ||
+    req.headers["x-user-id"] ||
+    null
+  );
+}
 
-export const generateRoadmapController = async (req, res, next) => {
+/**
+ * Standard success response.
+ */
+function success(res, data, statusCode = 200) {
+  return res.status(statusCode).json({
+    success: true,
+    data,
+  });
+}
+
+/**
+ * Standard controller error handler.
+ *
+ * Central error middleware can later take over this
+ * responsibility. For now controllers remain predictable.
+ */
+function handleError(res, error) {
+  console.error("[RoadmapController]", error);
+
+  return res.status(error.statusCode || 500).json({
+    success: false,
+
+    message: error.message || "Something went wrong",
+
+    ...(error.details
+      ? {
+          details: error.details,
+        }
+      : {}),
+  });
+}
+
+/*
+|--------------------------------------------------------------------------
+| Generate Roadmap
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * POST /roadmaps
+ */
+async function generateRoadmap(req, res) {
   try {
     const userId = getUserId(req);
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required.",
+        message: "Authentication required",
       });
     }
 
-    const validation = generateRoadmapSchema.safeParse(req.body);
+    /*
+     * Zod validates + normalizes the input.
+     */
+    const input = roadmapValidator.validateGenerate(req.body);
 
-    if (!validation.success) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid roadmap request.",
-        errors: validation.error.issues,
-      });
-    }
+    const roadmap = await roadmapService.generate(userId, input);
 
-    const roadmap = await generateRoadmapService({
-      userId,
-      ...validation.data,
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: "Roadmap generated successfully.",
-      data: roadmap,
-    });
+    return success(res, roadmap, 201);
   } catch (error) {
-    next(error);
+    return handleError(res, error);
   }
-};
+}
 
-export const getRoadmapController = async (req, res, next) => {
+/*
+|--------------------------------------------------------------------------
+| Get One Roadmap
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * GET /roadmaps/:roadmapId
+ */
+async function getRoadmap(req, res) {
   try {
     const userId = getUserId(req);
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required.",
+        message: "Authentication required",
       });
     }
 
-    const validation = roadmapIdSchema.safeParse({
-      id: req.params.id,
+    const { roadmapId } = roadmapValidator.validateRoadmapId({
+      roadmapId: req.params.roadmapId,
     });
 
-    if (!validation.success) {
-      return res.status(400).json({
+    const roadmap = await roadmapService.getRoadmap(userId, roadmapId);
+
+    if (!roadmap) {
+      return res.status(404).json({
         success: false,
-        message: "Invalid roadmap ID.",
+        message: "Roadmap not found",
       });
     }
 
-    const roadmap = await getRoadmapByIdService({
-      userId,
-      roadmapId: validation.data.id,
-    });
-
-    return res.status(200).json({
-      success: true,
-      data: roadmap,
-    });
+    return success(res, roadmap);
   } catch (error) {
-    next(error);
+    return handleError(res, error);
   }
-};
+}
 
-export const getRoadmapHistoryController = async (req, res, next) => {
+/*
+|--------------------------------------------------------------------------
+| Get User Roadmaps
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * GET /roadmaps
+ */
+async function getRoadmaps(req, res) {
   try {
     const userId = getUserId(req);
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required.",
+        message: "Authentication required",
       });
     }
 
-    const result = await getRoadmapHistoryService({
-      userId,
-      page: req.query.page,
-      limit: req.query.limit,
+    const { limit, skip } = roadmapValidator.validateList(req.query);
+
+    const roadmaps = await roadmapService.getUserRoadmaps(userId, {
+      limit,
+      skip,
     });
 
-    return res.status(200).json({
-      success: true,
-      data: result.roadmaps,
-      pagination: result.pagination,
-    });
+    return success(res, roadmaps);
   } catch (error) {
-    next(error);
+    return handleError(res, error);
   }
-};
+}
 
-export const deleteRoadmapController = async (req, res, next) => {
+/*
+|--------------------------------------------------------------------------
+| Delete Roadmap
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * DELETE /roadmaps/:roadmapId
+ */
+async function deleteRoadmap(req, res) {
   try {
     const userId = getUserId(req);
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required.",
+        message: "Authentication required",
       });
     }
 
-    const validation = roadmapIdSchema.safeParse({
-      id: req.params.id,
+    const { roadmapId } = roadmapValidator.validateRoadmapId({
+      roadmapId: req.params.roadmapId,
     });
 
-    if (!validation.success) {
-      return res.status(400).json({
+    const deleted = await roadmapService.deleteRoadmap(userId, roadmapId);
+
+    if (!deleted) {
+      return res.status(404).json({
         success: false,
-        message: "Invalid roadmap ID.",
+        message: "Roadmap not found",
       });
     }
 
-    const result = await deleteRoadmapService({
-      userId,
-      roadmapId: validation.data.id,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Roadmap deleted successfully.",
-      data: result,
+    return success(res, {
+      id: deleted._id,
+      deleted: true,
     });
   } catch (error) {
-    next(error);
+    return handleError(res, error);
   }
-};
+}
 
-export const updateRoadmapProgressController = async (req, res, next) => {
+/*
+|--------------------------------------------------------------------------
+| Get Progress
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * GET /roadmaps/:roadmapId/progress
+ */
+async function getProgress(req, res) {
   try {
     const userId = getUserId(req);
 
     if (!userId) {
       return res.status(401).json({
         success: false,
-        message: "Authentication required.",
+        message: "Authentication required",
       });
     }
 
-    const roadmapIdValidation = roadmapIdSchema.safeParse({
-      id: req.params.id,
+    const { roadmapId } = roadmapValidator.validateRoadmapId({
+      roadmapId: req.params.roadmapId,
     });
 
-    if (!roadmapIdValidation.success) {
-      return res.status(400).json({
+    const progress = await progressService.getProgress(userId, roadmapId);
+
+    if (!progress) {
+      return res.status(404).json({
         success: false,
-        message: "Invalid roadmap ID.",
+        message: "Roadmap not found",
       });
     }
 
-    const progressValidation = updateProgressSchema.safeParse(req.body);
-
-    if (!progressValidation.success) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid progress data.",
-        errors: progressValidation.error.issues,
-      });
-    }
-
-    const roadmap = await updateRoadmapProgressService({
-      userId,
-      roadmapId: roadmapIdValidation.data.id,
-      ...progressValidation.data,
-    });
-
-    return res.status(200).json({
-      success: true,
-      message: "Roadmap progress updated successfully.",
-      data: roadmap,
-    });
+    return success(res, progress);
   } catch (error) {
-    next(error);
+    return handleError(res, error);
   }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Update Node Status
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * PATCH /roadmaps/:roadmapId/nodes/:nodeId/status
+ */
+async function updateNodeStatus(req, res) {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const { roadmapId, nodeId, status } = roadmapValidator.validateNodeStatus({
+      roadmapId: req.params.roadmapId,
+
+      nodeId: req.params.nodeId,
+
+      status: req.body?.status,
+    });
+
+    const roadmap = await progressService.updateNodeStatus(
+      userId,
+      roadmapId,
+      nodeId,
+      status,
+    );
+
+    if (!roadmap) {
+      return res.status(404).json({
+        success: false,
+        message: "Roadmap not found",
+      });
+    }
+
+    return success(res, roadmap);
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Complete Node
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * POST /roadmaps/:roadmapId/nodes/:nodeId/complete
+ */
+async function completeNode(req, res) {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const { roadmapId, nodeId } = roadmapValidator.validateNodeStatus({
+      roadmapId: req.params.roadmapId,
+
+      nodeId: req.params.nodeId,
+
+      status: "completed",
+    });
+
+    const roadmap = await progressService.completeNode(
+      userId,
+      roadmapId,
+      nodeId,
+    );
+
+    if (!roadmap) {
+      return res.status(404).json({
+        success: false,
+        message: "Roadmap not found",
+      });
+    }
+
+    return success(res, roadmap);
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Start Node
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * POST /roadmaps/:roadmapId/nodes/:nodeId/start
+ */
+async function startNode(req, res) {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const { roadmapId, nodeId } = roadmapValidator.validateNodeStatus({
+      roadmapId: req.params.roadmapId,
+
+      nodeId: req.params.nodeId,
+
+      status: "learning",
+    });
+
+    const roadmap = await progressService.startNode(userId, roadmapId, nodeId);
+
+    if (!roadmap) {
+      return res.status(404).json({
+        success: false,
+        message: "Roadmap not found",
+      });
+    }
+
+    return success(res, roadmap);
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Reset Node
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * POST /roadmaps/:roadmapId/nodes/:nodeId/reset
+ */
+async function resetNode(req, res) {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const { roadmapId, nodeId } = roadmapValidator.validateNodeStatus({
+      roadmapId: req.params.roadmapId,
+
+      nodeId: req.params.nodeId,
+
+      status: "not_started",
+    });
+
+    const roadmap = await progressService.resetNode(userId, roadmapId, nodeId);
+
+    if (!roadmap) {
+      return res.status(404).json({
+        success: false,
+        message: "Roadmap not found",
+      });
+    }
+
+    return success(res, roadmap);
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Skip Node
+|--------------------------------------------------------------------------
+*/
+
+/**
+ * POST /roadmaps/:roadmapId/nodes/:nodeId/skip
+ */
+async function skipNode(req, res) {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
+    }
+
+    const { roadmapId, nodeId, reason } = roadmapValidator.validateSkipNode({
+      roadmapId: req.params.roadmapId,
+
+      nodeId: req.params.nodeId,
+
+      reason: req.body?.reason,
+    });
+
+    const roadmap = await progressService.skipNode(
+      userId,
+      roadmapId,
+      nodeId,
+      reason,
+    );
+
+    if (!roadmap) {
+      return res.status(404).json({
+        success: false,
+        message: "Roadmap not found",
+      });
+    }
+
+    return success(res, roadmap);
+  } catch (error) {
+    return handleError(res, error);
+  }
+}
+
+/*
+|--------------------------------------------------------------------------
+| Exports
+|--------------------------------------------------------------------------
+*/
+
+export {
+  generateRoadmap,
+  getRoadmap,
+  getRoadmaps,
+  deleteRoadmap,
+  getProgress,
+  updateNodeStatus,
+  completeNode,
+  startNode,
+  resetNode,
+  skipNode,
 };

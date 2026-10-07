@@ -1,148 +1,316 @@
+/**
+ * RIO Roadmap Model
+ *
+ * Stores a user's generated roadmap.
+ *
+ * Important:
+ * - Standard, resume-adaptive, and custom roadmaps use the same model.
+ * - The roadmap is a snapshot of canonical knowledge at generation time.
+ * - User progress belongs here.
+ * - Canonical knowledge itself does NOT belong in MongoDB.
+ */
+
 import mongoose from "mongoose";
 
-const { Schema } = mongoose;
+import {
+  ROADMAP_GENERATION_MODES,
+  ROADMAP_STATUSES,
+  ROADMAP_NODE_STATUSES,
+  ROADMAP_LEVELS,
+  ROADMAP_INPUT_SOURCES,
+} from "../constants/roadmap.constants.js";
 
-const resourceSchema = new Schema(
+/* -------------------------------------------------------------------------- */
+/* Target Schema                                                              */
+/* -------------------------------------------------------------------------- */
+
+const targetSchema = new mongoose.Schema(
   {
-    type: {
-      type: String,
-      enum: ["youtube", "article", "documentation", "course"],
-      required: true,
-    },
-
-    title: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 200,
-    },
-
-    url: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-
-    source: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 100,
-    },
-
-    isPrimary: {
-      type: Boolean,
-      default: false,
-    },
-
-    reason: {
-      type: String,
-      trim: true,
-      maxlength: 300,
-      default: null,
-    },
-
-    publishedAt: {
-      type: Date,
-      default: null,
-    },
-
-    durationMinutes: {
+    compensation: {
       type: Number,
       min: 0,
-      default: null,
+      default: 12,
     },
 
-    viewCount: {
-      type: Number,
-      min: 0,
-      default: null,
+    currency: {
+      type: String,
+      default: "INR",
+      trim: true,
+      uppercase: true,
+    },
+
+    unit: {
+      type: String,
+      default: "LPA",
+      trim: true,
+      uppercase: true,
     },
   },
-  { _id: false },
+  {
+    _id: false,
+  },
 );
 
-const moduleSchema = new Schema(
+/* -------------------------------------------------------------------------- */
+/* Profile Schema                                                             */
+/* -------------------------------------------------------------------------- */
+
+const profileSchema = new mongoose.Schema(
   {
-    order: {
+    level: {
+      type: String,
+      enum: Object.values(ROADMAP_LEVELS),
+      default: ROADMAP_LEVELS.BEGINNER,
+    },
+
+    availableHoursPerDay: {
       type: Number,
-      required: true,
-      min: 1,
+      min: 0.5,
+      max: 24,
+      default: 2,
     },
+  },
+  {
+    _id: false,
+  },
+);
 
-    title: {
+/* -------------------------------------------------------------------------- */
+/* Roadmap Node Schema                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * This is a USER snapshot of a canonical knowledge node.
+ *
+ * We intentionally keep the stored node lightweight.
+ *
+ * The canonical content can still be resolved from the template,
+ * while user-specific status is stored here.
+ */
+const roadmapNodeSchema = new mongoose.Schema(
+  {
+    nodeId: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 200,
     },
 
-    duration: {
+    status: {
       type: String,
-      required: true,
-      trim: true,
-      maxlength: 100,
+      enum: Object.values(ROADMAP_NODE_STATUSES),
+      default: ROADMAP_NODE_STATUSES.NOT_STARTED,
     },
 
-    difficulty: {
+    /**
+     * Used when a user explicitly skips a topic.
+     */
+    skippedReason: {
       type: String,
-      enum: ["Easy", "Medium", "Hard"],
-      required: true,
-    },
-
-    description: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 1000,
-    },
-
-    whyItMatters: {
-      type: String,
-      required: true,
       trim: true,
       maxlength: 500,
+      default: "",
     },
 
-    prerequisites: {
-      type: [String],
-      default: [],
-    },
-
-    learningOutcomes: {
-      type: [String],
-      default: [],
-    },
-
-    resources: {
-      type: [resourceSchema],
-      default: [],
-      validate: {
-        validator: (resources) => resources.length <= 4,
-        message: "A module cannot contain more than 4 resources.",
-      },
-    },
-
-    completed: {
-      type: Boolean,
-      default: false,
+    startedAt: {
+      type: Date,
+      default: null,
     },
 
     completedAt: {
       type: Date,
       default: null,
     },
+
+    updatedAt: {
+      type: Date,
+      default: Date.now,
+    },
   },
-  { _id: true },
+  {
+    _id: false,
+  },
 );
 
-const roadmapSchema = new Schema(
+/* -------------------------------------------------------------------------- */
+/* Custom Requirement Schema                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Stores the user's original custom requirement.
+ *
+ * This is useful because a custom roadmap should remain explainable:
+ *
+ * "Why did RIO create this roadmap?"
+ */
+const customRequirementSchema = new mongoose.Schema(
   {
+    prompt: {
+      type: String,
+      trim: true,
+      maxlength: 10000,
+      default: "",
+    },
+
+    goals: {
+      type: [String],
+      default: [],
+    },
+
+    technologies: {
+      type: [String],
+      default: [],
+    },
+
+    exclusions: {
+      type: [String],
+      default: [],
+    },
+
+    projectPreferences: {
+      type: [String],
+      default: [],
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
+/* -------------------------------------------------------------------------- */
+/* Input Context Schema                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Stores how the roadmap was created.
+ *
+ * We do NOT store the complete resume here.
+ * Resume remains owned by Resume Service.
+ */
+const inputContextSchema = new mongoose.Schema(
+  {
+    source: {
+      type: String,
+      enum: Object.values(ROADMAP_INPUT_SOURCES),
+      default: ROADMAP_INPUT_SOURCES.STANDARD,
+    },
+
+    resumeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      default: null,
+    },
+
+    resumeVersion: {
+      type: Number,
+      default: null,
+    },
+
+    manualSkills: {
+      type: [String],
+      default: [],
+    },
+
+    customRequirements: {
+      type: customRequirementSchema,
+      default: null,
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
+/* -------------------------------------------------------------------------- */
+/* Progress Snapshot Schema                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Cached aggregate progress.
+ *
+ * Individual truth lives in nodes[].
+ * This object exists so dashboards do not have to recalculate
+ * everything for every request.
+ */
+const progressSchema = new mongoose.Schema(
+  {
+    percentage: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0,
+    },
+
+    total: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    completed: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    learning: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    skipped: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+
+    remaining: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
+/* -------------------------------------------------------------------------- */
+/* Main Roadmap Schema                                                        */
+/* -------------------------------------------------------------------------- */
+
+const roadmapSchema = new mongoose.Schema(
+  {
+    /* ---------------------------------------------------------------------- */
+    /* Ownership                                                              */
+    /* ---------------------------------------------------------------------- */
+
     userId: {
-      type: Schema.Types.ObjectId,
+      type: String,
       required: true,
       index: true,
+      trim: true,
     },
+
+    /* ---------------------------------------------------------------------- */
+    /* Canonical Template Snapshot                                            */
+    /* ---------------------------------------------------------------------- */
+
+    templateId: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
+
+    templateVersion: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* Basic Identity                                                         */
+    /* ---------------------------------------------------------------------- */
 
     title: {
       type: String,
@@ -155,66 +323,131 @@ const roadmapSchema = new Schema(
       type: String,
       required: true,
       trim: true,
-      maxlength: 150,
+      maxlength: 200,
     },
 
-    targetPackage: {
+    /* ---------------------------------------------------------------------- */
+    /* User Goal                                                              */
+    /* ---------------------------------------------------------------------- */
+
+    target: {
+      type: targetSchema,
+      required: true,
+    },
+
+    profile: {
+      type: profileSchema,
+      required: true,
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* Generation                                                             */
+    /* ---------------------------------------------------------------------- */
+
+    generationMode: {
       type: String,
-      required: true,
-      trim: true,
-      maxlength: 100,
+      enum: Object.values(ROADMAP_GENERATION_MODES),
+      default: ROADMAP_GENERATION_MODES.STANDARD,
+      index: true,
     },
 
-    level: {
+    inputContext: {
+      type: inputContextSchema,
+      default: () => ({
+        source: ROADMAP_INPUT_SOURCES.STANDARD,
+      }),
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* Lifecycle                                                              */
+    /* ---------------------------------------------------------------------- */
+
+    status: {
       type: String,
-      enum: ["Beginner", "Intermediate", "Advanced"],
-      required: true,
+      enum: Object.values(ROADMAP_STATUSES),
+      default: ROADMAP_STATUSES.ACTIVE,
+      index: true,
     },
 
-    duration: {
+    /* ---------------------------------------------------------------------- */
+    /* User Roadmap                                                           */
+    /* ---------------------------------------------------------------------- */
+
+    nodes: {
+      type: [roadmapNodeSchema],
+      default: [],
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* Progress                                                               */
+    /* ---------------------------------------------------------------------- */
+
+    progress: {
+      type: progressSchema,
+      default: () => ({
+        percentage: 0,
+        total: 0,
+        completed: 0,
+        learning: 0,
+        skipped: 0,
+        remaining: 0,
+      }),
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* Current Focus / Next Move                                              */
+    /* ---------------------------------------------------------------------- */
+
+    currentFocus: {
+      nodeId: {
+        type: String,
+        default: null,
+      },
+
+      reason: {
+        type: String,
+        default: "",
+        trim: true,
+        maxlength: 1000,
+      },
+
+      priority: {
+        type: String,
+        enum: ["low", "medium", "high"],
+        default: "medium",
+      },
+    },
+
+    /* ---------------------------------------------------------------------- */
+    /* Deduplication                                                          */
+    /* ---------------------------------------------------------------------- */
+
+    fingerprint: {
       type: String,
-      required: true,
-      trim: true,
-      maxlength: 100,
+      default: null,
+      index: true,
     },
 
-    modules: {
-      type: [moduleSchema],
-      required: true,
-      validate: [
-        {
-          validator: (modules) => modules.length >= 1,
-          message: "Roadmap must contain at least one module.",
-        },
-        {
-          validator: (modules) => modules.length <= 20,
-          message: "Roadmap cannot contain more than 20 modules.",
-        },
-      ],
-    },
+    /* ---------------------------------------------------------------------- */
+    /* Error / Generation Metadata                                            */
+    /* ---------------------------------------------------------------------- */
 
-    currentModule: {
-      type: Number,
-      default: 1,
-      min: 1,
-    },
+    generationError: {
+      code: {
+        type: String,
+        default: null,
+      },
 
-    completedModules: {
-      type: Number,
-      default: 0,
-      min: 0,
-    },
+      message: {
+        type: String,
+        default: null,
+        maxlength: 2000,
+      },
 
-    version: {
-      type: Number,
-      default: 1,
-      min: 1,
-    },
-
-    learningSystemVersion: {
-      type: Number,
-      default: 1,
-      min: 1,
+      occurredAt: {
+        type: Date,
+        default: null,
+      },
     },
   },
   {
@@ -223,9 +456,48 @@ const roadmapSchema = new Schema(
   },
 );
 
-roadmapSchema.index({ userId: 1, createdAt: -1 });
+/* -------------------------------------------------------------------------- */
+/* Indexes                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Most important ownership query:
+ *
+ * "Give me this user's roadmap."
+ */
+roadmapSchema.index({
+  userId: 1,
+  updatedAt: -1,
+});
+
+/**
+ * User history query.
+ */
+roadmapSchema.index({
+  userId: 1,
+  createdAt: -1,
+});
+
+/**
+ * Fast lookup for an exact generated roadmap.
+ */
+roadmapSchema.index({
+  userId: 1,
+  fingerprint: 1,
+});
+
+/**
+ * Useful for active-roadmap queries.
+ */
+roadmapSchema.index({
+  userId: 1,
+  status: 1,
+});
+
+/* -------------------------------------------------------------------------- */
+/* Export                                                                     */
+/* -------------------------------------------------------------------------- */
 
 const Roadmap = mongoose.model("Roadmap", roadmapSchema);
 
 export default Roadmap;
-

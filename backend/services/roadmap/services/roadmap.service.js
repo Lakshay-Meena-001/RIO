@@ -1,365 +1,571 @@
+import crypto from "crypto";
+
 import Roadmap from "../models/roadmap.model.js";
-import { compiledRoadmapGraph } from "../graph/roadmap.graph.js";
 
 import {
-  LEARNING_SYSTEM,
-  LEARNING_SYSTEM_VERSION,
-} from "../constants/learning.system.js";
+  ROADMAP_DEFAULTS,
+  ROADMAP_GENERATION_MODES,
+  ROADMAP_INPUT_SOURCES,
+  ROADMAP_NODE_STATUSES,
+  ROADMAP_STATUSES,
+} from "../constants/roadmap.constants.js";
 
-import { getCache, setCache, deleteCache } from "../utils/cache.js";
+import {
+  ROADMAP_KNOWLEDGE_VERSION,
+  getRoadmapTemplateVersion,
+} from "../constants/roadmap.version.js";
 
-const CACHE_TTL = 60 * 10;
+import { loadRoadmap, roadmapExists } from "../knowledge/loader.js";
 
-const getRoadmapCacheKey = (userId, roadmapId) => {
-  return `roadmap:${userId}:${roadmapId}`;
-};
+import { getStandardRoadmap } from "./template.service.js";
 
-/*
- * Attach the static RIO Learning System to a roadmap response.
- *
- * The Learning System is not stored repeatedly inside MongoDB.
- * Only its version is stored with the roadmap.
- */
-const attachLearningSystem = (roadmap) => {
-  if (!roadmap) {
-    return roadmap;
+import personalizationService from "./personalization.service.js";
+
+import resumeContextService from "./resume.context.service.js";
+
+class RoadmapService {
+  /**
+   * Validate roadmap generation input.
+   */
+  validateGenerationInput(input = {}) {
+    const {
+      generationMode = ROADMAP_GENERATION_MODES.STANDARD,
+
+      templateId,
+    } = input;
+
+    if (!Object.values(ROADMAP_GENERATION_MODES).includes(generationMode)) {
+      throw new Error(`Invalid roadmap generation mode: ${generationMode}`);
+    }
+
+    if (!templateId) {
+      throw new Error("templateId is required");
+    }
+
+    if (!roadmapExists(templateId)) {
+      throw new Error(`Roadmap template not found: ${templateId}`);
+    }
+
+    if (generationMode === ROADMAP_GENERATION_MODES.RESUME && !input.resumeId) {
+      throw new Error("resumeId is required for resume roadmap generation");
+    }
+
+    return true;
   }
 
-  return {
-    ...roadmap,
+  /**
+   * Create deterministic fingerprint for the generation request.
+   */
+  createFingerprint(input = {}) {
+    const normalizedInput = {
+      generationMode: input.generationMode || ROADMAP_GENERATION_MODES.STANDARD,
 
-    learningSystem: {
-      ...LEARNING_SYSTEM,
-      version: roadmap.learningSystemVersion ?? LEARNING_SYSTEM_VERSION,
-    },
-  };
-};
+      templateId: input.templateId || null,
 
-const normalizeRoadmapForStorage = ({
-  roadmap,
-  userId,
-  role,
-  targetPackage,
-}) => {
-  return {
-    userId,
+      target: {
+        compensation: input.target?.compensation ?? null,
 
-    title: roadmap.title,
+        currency: input.target?.currency || "INR",
 
-    role,
+        unit: input.target?.unit || "LPA",
+      },
 
-    targetPackage,
+      level: input.level || ROADMAP_DEFAULTS.LEVEL,
 
-    level: roadmap.level,
+      availableHoursPerDay:
+        input.availableHoursPerDay ?? ROADMAP_DEFAULTS.AVAILABLE_HOURS_PER_DAY,
 
-    duration: roadmap.duration,
+      resumeId: input.resumeId || null,
 
-    modules: roadmap.modules.map((module) => ({
-      ...module,
+      resumeVersion: input.resumeVersion ?? null,
 
-      completed: false,
+      manualSkills: [...(input.manualSkills || [])].sort(),
+
+      customRequirements: {
+        prompt: input.customRequirements?.prompt || "",
+
+        goals: [...(input.customRequirements?.goals || [])].sort(),
+
+        technologies: [
+          ...(input.customRequirements?.technologies || []),
+        ].sort(),
+
+        exclusions: [...(input.customRequirements?.exclusions || [])].sort(),
+
+        projectPreferences: input.customRequirements?.projectPreferences || "",
+      },
+
+      knowledgeVersion: ROADMAP_KNOWLEDGE_VERSION,
+    };
+
+    return crypto
+      .createHash("sha256")
+      .update(JSON.stringify(normalizedInput))
+      .digest("hex");
+  }
+
+  /**
+   * Initialize roadmap nodes.
+   */
+  initializeNodes(template) {
+    return template.nodes.map((node) => ({
+      nodeId: node.id,
+
+      status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+
+      skippedReason: null,
+
+      startedAt: null,
 
       completedAt: null,
-    })),
 
-    currentModule: 1,
-
-    completedModules: 0,
-
-    version: 1,
-
-    learningSystemVersion: LEARNING_SYSTEM_VERSION,
-  };
-};
-
-export const generateRoadmapService = async ({
-  userId,
-  role,
-  targetPackage,
-  resume = null,
-}) => {
-  if (!userId) {
-    throw new Error("User ID is required.");
+      updatedAt: new Date(),
+    }));
   }
 
-  const result = await compiledRoadmapGraph.invoke({
+  /**
+   * Initialize roadmap progress.
+   */
+  initializeProgress(nodes) {
+    return {
+      percentage: 0,
+
+      total: nodes.length,
+
+      completed: 0,
+
+      learning: 0,
+
+      skipped: 0,
+
+      remaining: nodes.length,
+    };
+  }
+
+  /**
+   * Initialize user's first focus.
+   */
+  initializeCurrentFocus(template) {
+    const firstNode = template.nodes[0];
+
+    if (!firstNode) {
+      return null;
+    }
+
+    return {
+      nodeId: firstNode.id,
+
+      reason:
+        firstNode.whyItMatters ||
+        firstNode.description ||
+        "Start with this topic to build the foundation.",
+
+      priority: firstNode.importance || "important",
+    };
+  }
+
+  /**
+   * Build the common Roadmap document.
+   */
+  buildRoadmapPayload({
     userId,
-    role,
-    targetPackage,
-    resume,
-  });
 
-  if (!result?.roadmap) {
-    throw new Error("Roadmap generation failed.");
-  }
+    input,
 
-  const roadmapData = normalizeRoadmapForStorage({
-    roadmap: result.roadmap,
-    userId,
-    role,
-    targetPackage,
-  });
+    template,
 
-  const roadmap = await Roadmap.create(roadmapData);
+    generationMode,
 
-  const roadmapObject = roadmap.toObject();
+    fingerprint,
 
-  const roadmapResponse = attachLearningSystem(roadmapObject);
+    adaptedNodes = null,
 
-  const cacheKey = getRoadmapCacheKey(userId, roadmapObject._id.toString());
+    adaptationSummary = null,
+  }) {
+    const nodes = adaptedNodes || this.initializeNodes(template);
 
-  await setCache(cacheKey, roadmapResponse, CACHE_TTL);
+    const progress = this.initializeProgress(nodes);
 
-  return roadmapResponse;
-};
+    const currentFocus = this.initializeCurrentFocus(template);
 
-export const getRoadmapByIdService = async ({ userId, roadmapId }) => {
-  if (!userId) {
-    throw new Error("User ID is required.");
-  }
-
-  if (!roadmapId) {
-    throw new Error("Roadmap ID is required.");
-  }
-
-  const cacheKey = getRoadmapCacheKey(userId, roadmapId);
-
-  const cachedRoadmap = await getCache(cacheKey);
-
-  if (cachedRoadmap) {
-    return cachedRoadmap;
-  }
-
-  const roadmap = await Roadmap.findOne({
-    _id: roadmapId,
-    userId,
-  }).lean();
-
-  if (!roadmap) {
-    throw new Error("Roadmap not found.");
-  }
-
-  const roadmapResponse = attachLearningSystem(roadmap);
-
-  await setCache(cacheKey, roadmapResponse, CACHE_TTL);
-
-  return roadmapResponse;
-};
-
-export const getRoadmapHistoryService = async ({
-  userId,
-  page = 1,
-  limit = 10,
-}) => {
-  if (!userId) {
-    throw new Error("User ID is required.");
-  }
-
-  const safePage = Math.max(Number(page) || 1, 1);
-
-  const safeLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
-
-  const skip = (safePage - 1) * safeLimit;
-
-  const [roadmaps, total] = await Promise.all([
-    Roadmap.find({ userId })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(safeLimit)
-      .select(
-        "_id title role targetPackage level duration currentModule completedModules version learningSystemVersion createdAt updatedAt",
-      )
-      .lean(),
-
-    Roadmap.countDocuments({ userId }),
-  ]);
-
-  return {
-    roadmaps,
-
-    pagination: {
-      page: safePage,
-      limit: safeLimit,
-      total,
-      totalPages: Math.ceil(total / safeLimit),
-    },
-  };
-};
-
-export const deleteRoadmapService = async ({ userId, roadmapId }) => {
-  if (!userId) {
-    throw new Error("User ID is required.");
-  }
-
-  if (!roadmapId) {
-    throw new Error("Roadmap ID is required.");
-  }
-
-  const roadmap = await Roadmap.findOneAndDelete({
-    _id: roadmapId,
-    userId,
-  });
-
-  if (!roadmap) {
-    throw new Error("Roadmap not found.");
-  }
-
-  const cacheKey = getRoadmapCacheKey(userId, roadmapId);
-
-  await deleteCache(cacheKey);
-
-  return {
-    deleted: true,
-    roadmapId,
-  };
-};
-
-export const updateRoadmapProgressService = async ({
-  userId,
-  roadmapId,
-  moduleOrder,
-  completed,
-}) => {
-  if (!userId) {
-    throw new Error("User ID is required.");
-  }
-
-  if (!roadmapId) {
-    throw new Error("Roadmap ID is required.");
-  }
-
-  const updatedRoadmap = await Roadmap.findOneAndUpdate(
-    {
-      _id: roadmapId,
+    return {
       userId,
-      "modules.order": moduleOrder,
-    },
-    [
-      {
-        $set: {
-          modules: {
-            $map: {
-              input: "$modules",
-              as: "module",
 
-              in: {
-                $cond: [
-                  {
-                    $eq: ["$$module.order", moduleOrder],
-                  },
+      templateId: template.id,
 
-                  {
-                    $mergeObjects: [
-                      "$$module",
+      templateVersion: getRoadmapTemplateVersion(template.id),
 
-                      {
-                        completed,
+      title: input.title || template.title,
 
-                        completedAt: {
-                          $cond: [
-                            completed,
+      role: input.role || template.title,
 
-                            {
-                              $ifNull: ["$$module.completedAt", "$$NOW"],
-                            },
+      target: {
+        compensation:
+          input.target?.compensation ?? ROADMAP_DEFAULTS.TARGET_COMPENSATION,
 
-                            null,
-                          ],
-                        },
-                      },
-                    ],
-                  },
+        currency: input.target?.currency || ROADMAP_DEFAULTS.CURRENCY,
 
-                  "$$module",
-                ],
-              },
-            },
-          },
-        },
+        unit: input.target?.unit || ROADMAP_DEFAULTS.TARGET_UNIT,
       },
 
-      {
-        $set: {
-          completedModules: {
-            $size: {
-              $filter: {
-                input: "$modules",
-                as: "module",
+      profile: {
+        level: input.level || ROADMAP_DEFAULTS.LEVEL,
 
-                cond: {
-                  $eq: ["$$module.completed", true],
-                },
-              },
-            },
-          },
-        },
+        availableHoursPerDay:
+          input.availableHoursPerDay ??
+          ROADMAP_DEFAULTS.AVAILABLE_HOURS_PER_DAY,
       },
 
-      {
-        $set: {
-          currentModule: {
-            $let: {
-              vars: {
-                incompleteModules: {
-                  $filter: {
-                    input: "$modules",
-                    as: "module",
+      generationMode,
 
-                    cond: {
-                      $eq: ["$$module.completed", false],
-                    },
-                  },
-                },
-              },
+      inputContext: {
+        source: input.inputSource || ROADMAP_INPUT_SOURCES.STANDARD,
 
-              in: {
-                $ifNull: [
-                  {
-                    $arrayElemAt: [
-                      {
-                        $map: {
-                          input: "$$incompleteModules",
+        resumeId: input.resumeId || null,
 
-                          as: "module",
+        resumeVersion: input.resumeVersion ?? null,
 
-                          in: "$$module.order",
-                        },
-                      },
+        manualSkills: input.manualSkills || [],
 
-                      0,
-                    ],
-                  },
-
-                  {
-                    $size: "$modules",
-                  },
-                ],
-              },
-            },
-          },
-        },
+        customRequirements: input.customRequirements || {},
       },
-    ],
-    {
-      returnDocument: "after",
-      updatePipeline: true,
-      lean:true,
-    },
-    {
-      returnDocument: "after",
-      lean: true,
-    },
-  );
 
-  if (!updatedRoadmap) {
-    throw new Error("Roadmap or module not found.");
+      status: ROADMAP_STATUSES.ACTIVE,
+
+      nodes,
+
+      progress,
+
+      currentFocus,
+
+      fingerprint,
+
+      generationError: null,
+
+      adaptationSummary,
+    };
   }
 
-  const roadmapResponse = attachLearningSystem(updatedRoadmap);
+  /**
+   * Find an already generated roadmap
+   * with the same generation fingerprint.
+   */
+  async findExistingByFingerprint(userId, fingerprint) {
+    return Roadmap.findOne({
+      userId,
 
-  const cacheKey = getRoadmapCacheKey(userId, roadmapId);
+      fingerprint,
+    }).sort({
+      updatedAt: -1,
+    });
+  }
 
-  await setCache(cacheKey, roadmapResponse, CACHE_TTL);
+  /**
+   * Generate a standard roadmap.
+   *
+   * IMPORTANT:
+   * No Resume Service.
+   * No LLM.
+   */
+  async generateStandard(userId, input) {
+    const template = getStandardRoadmap(input.templateId);
 
-  return roadmapResponse;
-};
+    const fingerprint = this.createFingerprint({
+      ...input,
+
+      generationMode: ROADMAP_GENERATION_MODES.STANDARD,
+    });
+
+    const existing = await this.findExistingByFingerprint(userId, fingerprint);
+
+    if (existing) {
+      return existing;
+    }
+
+    const payload = this.buildRoadmapPayload({
+      userId,
+
+      input,
+
+      template,
+
+      generationMode: ROADMAP_GENERATION_MODES.STANDARD,
+
+      fingerprint,
+    });
+
+    return Roadmap.create(payload);
+  }
+
+  /**
+   * Generate a resume-adaptive roadmap.
+   */
+  async generateFromResume(userId, input) {
+    /*
+     * Fetch the selected resume from
+     * Resume Service.
+     */
+    const resume = await resumeContextService.getResumeContext({
+      userId,
+
+      resumeId: input.resumeId,
+    });
+
+    /*
+     * Use the actual resume version returned
+     * by Resume Service when available.
+     */
+    const normalizedInput = {
+      ...input,
+
+      resumeVersion: resume.version ?? input.resumeVersion ?? null,
+    };
+
+    const fingerprint = this.createFingerprint({
+      ...normalizedInput,
+
+      generationMode: ROADMAP_GENERATION_MODES.RESUME,
+    });
+
+    const existing = await this.findExistingByFingerprint(
+      userId,
+
+      fingerprint,
+    );
+
+    if (existing) {
+      return existing;
+    }
+
+    const template = loadRoadmap(input.templateId);
+
+    /*
+     * Send canonical roadmap + resume context
+     * to the personalization layer.
+     */
+    const personalized = await personalizationService.adapt({
+      generationMode: ROADMAP_GENERATION_MODES.RESUME,
+
+      templateId: input.templateId,
+
+      input: normalizedInput,
+
+      resume,
+    });
+
+    const payload = this.buildRoadmapPayload({
+      userId,
+
+      input: normalizedInput,
+
+      template,
+
+      generationMode: ROADMAP_GENERATION_MODES.RESUME,
+
+      fingerprint,
+
+      adaptedNodes: personalized.nodes,
+
+      adaptationSummary: personalized.metadata?.adaptationSummary || null,
+    });
+
+    return Roadmap.create(payload);
+  }
+
+  /**
+   * Generate a custom roadmap.
+   *
+   * Custom roadmap can optionally also use
+   * a selected resume as context.
+   */
+  async generateCustom(userId, input) {
+    let resume = null;
+
+    if (input.resumeId) {
+      resume = await resumeContextService.getResumeContext({
+        userId,
+
+        resumeId: input.resumeId,
+      });
+    }
+
+    const normalizedInput = {
+      ...input,
+
+      resumeVersion: resume?.version ?? input.resumeVersion ?? null,
+    };
+
+    const fingerprint = this.createFingerprint({
+      ...normalizedInput,
+
+      generationMode: ROADMAP_GENERATION_MODES.CUSTOM,
+    });
+
+    const existing = await this.findExistingByFingerprint(
+      userId,
+
+      fingerprint,
+    );
+
+    if (existing) {
+      return existing;
+    }
+
+    const template = loadRoadmap(input.templateId);
+
+    const personalized = await personalizationService.adapt({
+      generationMode: ROADMAP_GENERATION_MODES.CUSTOM,
+
+      templateId: input.templateId,
+
+      input: normalizedInput,
+
+      resume,
+    });
+
+    const payload = this.buildRoadmapPayload({
+      userId,
+
+      input: normalizedInput,
+
+      template,
+
+      generationMode: ROADMAP_GENERATION_MODES.CUSTOM,
+
+      fingerprint,
+
+      adaptedNodes: personalized.nodes,
+
+      adaptationSummary: personalized.metadata?.adaptationSummary || null,
+    });
+
+    return Roadmap.create(payload);
+  }
+
+  /**
+   * Main generation entry point.
+   */
+  async generate(
+    userId,
+
+    input = {},
+  ) {
+    if (!userId) {
+      throw new Error("userId is required");
+    }
+
+    this.validateGenerationInput(input);
+
+    const mode = input.generationMode || ROADMAP_GENERATION_MODES.STANDARD;
+
+    switch (mode) {
+      case ROADMAP_GENERATION_MODES.STANDARD:
+        return this.generateStandard(
+          userId,
+
+          input,
+        );
+
+      case ROADMAP_GENERATION_MODES.RESUME:
+        return this.generateFromResume(
+          userId,
+
+          input,
+        );
+
+      case ROADMAP_GENERATION_MODES.CUSTOM:
+        return this.generateCustom(
+          userId,
+
+          input,
+        );
+
+      default:
+        throw new Error(`Unsupported roadmap generation mode: ${mode}`);
+    }
+  }
+
+  /**
+   * Get one roadmap owned by the user.
+   */
+  async getRoadmap(
+    userId,
+
+    roadmapId,
+  ) {
+    if (!userId) {
+      throw new Error("userId is required");
+    }
+
+    if (!roadmapId) {
+      throw new Error("roadmapId is required");
+    }
+
+    return Roadmap.findOne({
+      _id: roadmapId,
+
+      userId,
+    });
+  }
+
+  /**
+   * Get all roadmaps owned by the user.
+   */
+  async getUserRoadmaps(
+    userId,
+
+    options = {},
+  ) {
+    if (!userId) {
+      throw new Error("userId is required");
+    }
+
+    const limit = Math.min(
+      Number(options.limit) || 20,
+
+      100,
+    );
+
+    const skip = Math.max(
+      Number(options.skip) || 0,
+
+      0,
+    );
+
+    return Roadmap.find({
+      userId,
+    })
+      .sort({
+        updatedAt: -1,
+      })
+      .skip(skip)
+      .limit(limit);
+  }
+
+  /**
+   * Delete a roadmap owned by the user.
+   */
+  async deleteRoadmap(
+    userId,
+
+    roadmapId,
+  ) {
+    if (!userId) {
+      throw new Error("userId is required");
+    }
+
+    if (!roadmapId) {
+      throw new Error("roadmapId is required");
+    }
+
+    return Roadmap.findOneAndDelete({
+      _id: roadmapId,
+
+      userId,
+    });
+  }
+}
+
+const roadmapService = new RoadmapService();
+
+export default roadmapService;

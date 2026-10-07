@@ -1,57 +1,125 @@
 import "dotenv/config";
-import dns from "node:dns";
+
 import express from "express";
 
-import { connectDB } from "./config/db.js";
 import roadmapRoutes from "./routes/roadmap.routes.js";
-import { errorHandler } from "./middlewares/errorHandler.js";
+
+import { connectDatabase, disconnectDatabase } from "./config/db.js";
+
+import errorHandler from "./middlewares/errorHandler.js";
 
 const app = express();
 
-const PORT = Number(process.env.PORT) || 8004;
+const PORT = Number(process.env.PORT) || 5005;
 
-// Use reliable public DNS resolvers for external API requests.
-dns.setServers(["1.1.1.1", "8.8.8.8"]);
+/*
+|--------------------------------------------------------------------------
+| Global Middleware
+|--------------------------------------------------------------------------
+*/
 
-// Parse JSON request bodies.
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json());
 
-// Service health check.
+app.use(express.urlencoded({ extended: true }));
+
+/*
+|--------------------------------------------------------------------------
+| Health Check
+|--------------------------------------------------------------------------
+*/
+
 app.get("/health", (req, res) => {
-  return res.status(200).json({
+  res.status(200).json({
     success: true,
     service: "roadmap-service",
     status: "healthy",
   });
 });
 
-// Roadmap API routes.
-app.use("/api/roadmap", roadmapRoutes);
+/*
+|--------------------------------------------------------------------------
+| Routes
+|--------------------------------------------------------------------------
+*/
 
-// Handle unknown routes.
+app.use("/api/roadmaps", roadmapRoutes);
+
+/*
+|--------------------------------------------------------------------------
+| 404 Handler
+|--------------------------------------------------------------------------
+*/
+
 app.use((req, res) => {
-  return res.status(404).json({
+  res.status(404).json({
     success: false,
-    message: "Route not found.",
+    message: "Roadmap Service route not found.",
+    path: req.originalUrl,
   });
 });
 
-// Handle application errors.
+/*
+|--------------------------------------------------------------------------
+| Global Error Handler
+|--------------------------------------------------------------------------
+*/
+
 app.use(errorHandler);
 
-// Start the service only after MongoDB connection succeeds.
+/*
+|--------------------------------------------------------------------------
+| Server Startup
+|--------------------------------------------------------------------------
+*/
+
 const startServer = async () => {
   try {
-    await connectDB();
+    await connectDatabase();
 
     app.listen(PORT, () => {
-      console.log(`Roadmap service running on port ${PORT}.`);
+      console.log(`Roadmap Service running on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Roadmap service failed to start:", error);
+    console.error("Roadmap Service failed to start.", error);
 
     process.exit(1);
   }
 };
+
+/*
+|--------------------------------------------------------------------------
+| Graceful Shutdown
+|--------------------------------------------------------------------------
+*/
+
+const shutdown = async (signal) => {
+  console.log(`Roadmap Service received ${signal}. Shutting down...`);
+
+  try {
+    await disconnectDatabase();
+
+    console.log("Roadmap Service shutdown complete.");
+
+    process.exit(0);
+  } catch (error) {
+    console.error("Roadmap Service shutdown failed.", error);
+
+    process.exit(1);
+  }
+};
+
+process.on("SIGINT", () => {
+  shutdown("SIGINT");
+});
+
+process.on("SIGTERM", () => {
+  shutdown("SIGTERM");
+});
+
+/*
+|--------------------------------------------------------------------------
+| Start Service
+|--------------------------------------------------------------------------
+*/
 
 startServer();

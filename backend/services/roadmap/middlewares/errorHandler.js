@@ -1,59 +1,24 @@
-export const errorHandler = (error, req, res, next) => {
-  console.error("Roadmap service error:", {
-    message: error.message,
-    stack: error.stack,
-    method: req.method,
-    path: req.originalUrl,
-  });
+const errorHandler = (err, req, res, next) => {
+  console.error("Roadmap Service Error:", err);
 
-  if (res.headersSent) {
-    return next(error);
-  }
+  const statusCode = err.statusCode || 500;
 
-  if (error.name === "CastError") {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid request data.",
-    });
-  }
-
-  if (error.name === "ValidationError") {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid roadmap data.",
-    });
-  }
-
-  if (error.code === 11000) {
-    return res.status(409).json({
-      success: false,
-      message: "A conflicting roadmap already exists.",
-    });
-  }
-
-  if (error.message === "Roadmap not found.") {
-    return res.status(404).json({
-      success: false,
-      message: "Roadmap not found.",
-    });
-  }
-
-  if (error.message === "User ID is required.") {
-    return res.status(401).json({
-      success: false,
-      message: "Authentication required.",
-    });
-  }
-
-  if (error.message === "Roadmap ID is required.") {
-    return res.status(400).json({
-      success: false,
-      message: "Roadmap ID is required.",
-    });
-  }
-
-  return res.status(500).json({
+  const response = {
     success: false,
-    message: "Internal server error.",
-  });
+    message: statusCode === 500 ? "Internal server error." : err.message,
+  };
+
+  /*
+   * In development, expose the stack trace
+   * to make debugging easier.
+   *
+   * Never expose it in production.
+   */
+  if (process.env.NODE_ENV !== "production") {
+    response.stack = err.stack;
+  }
+
+  res.status(statusCode).json(response);
 };
+
+export default errorHandler;

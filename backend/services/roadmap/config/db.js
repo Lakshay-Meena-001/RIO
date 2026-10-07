@@ -1,18 +1,37 @@
 import mongoose from "mongoose";
 
-export const connectDB = async () => {
-  const mongoUrl = process.env.MONGODB_URL;
+const connectDatabase = async () => {
+  const mongoUri = process.env.MONGODB_URI;
 
-  if (!mongoUrl) {
-    throw new Error("MONGODB_URL is not configured.");
+  if (!mongoUri) {
+    throw new Error(
+      "MONGODB_URI is not defined in Roadmap Service environment variables.",
+    );
   }
 
   try {
-    await mongoose.connect(mongoUrl);
+    await mongoose.connect(mongoUri);
 
-    console.log("Roadmap service connected to MongoDB.");
+    console.log("Roadmap Service: MongoDB connected successfully.");
   } catch (error) {
-    console.error("MongoDB connection failed:", error);
+    console.error("Roadmap Service: MongoDB connection failed.", error);
+
     throw error;
   }
 };
+
+const disconnectDatabase = async () => {
+  try {
+    await mongoose.connection.close();
+
+    console.log("Roadmap Service: MongoDB connection closed.");
+  } catch (error) {
+    console.error("Roadmap Service: MongoDB disconnection failed.", error);
+
+    throw error;
+  }
+};
+
+export { connectDatabase, disconnectDatabase };
+
+export default connectDatabase;
