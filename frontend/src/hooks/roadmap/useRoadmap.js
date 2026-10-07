@@ -20,14 +20,17 @@ const useRoadmap = () => {
   const [deletingId, setDeletingId] = useState(null);
 
   const [error, setError] = useState(null);
+  const [errorType, setErrorType] = useState(null);
 
   const clearError = useCallback(() => {
     setError(null);
+    setErrorType(null);
   }, []);
 
   const generate = useCallback(async (payload) => {
     setLoading(true);
     setError(null);
+    setErrorType(null);
 
     try {
       const response = await generateRoadmapApi(payload);
@@ -40,6 +43,7 @@ const useRoadmap = () => {
         error?.response?.data?.message || "Failed to generate roadmap.";
 
       setError(message);
+      setErrorType("generate");
 
       throw error;
     } finally {
@@ -50,6 +54,7 @@ const useRoadmap = () => {
   const fetchRoadmap = useCallback(async (roadmapId) => {
     setLoading(true);
     setError(null);
+    setErrorType(null);
 
     try {
       const response = await getRoadmapApi(roadmapId);
@@ -62,6 +67,7 @@ const useRoadmap = () => {
         error?.response?.data?.message || "Failed to load roadmap.";
 
       setError(message);
+      setErrorType("roadmap");
 
       throw error;
     } finally {
@@ -71,6 +77,8 @@ const useRoadmap = () => {
 
   const fetchHistory = useCallback(async (options = {}) => {
     setHistoryLoading(true);
+    setError(null);
+    setErrorType(null);
 
     try {
       const response = await getRoadmapHistoryApi(options);
@@ -85,6 +93,7 @@ const useRoadmap = () => {
         error?.response?.data?.message || "Failed to load roadmap history.";
 
       setError(message);
+      setErrorType("history");
 
       throw error;
     } finally {
@@ -96,6 +105,7 @@ const useRoadmap = () => {
     async (roadmapId, moduleOrder, completed) => {
       setProgressLoading(true);
       setError(null);
+      setErrorType(null);
 
       try {
         const response = await updateRoadmapProgressApi(
@@ -106,13 +116,6 @@ const useRoadmap = () => {
 
         setRoadmap(response.data);
 
-        // Keep history progress reasonably fresh too.
-        setHistory((currentHistory) =>
-          currentHistory.map((item) =>
-            item._id === roadmapId ? response.data : item,
-          ),
-        );
-
         return response.data;
       } catch (error) {
         const message =
@@ -120,6 +123,7 @@ const useRoadmap = () => {
           "Failed to update roadmap progress.";
 
         setError(message);
+        setErrorType("progress");
 
         throw error;
       } finally {
@@ -135,6 +139,7 @@ const useRoadmap = () => {
     setDeleteLoading(true);
     setDeletingId(roadmapId);
     setError(null);
+    setErrorType(null);
 
     try {
       const response = await deleteRoadmapApi(roadmapId);
@@ -153,6 +158,7 @@ const useRoadmap = () => {
         error?.response?.data?.message || "Failed to delete roadmap.";
 
       setError(message);
+      setErrorType("delete");
 
       throw error;
     } finally {
@@ -164,6 +170,7 @@ const useRoadmap = () => {
   const clearRoadmap = useCallback(() => {
     setRoadmap(null);
     setError(null);
+    setErrorType(null);
   }, []);
 
   return {
@@ -178,6 +185,7 @@ const useRoadmap = () => {
     deletingId,
 
     error,
+    errorType,
 
     generate,
     fetchRoadmap,

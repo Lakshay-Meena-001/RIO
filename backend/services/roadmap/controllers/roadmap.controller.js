@@ -10,7 +10,7 @@ import {
   getRoadmapHistoryService,
   deleteRoadmapService,
   updateRoadmapProgressService,
-} from "../services/roadmap.services.js";
+} from "../services/roadmap.service.js";
 
 const getUserId = (req) => {
   return req.userId || req.headers["x-user-id"];

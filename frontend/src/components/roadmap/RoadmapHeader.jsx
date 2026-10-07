@@ -56,9 +56,9 @@ const RoadmapHeader = ({
           <span className="h-1.5 w-1.5 rounded-full bg-violet-300/70" />
           Learning roadmap
         </div>
-
+        
         <h1 className="mt-3 max-w-3xl text-3xl font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:text-4xl lg:text-[46px]">
-          {roadmap.title}
+          {roadmap.title || "Untitled roadmap"}
         </h1>
 
         {roadmap.description && (

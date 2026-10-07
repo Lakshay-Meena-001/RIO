@@ -31,14 +31,14 @@ const RoadmapModuleCard = ({
   return (
     <article
       className={`overflow-hidden rounded-2xl border transition-all duration-200 sm:rounded-3xl ${
-        isCompleted
-          ? "border-violet-300/[0.08] bg-white/[0.018]"
-          : isCurrent
-            ? "border-violet-300/15 bg-violet-300/[0.035]"
+        isCurrent
+          ? "border-violet-300/20 bg-violet-300/[0.045] shadow-[0_0_0_1px_rgba(196,181,253,0.03)]"
+          : isCompleted
+            ? "border-white/[0.06] bg-white/[0.018]"
             : "border-white/[0.07] bg-white/[0.025]"
       }`}
     >
-      {/* Main clickable area */}
+      {/* Main disclosure control */}
       <button
         type="button"
         onClick={() => setExpanded((current) => !current)}
@@ -51,10 +51,10 @@ const RoadmapModuleCard = ({
             {/* Module number */}
             <div
               className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-semibold sm:h-11 sm:w-11 ${
-                isCompleted
-                  ? "bg-violet-300/10 text-violet-200/60"
-                  : isCurrent
-                    ? "bg-white text-black"
+                isCurrent
+                  ? "bg-white text-black"
+                  : isCompleted
+                    ? "bg-white/[0.06] text-white/45"
                     : "bg-white/[0.045] text-white/25"
               }`}
             >
@@ -69,13 +69,13 @@ const RoadmapModuleCard = ({
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 {isCurrent && (
-                  <span className="rounded-full bg-violet-300/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-violet-200/65">
+                  <span className="rounded-full bg-violet-300/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-violet-200/70">
                     Current
                   </span>
                 )}
 
                 {isCompleted && (
-                  <span className="rounded-full bg-white/[0.045] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-white/30">
+                  <span className="rounded-full bg-white/[0.045] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.08em] text-white/25">
                     Completed
                   </span>
                 )}
@@ -83,10 +83,14 @@ const RoadmapModuleCard = ({
 
               <h3
                 className={`mt-1 text-sm font-semibold leading-5 sm:text-[15px] ${
-                  isCompleted ? "text-white/50" : "text-white/80"
+                  isCompleted
+                    ? "text-white/45"
+                    : isCurrent
+                      ? "text-white/90"
+                      : "text-white/80"
                 }`}
               >
-                {module.title}
+                {module.title || "Untitled module"}
               </h3>
 
               {module.description && (
@@ -97,7 +101,13 @@ const RoadmapModuleCard = ({
             </div>
 
             {/* Expand */}
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white/25 transition hover:bg-white/[0.04] hover:text-white/50">
+            <div
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition ${
+                isCurrent
+                  ? "text-white/35 hover:bg-white/[0.05] hover:text-white/65"
+                  : "text-white/25 hover:bg-white/[0.04] hover:text-white/50"
+              }`}
+            >
               {expanded ? (
                 <FiChevronUp size={16} />
               ) : (
@@ -217,7 +227,13 @@ const RoadmapModuleCard = ({
                 } disabled:cursor-not-allowed disabled:opacity-40`}
               >
                 {progressLoading ? (
-                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/15 border-t-black" />
+                  <span
+                    className={`h-3.5 w-3.5 animate-spin rounded-full border-2 ${
+                      isCompleted
+                        ? "border-white/10 border-t-white/50"
+                        : "border-black/15 border-t-black"
+                    }`}
+                  />
                 ) : isCompleted ? (
                   <>
                     <FiCheck size={14} />

@@ -17,6 +17,7 @@ const RoadmapPage = ({ user }) => {
     deleteLoading,
     deletingId,
     error,
+    errorType,
     generate,
     fetchHistory,
     removeRoadmap,
@@ -86,7 +87,7 @@ const RoadmapPage = ({ user }) => {
   );
 
   /*
-   * Retry loading history after an error.
+   * Retry loading history after a history error.
    */
   const handleRetryHistory = useCallback(() => {
     clearError();
@@ -104,15 +105,16 @@ const RoadmapPage = ({ user }) => {
           user={user}
           onGenerate={handleGenerate}
           loading={loading}
+          error={errorType === "generate" ? error : null}
         />
 
         {/* =========================
-            ERROR
+            HISTORY ERROR
         ========================== */}
-        {error && (
+        {error && errorType === "history" && (
           <div className="mt-6">
             <RoadmapErrorState
-              title="Roadmap action failed"
+              title="Couldn't load roadmap history"
               message={error}
               onRetry={handleRetryHistory}
               retryLabel="Try again"

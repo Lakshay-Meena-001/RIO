@@ -133,13 +133,6 @@ const RoadmapDetailPage = () => {
     );
   }
 
-  const modules = roadmap.modules || [];
-
-  const currentModule =
-    modules.find((module) => !module.completed) ||
-    modules[modules.length - 1] ||
-    null;
-
   return (
     <main className="min-h-screen bg-[#0A0A0A] text-white">
       <div className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-10 lg:px-8">

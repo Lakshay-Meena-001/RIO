@@ -7,10 +7,11 @@ import {
   FiClock,
   FiFileText,
   FiSearch,
-  FiSparkles,
   FiTarget,
   FiX,
 } from "react-icons/fi";
+
+import { IoSparkles } from "react-icons/io5";
 
 const POPULAR_ROLES = [
   "Software Engineer",
@@ -120,18 +121,11 @@ const RoadmapGenerator = ({
     event.preventDefault();
 
     if (!canGenerate) return;
-
     await onGenerate({
       role: role.trim(),
       targetPackage: selectedPackage,
       useResume,
       resume: useResume ? resume : null,
-
-      // These are intentionally not sent yet.
-      // Backend contract currently only accepts:
-      // role, targetPackage, useResume, resume.
-      experienceLevel,
-      hoursPerDay,
     });
   };
 
@@ -145,7 +139,7 @@ const RoadmapGenerator = ({
         {/* Header */}
         <header className="max-w-2xl">
           <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-[11px] font-medium text-white/55">
-            <FiSparkles size={13} className="text-violet-300" />
+            <IoSparkles size={13} className="text-violet-300" />
             Personalized with AI
           </div>
 
@@ -484,7 +478,7 @@ const RoadmapGenerator = ({
 
                 <div className="sm:col-span-2">
                   <p className="flex items-center gap-2 text-xs leading-5 text-white/25">
-                    <FiSparkles size={12} />
+                    <IoSparkles size={12} />
                     Optional details can make the roadmap more personalized. You
                     can skip them and let RIO decide.
                   </p>
@@ -506,7 +500,7 @@ const RoadmapGenerator = ({
           {/* Footer action */}
           <div className="flex flex-col gap-4 border-t border-white/[0.07] pt-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2 text-xs text-white/25">
-              <FiSparkles size={12} />
+              <IoSparkles size={12} />
 
               <span>Focused path. Less noise. Clear next steps.</span>
             </div>

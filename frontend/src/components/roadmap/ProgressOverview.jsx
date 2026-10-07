@@ -70,7 +70,7 @@ const ProgressOverview = ({ roadmap }) => {
                 height:
                   modules.length > 1
                     ? `${Math.min(
-                        (completedCount / (modules.length - 1)) * 100,
+                        (completedCount / modules.length) * 100,
                         100,
                       )}%`
                     : "0%",

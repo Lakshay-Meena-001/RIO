@@ -1,4 +1,5 @@
-import { FiClock, FiHistory } from "react-icons/fi";
+import { FiClock } from "react-icons/fi";
+import { MdHistory } from "react-icons/md";
 
 import RoadmapHistoryItem from "./RoadmapHistoryItem";
 
@@ -60,7 +61,7 @@ const RoadmapHistory = ({
       {!loading && history.length === 0 && (
         <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-7 text-center sm:p-9">
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white/[0.04] text-white/25">
-            <FiHistory size={19} />
+            <MdHistory size={19} />
           </div>
 
           <h3 className="mt-4 text-base font-semibold text-white/65">
