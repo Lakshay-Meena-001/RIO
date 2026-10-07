@@ -1,18 +1,16 @@
 import { z } from "zod";
 
 import {
-  ROADMAP_DEFAULTS,
   ROADMAP_GENERATION_MODES,
   ROADMAP_LEVELS,
+  ROADMAP_INPUT_SOURCES,
 } from "../constants/roadmap.constants.js";
 
 import { roadmapExists } from "../knowledge/loader.js";
 
-/*
-|--------------------------------------------------------------------------
-| Reusable Schemas
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// COMMON SCHEMAS
+// ============================================================
 
 const generationModeSchema = z.enum(Object.values(ROADMAP_GENERATION_MODES));
 
@@ -20,189 +18,377 @@ const levelSchema = z.enum(Object.values(ROADMAP_LEVELS));
 
 const targetSchema = z
   .object({
-    compensation: z.coerce.number().nonnegative().optional(),
+    compensation: z.coerce.number().min(0).max(1000).default(12),
 
-    currency: z.string().trim().min(1).optional(),
+    currency: z.string().trim().min(1).default("INR"),
 
-    unit: z.string().trim().min(1).optional(),
+    unit: z.string().trim().min(1).default("LPA"),
   })
-  .optional();
+  .default({});
 
 const customRequirementsSchema = z
   .object({
-    prompt: z.string().trim().optional(),
+    prompt: z.string().trim().max(10000).optional().default(""),
 
-    goals: z.array(z.string().trim().min(1)).optional(),
+    goals: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
 
-    technologies: z.array(z.string().trim().min(1)).optional(),
+    technologies: z
+      .array(z.string().trim().min(1).max(100))
+      .max(100)
+      .default([]),
 
-    exclusions: z.array(z.string().trim().min(1)).optional(),
+    exclusions: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
 
-    projectPreferences: z.string().trim().optional(),
+    projectPreferences: z
+      .array(z.string().trim().min(1).max(500))
+      .max(50)
+      .default([]),
+
+    notes: z.string().trim().max(5000).optional().default(""),
   })
-  .optional();
+  .default({});
 
-/*
-|--------------------------------------------------------------------------
-| Create Draft
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// TEMPLATE ID
+// ============================================================
 
-const createDraftSchema = z.object({
-  generationMode: generationModeSchema.default(
-    ROADMAP_GENERATION_MODES.STANDARD,
-  ),
+const templateIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((templateId) => roadmapExists(templateId), {
+    message: "Invalid roadmap template",
+  });
 
-  role: z.string().trim().optional(),
+// ============================================================
+// RESUME ID
+// ============================================================
 
-  templateId: z
-    .string()
-    .trim()
-    .min(1)
-    .nullable()
-    .optional()
-    .refine((value) => value == null || roadmapExists(value), {
-      message: "Unknown roadmap template",
-    }),
+const resumeIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .nullable()
+  .optional()
+  .default(null);
 
-  target: targetSchema.default({
-    compensation: ROADMAP_DEFAULTS.TARGET_COMPENSATION,
+// ============================================================
+// RESUME VERSION
+// ============================================================
 
-    currency: ROADMAP_DEFAULTS.CURRENCY,
+const resumeVersionSchema = z
+  .union([z.string().trim().min(1), z.number().int().positive()])
+  .nullable()
+  .optional()
+  .default(null);
 
-    unit: ROADMAP_DEFAULTS.TARGET_UNIT,
-  }),
+// ============================================================
+// MANUAL SKILLS
+// ============================================================
 
-  level: levelSchema.default(ROADMAP_DEFAULTS.LEVEL),
+const manualSkillsSchema = z
+  .array(z.string().trim().min(1).max(100))
+  .max(200)
+  .default([]);
 
-  availableHoursPerDay: z.coerce
-    .number()
-    .positive()
-    .max(24)
-    .default(ROADMAP_DEFAULTS.AVAILABLE_HOURS_PER_DAY),
+// ============================================================
+// CREATE DRAFT
+// ============================================================
 
-  useResume: z.boolean().default(false),
+const createDraftSchema = z
+  .object({
+    generationMode: generationModeSchema.default(
+      ROADMAP_GENERATION_MODES.STANDARD,
+    ),
 
-  resumeId: z.string().trim().min(1).nullable().optional(),
+    role: z.string().trim().max(200).optional().default(""),
 
-  resumeVersion: z.coerce.number().int().positive().nullable().optional(),
+    templateId: templateIdSchema.nullable().optional().default(null),
 
-  manualSkills: z.array(z.string().trim().min(1)).default([]),
+    target: targetSchema,
 
-  customRequirements: customRequirementsSchema.default({}),
+    level: levelSchema.default(ROADMAP_LEVELS.BEGINNER),
 
-  inputSource: z.string().trim().nullable().optional(),
+    availableHoursPerDay: z.coerce.number().min(0).max(24).default(2),
 
-  currentStep: z.coerce.number().int().nonnegative().default(0),
-});
+    useResume: z.boolean().default(false),
 
-/*
-|--------------------------------------------------------------------------
-| Update Draft
-|--------------------------------------------------------------------------
-|
-| Partial schema because builder saves one section at a time.
-|
-*/
+    resumeId: resumeIdSchema,
 
-const updateDraftSchema = createDraftSchema.partial();
+    resumeVersion: resumeVersionSchema,
 
-/*
-|--------------------------------------------------------------------------
-| Draft ID
-|--------------------------------------------------------------------------
-*/
+    manualSkills: manualSkillsSchema,
+
+    customRequirements: customRequirementsSchema,
+
+    inputSource: z.enum(Object.values(ROADMAP_INPUT_SOURCES)).optional(),
+
+    currentStep: z.coerce.number().int().min(0).max(100).default(0),
+  })
+  .superRefine((data, ctx) => {
+    // ------------------------------------------------------
+    // RESUME SELECTION
+    // ------------------------------------------------------
+
+    if (data.useResume && !data.resumeId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+
+        path: ["resumeId"],
+
+        message: "resumeId is required when useResume is enabled",
+      });
+    }
+
+    // ------------------------------------------------------
+    // RESUME ID WITHOUT RESUME MODE
+    // ------------------------------------------------------
+
+    if (data.resumeId && !data.useResume) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+
+        path: ["useResume"],
+
+        message: "useResume must be enabled when a resumeId is provided",
+      });
+    }
+
+    // ------------------------------------------------------
+    // STANDARD MODE
+    // ------------------------------------------------------
+
+    if (data.generationMode === ROADMAP_GENERATION_MODES.STANDARD) {
+      /**
+       * Standard roadmap does not require
+       * resume or custom requirements.
+       *
+       * Extra builder state is allowed because
+       * the user may switch modes later.
+       */
+    }
+
+    // ------------------------------------------------------
+    // RESUME MODE
+    // ------------------------------------------------------
+
+    if (
+      data.generationMode === ROADMAP_GENERATION_MODES.RESUME &&
+      !data.useResume
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+
+        path: ["useResume"],
+
+        message: "Resume generation mode requires useResume to be enabled",
+      });
+    }
+
+    // ------------------------------------------------------
+    // CUSTOM MODE
+    // ------------------------------------------------------
+
+    if (data.generationMode === ROADMAP_GENERATION_MODES.CUSTOM) {
+      const custom = data.customRequirements;
+
+      const hasPrompt = Boolean(custom?.prompt?.trim());
+
+      const hasGoals = custom?.goals?.length > 0;
+
+      const hasTechnologies = custom?.technologies?.length > 0;
+
+      const hasExclusions = custom?.exclusions?.length > 0;
+
+      const hasProjects = custom?.projectPreferences?.length > 0;
+
+      const hasNotes = Boolean(custom?.notes?.trim());
+
+      if (
+        !hasPrompt &&
+        !hasGoals &&
+        !hasTechnologies &&
+        !hasExclusions &&
+        !hasProjects &&
+        !hasNotes
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+
+          path: ["customRequirements"],
+
+          message:
+            "Custom roadmap generation requires at least one custom requirement",
+        });
+      }
+    }
+  });
+
+// ============================================================
+// UPDATE DRAFT
+// ============================================================
+
+/**
+ * Every field is optional during a draft update.
+ *
+ * Example:
+ *
+ * Step 1:
+ *   role
+ *
+ * Step 2:
+ *   level
+ *
+ * Step 3:
+ *   target
+ *
+ * Step 4:
+ *   resume
+ *
+ * The frontend does not need to send the
+ * complete builder state every time.
+ */
+const updateDraftSchema = z
+  .object({
+    generationMode: generationModeSchema.optional(),
+
+    role: z.string().trim().max(200).optional(),
+
+    templateId: templateIdSchema.nullable().optional(),
+
+    target: targetSchema.optional(),
+
+    level: levelSchema.optional(),
+
+    availableHoursPerDay: z.coerce.number().min(0).max(24).optional(),
+
+    useResume: z.boolean().optional(),
+
+    resumeId: resumeIdSchema.optional(),
+
+    resumeVersion: resumeVersionSchema.optional(),
+
+    manualSkills: manualSkillsSchema.optional(),
+
+    customRequirements: customRequirementsSchema.optional(),
+
+    inputSource: z.enum(Object.values(ROADMAP_INPUT_SOURCES)).optional(),
+
+    currentStep: z.coerce.number().int().min(0).max(100).optional(),
+
+    readyForGeneration: z.boolean().optional(),
+  })
+  .superRefine((data, ctx) => {
+    /**
+     * Only validate relationships when
+     * the relevant fields are actually
+     * being updated together.
+     *
+     * This prevents PATCH requests such as:
+     *
+     * { currentStep: 3 }
+     *
+     * from failing because the draft
+     * doesn't contain every other field.
+     */
+
+    if (data.useResume === false && data.resumeId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+
+        path: ["resumeId"],
+
+        message: "resumeId cannot be provided when useResume is false",
+      });
+    }
+
+    if (
+      data.generationMode === ROADMAP_GENERATION_MODES.RESUME &&
+      data.useResume === false
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+
+        path: ["useResume"],
+
+        message: "Resume generation mode requires useResume to be enabled",
+      });
+    }
+  });
+
+// ============================================================
+// DRAFT ID
+// ============================================================
 
 const draftIdSchema = z.object({
-  draftId: z.string().trim().min(1, "draftId is required"),
+  draftId: z.string().trim().min(1),
 });
 
-/*
-|--------------------------------------------------------------------------
-| Update Current Step
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// CURRENT STEP
+// ============================================================
 
 const updateCurrentStepSchema = z.object({
-  draftId: z.string().trim().min(1, "draftId is required"),
-
-  currentStep: z.coerce.number().int().nonnegative(),
+  currentStep: z.coerce.number().int().min(0).max(100),
 });
 
-/*
-|--------------------------------------------------------------------------
-| Mark Generated
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// MARK GENERATED
+// ============================================================
 
 const markGeneratedSchema = z.object({
-  draftId: z.string().trim().min(1, "draftId is required"),
-
-  generatedRoadmapId: z
-    .string()
-    .trim()
-    .min(1, "generatedRoadmapId is required"),
+  roadmapId: z.string().trim().min(1),
 });
 
-/*
-|--------------------------------------------------------------------------
-| Validator Class
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// VALIDATOR CLASS
+// ============================================================
 
 class DraftValidator {
-  /**
-   * Validate create draft request.
-   */
-  validateCreate(input = {}) {
+  validateCreate(input) {
     return createDraftSchema.parse(input);
   }
 
-  /**
-   * Validate partial draft update.
-   */
-  validateUpdate(input = {}) {
+  validateUpdate(input) {
     return updateDraftSchema.parse(input);
   }
 
-  /**
-   * Validate draft ID.
-   */
-  validateDraftId(input = {}) {
+  validateDraftId(input) {
     return draftIdSchema.parse(input);
   }
 
-  /**
-   * Validate current step update.
-   */
-  validateCurrentStep(input = {}) {
+  validateCurrentStep(input) {
     return updateCurrentStepSchema.parse(input);
   }
 
-  /**
-   * Validate generated roadmap linking.
-   */
-  validateMarkGenerated(input = {}) {
+  validateMarkGenerated(input) {
     return markGeneratedSchema.parse(input);
   }
 
-  /**
-   * Safe validation for controller-level handling.
-   */
-  safeValidateCreate(input = {}) {
+  safeValidateCreate(input) {
     return createDraftSchema.safeParse(input);
   }
 
-  safeValidateUpdate(input = {}) {
+  safeValidateUpdate(input) {
     return updateDraftSchema.safeParse(input);
+  }
+
+  safeValidateDraftId(input) {
+    return draftIdSchema.safeParse(input);
+  }
+
+  safeValidateCurrentStep(input) {
+    return updateCurrentStepSchema.safeParse(input);
+  }
+
+  safeValidateMarkGenerated(input) {
+    return markGeneratedSchema.safeParse(input);
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Exports
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// EXPORTS
+// ============================================================
 
 const draftValidator = new DraftValidator();
 

@@ -3,11 +3,18 @@
  *
  * Stores a user's generated roadmap.
  *
+ * Three generation modes use the same model:
+ *
+ * 1. standard
+ * 2. resume
+ * 3. custom
+ *
  * Important:
- * - Standard, resume-adaptive, and custom roadmaps use the same model.
- * - The roadmap is a snapshot of canonical knowledge at generation time.
- * - User progress belongs here.
- * - Canonical knowledge itself does NOT belong in MongoDB.
+ *
+ * - Canonical roadmap knowledge lives in the knowledge layer.
+ * - This model stores the user's roadmap snapshot/state.
+ * - User progress lives inside nodes[].
+ * - Resume itself remains owned by Resume Service.
  */
 
 import mongoose from "mongoose";
@@ -20,9 +27,9 @@ import {
   ROADMAP_INPUT_SOURCES,
 } from "../constants/roadmap.constants.js";
 
-/* -------------------------------------------------------------------------- */
-/* Target Schema                                                              */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// TARGET
+// ============================================================
 
 const targetSchema = new mongoose.Schema(
   {
@@ -34,16 +41,16 @@ const targetSchema = new mongoose.Schema(
 
     currency: {
       type: String,
-      default: "INR",
       trim: true,
       uppercase: true,
+      default: "INR",
     },
 
     unit: {
       type: String,
-      default: "LPA",
       trim: true,
       uppercase: true,
+      default: "LPA",
     },
   },
   {
@@ -51,9 +58,9 @@ const targetSchema = new mongoose.Schema(
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Profile Schema                                                             */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// PROFILE
+// ============================================================
 
 const profileSchema = new mongoose.Schema(
   {
@@ -65,9 +72,17 @@ const profileSchema = new mongoose.Schema(
 
     availableHoursPerDay: {
       type: Number,
-      min: 0.5,
+      min: 0,
       max: 24,
       default: 2,
+    },
+
+    /**
+     * Skills explicitly provided by the user.
+     */
+    currentSkills: {
+      type: [String],
+      default: [],
     },
   },
   {
@@ -75,17 +90,23 @@ const profileSchema = new mongoose.Schema(
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Roadmap Node Schema                                                        */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// ROADMAP NODE
+// ============================================================
 
 /**
- * This is a USER snapshot of a canonical knowledge node.
+ * This is the user's state for one canonical knowledge node.
  *
- * We intentionally keep the stored node lightweight.
+ * Canonical information such as:
  *
- * The canonical content can still be resolved from the template,
- * while user-specific status is stored here.
+ * - description
+ * - whyItMatters
+ * - prerequisites
+ * - alternatives
+ *
+ * stays inside the knowledge layer.
+ *
+ * MongoDB only stores user-specific state here.
  */
 const roadmapNodeSchema = new mongoose.Schema(
   {
@@ -101,14 +122,11 @@ const roadmapNodeSchema = new mongoose.Schema(
       default: ROADMAP_NODE_STATUSES.NOT_STARTED,
     },
 
-    /**
-     * Used when a user explicitly skips a topic.
-     */
     skippedReason: {
       type: String,
       trim: true,
-      maxlength: 500,
-      default: "",
+      maxlength: 1000,
+      default: null,
     },
 
     startedAt: {
@@ -131,16 +149,14 @@ const roadmapNodeSchema = new mongoose.Schema(
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Custom Requirement Schema                                                  */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// CUSTOM REQUIREMENTS
+// ============================================================
 
 /**
- * Stores the user's original custom requirement.
+ * Original requirements used for custom/adaptive generation.
  *
- * This is useful because a custom roadmap should remain explainable:
- *
- * "Why did RIO create this roadmap?"
+ * Keeping these makes the generated roadmap explainable.
  */
 const customRequirementSchema = new mongoose.Schema(
   {
@@ -170,21 +186,29 @@ const customRequirementSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+
+    notes: {
+      type: String,
+      trim: true,
+      maxlength: 5000,
+      default: "",
+    },
   },
   {
     _id: false,
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Input Context Schema                                                       */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// INPUT CONTEXT
+// ============================================================
 
 /**
- * Stores how the roadmap was created.
+ * Describes where the roadmap came from.
  *
- * We do NOT store the complete resume here.
- * Resume remains owned by Resume Service.
+ * Resume itself is NOT stored here.
+ *
+ * Resume Service remains the source of truth.
  */
 const inputContextSchema = new mongoose.Schema(
   {
@@ -200,11 +224,16 @@ const inputContextSchema = new mongoose.Schema(
     },
 
     resumeVersion: {
-      type: Number,
+      type: mongoose.Schema.Types.Mixed,
       default: null,
     },
 
     manualSkills: {
+      type: [String],
+      default: [],
+    },
+
+    projectPreferences: {
       type: [String],
       default: [],
     },
@@ -219,16 +248,16 @@ const inputContextSchema = new mongoose.Schema(
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Progress Snapshot Schema                                                   */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// PROGRESS
+// ============================================================
 
 /**
  * Cached aggregate progress.
  *
- * Individual truth lives in nodes[].
- * This object exists so dashboards do not have to recalculate
- * everything for every request.
+ * nodes[] remains the source of truth.
+ *
+ * This object exists so dashboard queries stay cheap.
  */
 const progressSchema = new mongoose.Schema(
   {
@@ -274,26 +303,95 @@ const progressSchema = new mongoose.Schema(
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Main Roadmap Schema                                                        */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// CURRENT FOCUS
+// ============================================================
+
+/**
+ * "Your Next Move"
+ *
+ * Priority here is NOT the same thing as knowledge importance.
+ *
+ * Allowed:
+ *
+ * low
+ * medium
+ * high
+ */
+const currentFocusSchema = new mongoose.Schema(
+  {
+    nodeId: {
+      type: String,
+      default: null,
+    },
+
+    reason: {
+      type: String,
+      trim: true,
+      maxlength: 2000,
+      default: "",
+    },
+
+    priority: {
+      type: String,
+      enum: ["low", "medium", "high"],
+      default: "medium",
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
+// ============================================================
+// GENERATION ERROR
+// ============================================================
+
+const generationErrorSchema = new mongoose.Schema(
+  {
+    code: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+
+    message: {
+      type: String,
+      default: null,
+      trim: true,
+      maxlength: 2000,
+    },
+
+    occurredAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
+// ============================================================
+// MAIN ROADMAP SCHEMA
+// ============================================================
 
 const roadmapSchema = new mongoose.Schema(
   {
-    /* ---------------------------------------------------------------------- */
-    /* Ownership                                                              */
-    /* ---------------------------------------------------------------------- */
+    // ----------------------------------------------------------
+    // Ownership
+    // ----------------------------------------------------------
 
     userId: {
       type: String,
       required: true,
-      index: true,
       trim: true,
+      index: true,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Canonical Template Snapshot                                            */
-    /* ---------------------------------------------------------------------- */
+    // ----------------------------------------------------------
+    // Canonical Template
+    // ----------------------------------------------------------
 
     templateId: {
       type: String,
@@ -308,9 +406,15 @@ const roadmapSchema = new mongoose.Schema(
       min: 1,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Basic Identity                                                         */
-    /* ---------------------------------------------------------------------- */
+    knowledgeVersion: {
+      type: Number,
+      required: true,
+      min: 1,
+    },
+
+    // ----------------------------------------------------------
+    // Identity
+    // ----------------------------------------------------------
 
     title: {
       type: String,
@@ -326,9 +430,16 @@ const roadmapSchema = new mongoose.Schema(
       maxlength: 200,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* User Goal                                                              */
-    /* ---------------------------------------------------------------------- */
+    description: {
+      type: String,
+      trim: true,
+      maxlength: 5000,
+      default: "",
+    },
+
+    // ----------------------------------------------------------
+    // Goal
+    // ----------------------------------------------------------
 
     target: {
       type: targetSchema,
@@ -340,9 +451,9 @@ const roadmapSchema = new mongoose.Schema(
       required: true,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Generation                                                             */
-    /* ---------------------------------------------------------------------- */
+    // ----------------------------------------------------------
+    // Generation
+    // ----------------------------------------------------------
 
     generationMode: {
       type: String,
@@ -353,14 +464,15 @@ const roadmapSchema = new mongoose.Schema(
 
     inputContext: {
       type: inputContextSchema,
+
       default: () => ({
         source: ROADMAP_INPUT_SOURCES.STANDARD,
       }),
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Lifecycle                                                              */
-    /* ---------------------------------------------------------------------- */
+    // ----------------------------------------------------------
+    // Lifecycle
+    // ----------------------------------------------------------
 
     status: {
       type: String,
@@ -369,21 +481,22 @@ const roadmapSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* User Roadmap                                                           */
-    /* ---------------------------------------------------------------------- */
+    // ----------------------------------------------------------
+    // User Roadmap Nodes
+    // ----------------------------------------------------------
 
     nodes: {
       type: [roadmapNodeSchema],
       default: [],
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Progress                                                               */
-    /* ---------------------------------------------------------------------- */
+    // ----------------------------------------------------------
+    // Progress
+    // ----------------------------------------------------------
 
     progress: {
       type: progressSchema,
+
       default: () => ({
         percentage: 0,
         total: 0,
@@ -394,33 +507,38 @@ const roadmapSchema = new mongoose.Schema(
       }),
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Current Focus / Next Move                                              */
-    /* ---------------------------------------------------------------------- */
+    // ----------------------------------------------------------
+    // Current Focus
+    // ----------------------------------------------------------
 
     currentFocus: {
-      nodeId: {
-        type: String,
-        default: null,
-      },
-
-      reason: {
-        type: String,
-        default: "",
-        trim: true,
-        maxlength: 1000,
-      },
-
-      priority: {
-        type: String,
-        enum: ["low", "medium", "high"],
-        default: "medium",
-      },
+      type: currentFocusSchema,
+      default: null,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Deduplication                                                          */
-    /* ---------------------------------------------------------------------- */
+    // ----------------------------------------------------------
+    // AI Adaptation Explanation
+    // ----------------------------------------------------------
+
+    /**
+     * Short explanation of how RIO adapted the canonical
+     * roadmap for this user.
+     *
+     * Example:
+     *
+     * "HTML and CSS were de-emphasized because the resume
+     * already demonstrates production frontend experience."
+     */
+    adaptationSummary: {
+      type: String,
+      trim: true,
+      maxlength: 5000,
+      default: null,
+    },
+
+    // ----------------------------------------------------------
+    // Deduplication
+    // ----------------------------------------------------------
 
     fingerprint: {
       type: String,
@@ -428,26 +546,13 @@ const roadmapSchema = new mongoose.Schema(
       index: true,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Error / Generation Metadata                                            */
-    /* ---------------------------------------------------------------------- */
+    // ----------------------------------------------------------
+    // Generation Error
+    // ----------------------------------------------------------
 
     generationError: {
-      code: {
-        type: String,
-        default: null,
-      },
-
-      message: {
-        type: String,
-        default: null,
-        maxlength: 2000,
-      },
-
-      occurredAt: {
-        type: Date,
-        default: null,
-      },
+      type: generationErrorSchema,
+      default: null,
     },
   },
   {
@@ -456,14 +561,12 @@ const roadmapSchema = new mongoose.Schema(
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Indexes                                                                    */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// INDEXES
+// ============================================================
 
 /**
- * Most important ownership query:
- *
- * "Give me this user's roadmap."
+ * User's recently updated roadmaps.
  */
 roadmapSchema.index({
   userId: 1,
@@ -471,7 +574,7 @@ roadmapSchema.index({
 });
 
 /**
- * User history query.
+ * User's roadmap history.
  */
 roadmapSchema.index({
   userId: 1,
@@ -479,7 +582,7 @@ roadmapSchema.index({
 });
 
 /**
- * Fast lookup for an exact generated roadmap.
+ * Exact generation deduplication.
  */
 roadmapSchema.index({
   userId: 1,
@@ -487,16 +590,16 @@ roadmapSchema.index({
 });
 
 /**
- * Useful for active-roadmap queries.
+ * Active/completed roadmap filtering.
  */
 roadmapSchema.index({
   userId: 1,
   status: 1,
 });
 
-/* -------------------------------------------------------------------------- */
-/* Export                                                                     */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// MODEL
+// ============================================================
 
 const Roadmap = mongoose.model("Roadmap", roadmapSchema);
 

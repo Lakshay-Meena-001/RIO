@@ -1,13 +1,10 @@
-import crypto from "crypto";
-
 import Roadmap from "../models/roadmap.model.js";
 
 import {
-  ROADMAP_DEFAULTS,
   ROADMAP_GENERATION_MODES,
-  ROADMAP_INPUT_SOURCES,
-  ROADMAP_NODE_STATUSES,
   ROADMAP_STATUSES,
+  ROADMAP_NODE_STATUSES,
+  ROADMAP_DEFAULTS,
 } from "../constants/roadmap.constants.js";
 
 import {
@@ -15,557 +12,628 @@ import {
   getRoadmapTemplateVersion,
 } from "../constants/roadmap.version.js";
 
-import { loadRoadmap, roadmapExists } from "../knowledge/loader.js";
-
-import { getStandardRoadmap } from "./template.service.js";
+import { loadRoadmap } from "../knowledge/loader.js";
 
 import personalizationService from "./personalization.service.js";
-
 import resumeContextService from "./resume.context.service.js";
 
-class RoadmapService {
-  /**
-   * Validate roadmap generation input.
-   */
-  validateGenerationInput(input = {}) {
-    const {
-      generationMode = ROADMAP_GENERATION_MODES.STANDARD,
+// ============================================================
+// HELPERS
+// ============================================================
 
-      templateId,
-    } = input;
-
-    if (!Object.values(ROADMAP_GENERATION_MODES).includes(generationMode)) {
-      throw new Error(`Invalid roadmap generation mode: ${generationMode}`);
-    }
-
-    if (!templateId) {
-      throw new Error("templateId is required");
-    }
-
-    if (!roadmapExists(templateId)) {
-      throw new Error(`Roadmap template not found: ${templateId}`);
-    }
-
-    if (generationMode === ROADMAP_GENERATION_MODES.RESUME && !input.resumeId) {
-      throw new Error("resumeId is required for resume roadmap generation");
-    }
-
-    return true;
+function normalizeString(value) {
+  if (typeof value !== "string") {
+    return "";
   }
 
-  /**
-   * Create deterministic fingerprint for the generation request.
-   */
-  createFingerprint(input = {}) {
-    const normalizedInput = {
-      generationMode: input.generationMode || ROADMAP_GENERATION_MODES.STANDARD,
+  return value.trim();
+}
 
-      templateId: input.templateId || null,
-
-      target: {
-        compensation: input.target?.compensation ?? null,
-
-        currency: input.target?.currency || "INR",
-
-        unit: input.target?.unit || "LPA",
-      },
-
-      level: input.level || ROADMAP_DEFAULTS.LEVEL,
-
-      availableHoursPerDay:
-        input.availableHoursPerDay ?? ROADMAP_DEFAULTS.AVAILABLE_HOURS_PER_DAY,
-
-      resumeId: input.resumeId || null,
-
-      resumeVersion: input.resumeVersion ?? null,
-
-      manualSkills: [...(input.manualSkills || [])].sort(),
-
-      customRequirements: {
-        prompt: input.customRequirements?.prompt || "",
-
-        goals: [...(input.customRequirements?.goals || [])].sort(),
-
-        technologies: [
-          ...(input.customRequirements?.technologies || []),
-        ].sort(),
-
-        exclusions: [...(input.customRequirements?.exclusions || [])].sort(),
-
-        projectPreferences: input.customRequirements?.projectPreferences || "",
-      },
-
-      knowledgeVersion: ROADMAP_KNOWLEDGE_VERSION,
-    };
-
-    return crypto
-      .createHash("sha256")
-      .update(JSON.stringify(normalizedInput))
-      .digest("hex");
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  /**
-   * Initialize roadmap nodes.
-   */
-  initializeNodes(template) {
-    return template.nodes.map((node) => ({
-      nodeId: node.id,
+  return [...new Set(value.map(normalizeString).filter(Boolean))].sort();
+}
 
-      status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+function normalizeTarget(target = {}) {
+  return {
+    compensation: Number(
+      target.compensation ?? ROADMAP_DEFAULTS.TARGET_COMPENSATION,
+    ),
+
+    currency: normalizeString(target.currency || ROADMAP_DEFAULTS.CURRENCY),
+
+    unit: normalizeString(target.unit || ROADMAP_DEFAULTS.TARGET_UNIT),
+  };
+}
+
+function normalizeCustomRequirements(value = {}) {
+  return {
+    prompt: normalizeString(value.prompt),
+
+    goals: normalizeStringArray(value.goals),
+
+    technologies: normalizeStringArray(value.technologies),
+
+    exclusions: normalizeStringArray(value.exclusions),
+
+    projectPreferences: normalizeStringArray(value.projectPreferences),
+
+    notes: normalizeString(value.notes),
+  };
+}
+
+// ============================================================
+// IMPORTANCE → PRIORITY
+// ============================================================
+
+function mapImportanceToPriority(importance) {
+  switch (importance) {
+    case "core":
+      return "high";
+
+    case "important":
+      return "high";
+
+    case "advanced":
+      return "medium";
+
+    case "optional":
+      return "low";
+
+    default:
+      return "medium";
+  }
+}
+
+// ============================================================
+// VALIDATE INPUT
+// ============================================================
+
+function validateGenerationInput(input) {
+  if (!input) {
+    const error = new Error("Roadmap generation input is required");
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+
+  const allowedModes = Object.values(ROADMAP_GENERATION_MODES);
+
+  if (!allowedModes.includes(input.generationMode)) {
+    const error = new Error(
+      `Invalid roadmap generation mode: ${input.generationMode}`,
+    );
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+
+  if (!input.templateId) {
+    const error = new Error("templateId is required");
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+}
+
+// ============================================================
+// FINGERPRINT
+// ============================================================
+
+function createFingerprint({ userId, input }) {
+  const customRequirements = normalizeCustomRequirements(
+    input.customRequirements,
+  );
+
+  const fingerprintPayload = {
+    userId: String(userId),
+
+    templateId: input.templateId,
+
+    generationMode: input.generationMode,
+
+    role: normalizeString(input.role),
+
+    level: input.level,
+
+    availableHoursPerDay: input.availableHoursPerDay,
+
+    target: normalizeTarget(input.target),
+
+    resumeId: input.resumeId ? String(input.resumeId) : null,
+
+    resumeVersion: input.resumeVersion ?? null,
+
+    manualSkills: normalizeStringArray(input.manualSkills),
+
+    customRequirements,
+
+    knowledgeVersion: ROADMAP_KNOWLEDGE_VERSION,
+  };
+
+  return JSON.stringify(fingerprintPayload);
+}
+
+// ============================================================
+// INITIALIZE NODES
+// ============================================================
+
+function initializeNodes(template, statuses = {}) {
+  return template.nodes.map((knowledgeNode) => {
+    const status =
+      statuses[knowledgeNode.id] || ROADMAP_NODE_STATUSES.NOT_STARTED;
+
+    const now = new Date();
+
+    return {
+      nodeId: knowledgeNode.id,
+
+      status,
+
+      startedAt: status === ROADMAP_NODE_STATUSES.LEARNING ? now : null,
+
+      completedAt: status === ROADMAP_NODE_STATUSES.COMPLETED ? now : null,
 
       skippedReason: null,
 
-      startedAt: null,
-
-      completedAt: null,
-
-      updatedAt: new Date(),
-    }));
-  }
-
-  /**
-   * Initialize roadmap progress.
-   */
-  initializeProgress(nodes) {
-    return {
-      percentage: 0,
-
-      total: nodes.length,
-
-      completed: 0,
-
-      learning: 0,
-
-      skipped: 0,
-
-      remaining: nodes.length,
+      updatedAt: now,
     };
+  });
+}
+
+// ============================================================
+// CALCULATE PROGRESS
+// ============================================================
+
+function calculateProgress(nodes = []) {
+  const total = nodes.length;
+
+  const completed = nodes.filter(
+    (node) => node.status === ROADMAP_NODE_STATUSES.COMPLETED,
+  ).length;
+
+  const learning = nodes.filter(
+    (node) => node.status === ROADMAP_NODE_STATUSES.LEARNING,
+  ).length;
+
+  const skipped = nodes.filter(
+    (node) => node.status === ROADMAP_NODE_STATUSES.SKIPPED,
+  ).length;
+
+  const remaining = total - completed - skipped;
+
+  const percentage =
+    total === 0 ? 0 : Math.round(((completed + skipped) / total) * 100);
+
+  return {
+    percentage,
+
+    total,
+
+    completed,
+
+    learning,
+
+    skipped,
+
+    remaining,
+  };
+}
+
+// ============================================================
+// BUILD CURRENT FOCUS
+// ============================================================
+
+function buildCurrentFocus(nodes, template) {
+  const learningNode = nodes.find(
+    (node) => node.status === ROADMAP_NODE_STATUSES.LEARNING,
+  );
+
+  const nextNode =
+    learningNode ||
+    nodes.find((node) => node.status === ROADMAP_NODE_STATUSES.NOT_STARTED);
+
+  if (!nextNode) {
+    return null;
   }
 
-  /**
-   * Initialize user's first focus.
-   */
-  initializeCurrentFocus(template) {
-    const firstNode = template.nodes[0];
+  const knowledgeNode = template.nodes.find(
+    (node) => node.id === nextNode.nodeId,
+  );
 
-    if (!firstNode) {
-      return null;
-    }
-
-    return {
-      nodeId: firstNode.id,
-
-      reason:
-        firstNode.whyItMatters ||
-        firstNode.description ||
-        "Start with this topic to build the foundation.",
-
-      priority: firstNode.importance || "important",
-    };
+  if (!knowledgeNode) {
+    return null;
   }
 
+  return {
+    nodeId: nextNode.nodeId,
+
+    reason:
+      knowledgeNode.whyItMatters ||
+      knowledgeNode.description ||
+      "This is the next recommended step in your roadmap.",
+
+    priority: mapImportanceToPriority(knowledgeNode.importance),
+  };
+}
+
+// ============================================================
+// BUILD PAYLOAD
+// ============================================================
+
+function buildRoadmapPayload({
+  userId,
+  input,
+  template,
+  adaptedNodes,
+  adaptationSummary = "",
+  resume = null,
+}) {
+  const statusMap = Object.fromEntries(
+    adaptedNodes.map((node) => [node.nodeId, node.status]),
+  );
+
+  const nodes = initializeNodes(template, statusMap);
+
+  const progress = calculateProgress(nodes);
+
+  const currentFocus = buildCurrentFocus(nodes, template);
+
+  const customRequirements = normalizeCustomRequirements(
+    input.customRequirements,
+  );
+
+  const inputSource =
+    input.inputSource ||
+    (input.generationMode === ROADMAP_GENERATION_MODES.RESUME
+      ? "resume"
+      : input.manualSkills?.length
+        ? "manual"
+        : "standard");
+
+  return {
+    userId,
+
+    templateId: template.id,
+
+    templateVersion: getRoadmapTemplateVersion(template.id),
+
+    knowledgeVersion: ROADMAP_KNOWLEDGE_VERSION,
+
+    title: template.title,
+
+    role: normalizeString(input.role) || template.title,
+
+    description: template.description,
+
+    target: normalizeTarget(input.target),
+
+    profile: {
+      level: input.level,
+
+      availableHoursPerDay: input.availableHoursPerDay,
+
+      currentSkills: normalizeStringArray(input.manualSkills),
+    },
+
+    generationMode: input.generationMode,
+
+    inputContext: {
+      source: inputSource,
+
+      resumeId: resume?.id || input.resumeId || null,
+
+      resumeVersion: resume?.version || input.resumeVersion || null,
+
+      manualSkills: normalizeStringArray(input.manualSkills),
+
+      projectPreferences: customRequirements.projectPreferences,
+
+      customRequirements,
+    },
+
+    status:
+      progress.remaining === 0
+        ? ROADMAP_STATUSES.COMPLETED
+        : ROADMAP_STATUSES.ACTIVE,
+
+    nodes,
+
+    progress,
+
+    currentFocus,
+
+    adaptationSummary: normalizeString(adaptationSummary),
+
+    fingerprint: createFingerprint({
+      userId,
+      input,
+    }),
+  };
+}
+
+// ============================================================
+// STANDARD GENERATION
+// ============================================================
+
+async function generateStandardRoadmap({ userId, input, template }) {
   /**
-   * Build the common Roadmap document.
+   * Standard roadmap:
+   *
+   * canonical knowledge only
+   * no Resume Service
+   * no LLM
    */
-  buildRoadmapPayload({
+  const adaptedNodes = template.nodes.map((node) => ({
+    nodeId: node.id,
+
+    status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+  }));
+
+  return buildRoadmapPayload({
     userId,
 
     input,
 
     template,
 
-    generationMode,
+    adaptedNodes,
 
-    fingerprint,
+    adaptationSummary: "Generated from the canonical roadmap template.",
+  });
+}
 
-    adaptedNodes = null,
+// ============================================================
+// ADAPTIVE GENERATION
+// ============================================================
 
-    adaptationSummary = null,
-  }) {
-    const nodes = adaptedNodes || this.initializeNodes(template);
+async function generateAdaptiveRoadmap({ userId, input, template }) {
+  let resume = null;
 
-    const progress = this.initializeProgress(nodes);
+  // ----------------------------------------------------------
+  // RESUME CONTEXT
+  // ----------------------------------------------------------
 
-    const currentFocus = this.initializeCurrentFocus(template);
-
-    return {
+  if (input.generationMode === ROADMAP_GENERATION_MODES.RESUME) {
+    resume = await resumeContextService.getResume({
       userId,
 
-      templateId: template.id,
-
-      templateVersion: getRoadmapTemplateVersion(template.id),
-
-      title: input.title || template.title,
-
-      role: input.role || template.title,
-
-      target: {
-        compensation:
-          input.target?.compensation ?? ROADMAP_DEFAULTS.TARGET_COMPENSATION,
-
-        currency: input.target?.currency || ROADMAP_DEFAULTS.CURRENCY,
-
-        unit: input.target?.unit || ROADMAP_DEFAULTS.TARGET_UNIT,
-      },
-
-      profile: {
-        level: input.level || ROADMAP_DEFAULTS.LEVEL,
-
-        availableHoursPerDay:
-          input.availableHoursPerDay ??
-          ROADMAP_DEFAULTS.AVAILABLE_HOURS_PER_DAY,
-      },
-
-      generationMode,
-
-      inputContext: {
-        source: input.inputSource || ROADMAP_INPUT_SOURCES.STANDARD,
-
-        resumeId: input.resumeId || null,
-
-        resumeVersion: input.resumeVersion ?? null,
-
-        manualSkills: input.manualSkills || [],
-
-        customRequirements: input.customRequirements || {},
-      },
-
-      status: ROADMAP_STATUSES.ACTIVE,
-
-      nodes,
-
-      progress,
-
-      currentFocus,
-
-      fingerprint,
-
-      generationError: null,
-
-      adaptationSummary,
-    };
-  }
-
-  /**
-   * Find an already generated roadmap
-   * with the same generation fingerprint.
-   */
-  async findExistingByFingerprint(userId, fingerprint) {
-    return Roadmap.findOne({
-      userId,
-
-      fingerprint,
-    }).sort({
-      updatedAt: -1,
+      resumeId: input.resumeId || null,
     });
   }
 
-  /**
-   * Generate a standard roadmap.
-   *
-   * IMPORTANT:
-   * No Resume Service.
-   * No LLM.
-   */
-  async generateStandard(userId, input) {
-    const template = getStandardRoadmap(input.templateId);
+  // ----------------------------------------------------------
+  // PERSONALIZATION
+  // ----------------------------------------------------------
 
-    const fingerprint = this.createFingerprint({
-      ...input,
+  const result = await personalizationService.personalize({
+    generationMode: input.generationMode,
 
-      generationMode: ROADMAP_GENERATION_MODES.STANDARD,
-    });
+    templateId: template.id,
 
-    const existing = await this.findExistingByFingerprint(userId, fingerprint);
+    input,
 
-    if (existing) {
-      return existing;
-    }
+    resume,
+  });
 
-    const payload = this.buildRoadmapPayload({
+  return buildRoadmapPayload({
+    userId,
+
+    input,
+
+    template,
+
+    adaptedNodes: result.nodes,
+
+    adaptationSummary: result.adaptationSummary,
+
+    resume,
+  });
+}
+
+// ============================================================
+// GENERATE ROADMAP
+// ============================================================
+
+async function generateRoadmap(userId, input) {
+  if (!userId) {
+    const error = new Error("userId is required");
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+
+  validateGenerationInput(input);
+
+  const template = loadRoadmap(input.templateId);
+
+  if (!template) {
+    const error = new Error(`Roadmap template not found: ${input.templateId}`);
+
+    error.statusCode = 404;
+
+    throw error;
+  }
+
+  // ----------------------------------------------------------
+  // STANDARD
+  // ----------------------------------------------------------
+
+  if (input.generationMode === ROADMAP_GENERATION_MODES.STANDARD) {
+    const payload = await generateStandardRoadmap({
       userId,
 
       input,
 
       template,
-
-      generationMode: ROADMAP_GENERATION_MODES.STANDARD,
-
-      fingerprint,
     });
 
     return Roadmap.create(payload);
   }
 
-  /**
-   * Generate a resume-adaptive roadmap.
-   */
-  async generateFromResume(userId, input) {
-    /*
-     * Fetch the selected resume from
-     * Resume Service.
-     */
-    const resume = await resumeContextService.getResumeContext({
-      userId,
+  // ----------------------------------------------------------
+  // RESUME / CUSTOM
+  // ----------------------------------------------------------
 
-      resumeId: input.resumeId,
-    });
-
-    /*
-     * Use the actual resume version returned
-     * by Resume Service when available.
-     */
-    const normalizedInput = {
-      ...input,
-
-      resumeVersion: resume.version ?? input.resumeVersion ?? null,
-    };
-
-    const fingerprint = this.createFingerprint({
-      ...normalizedInput,
-
-      generationMode: ROADMAP_GENERATION_MODES.RESUME,
-    });
-
-    const existing = await this.findExistingByFingerprint(
-      userId,
-
-      fingerprint,
-    );
-
-    if (existing) {
-      return existing;
-    }
-
-    const template = loadRoadmap(input.templateId);
-
-    /*
-     * Send canonical roadmap + resume context
-     * to the personalization layer.
-     */
-    const personalized = await personalizationService.adapt({
-      generationMode: ROADMAP_GENERATION_MODES.RESUME,
-
-      templateId: input.templateId,
-
-      input: normalizedInput,
-
-      resume,
-    });
-
-    const payload = this.buildRoadmapPayload({
-      userId,
-
-      input: normalizedInput,
-
-      template,
-
-      generationMode: ROADMAP_GENERATION_MODES.RESUME,
-
-      fingerprint,
-
-      adaptedNodes: personalized.nodes,
-
-      adaptationSummary: personalized.metadata?.adaptationSummary || null,
-    });
-
-    return Roadmap.create(payload);
-  }
-
-  /**
-   * Generate a custom roadmap.
-   *
-   * Custom roadmap can optionally also use
-   * a selected resume as context.
-   */
-  async generateCustom(userId, input) {
-    let resume = null;
-
-    if (input.resumeId) {
-      resume = await resumeContextService.getResumeContext({
-        userId,
-
-        resumeId: input.resumeId,
-      });
-    }
-
-    const normalizedInput = {
-      ...input,
-
-      resumeVersion: resume?.version ?? input.resumeVersion ?? null,
-    };
-
-    const fingerprint = this.createFingerprint({
-      ...normalizedInput,
-
-      generationMode: ROADMAP_GENERATION_MODES.CUSTOM,
-    });
-
-    const existing = await this.findExistingByFingerprint(
-      userId,
-
-      fingerprint,
-    );
-
-    if (existing) {
-      return existing;
-    }
-
-    const template = loadRoadmap(input.templateId);
-
-    const personalized = await personalizationService.adapt({
-      generationMode: ROADMAP_GENERATION_MODES.CUSTOM,
-
-      templateId: input.templateId,
-
-      input: normalizedInput,
-
-      resume,
-    });
-
-    const payload = this.buildRoadmapPayload({
-      userId,
-
-      input: normalizedInput,
-
-      template,
-
-      generationMode: ROADMAP_GENERATION_MODES.CUSTOM,
-
-      fingerprint,
-
-      adaptedNodes: personalized.nodes,
-
-      adaptationSummary: personalized.metadata?.adaptationSummary || null,
-    });
-
-    return Roadmap.create(payload);
-  }
-
-  /**
-   * Main generation entry point.
-   */
-  async generate(
+  const payload = await generateAdaptiveRoadmap({
     userId,
 
-    input = {},
-  ) {
-    if (!userId) {
-      throw new Error("userId is required");
-    }
+    input,
 
-    this.validateGenerationInput(input);
+    template,
+  });
 
-    const mode = input.generationMode || ROADMAP_GENERATION_MODES.STANDARD;
+  return Roadmap.create(payload);
+}
 
-    switch (mode) {
-      case ROADMAP_GENERATION_MODES.STANDARD:
-        return this.generateStandard(
-          userId,
+// ============================================================
+// GET ROADMAP
+// ============================================================
 
-          input,
-        );
+async function getRoadmap(userId, roadmapId) {
+  if (!userId) {
+    const error = new Error("userId is required");
 
-      case ROADMAP_GENERATION_MODES.RESUME:
-        return this.generateFromResume(
-          userId,
+    error.statusCode = 400;
 
-          input,
-        );
-
-      case ROADMAP_GENERATION_MODES.CUSTOM:
-        return this.generateCustom(
-          userId,
-
-          input,
-        );
-
-      default:
-        throw new Error(`Unsupported roadmap generation mode: ${mode}`);
-    }
+    throw error;
   }
 
-  /**
-   * Get one roadmap owned by the user.
-   */
-  async getRoadmap(
+  const roadmap = await Roadmap.findOne({
+    _id: roadmapId,
+
     userId,
+  });
 
-    roadmapId,
-  ) {
-    if (!userId) {
-      throw new Error("userId is required");
-    }
+  if (!roadmap) {
+    const error = new Error("Roadmap not found");
 
-    if (!roadmapId) {
-      throw new Error("roadmapId is required");
-    }
+    error.statusCode = 404;
 
-    return Roadmap.findOne({
-      _id: roadmapId,
-
-      userId,
-    });
+    throw error;
   }
 
-  /**
-   * Get all roadmaps owned by the user.
-   */
-  async getUserRoadmaps(
+  return roadmap;
+}
+
+// ============================================================
+// LIST ROADMAPS
+// ============================================================
+
+async function getRoadmaps(
+  userId,
+  { status, generationMode, page = 1, limit = 20 } = {},
+) {
+  if (!userId) {
+    const error = new Error("userId is required");
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+
+  const filter = {
     userId,
+  };
 
-    options = {},
-  ) {
-    if (!userId) {
-      throw new Error("userId is required");
-    }
+  if (status) {
+    filter.status = status;
+  }
 
-    const limit = Math.min(
-      Number(options.limit) || 20,
+  if (generationMode) {
+    filter.generationMode = generationMode;
+  }
 
-      100,
-    );
+  const safePage = Math.max(1, Number(page));
 
-    const skip = Math.max(
-      Number(options.skip) || 0,
+  const safeLimit = Math.min(100, Math.max(1, Number(limit)));
 
-      0,
-    );
+  const skip = (safePage - 1) * safeLimit;
 
-    return Roadmap.find({
-      userId,
-    })
+  const [roadmaps, total] = await Promise.all([
+    Roadmap.find(filter)
       .sort({
         updatedAt: -1,
       })
       .skip(skip)
-      .limit(limit);
-  }
+      .limit(safeLimit),
 
-  /**
-   * Delete a roadmap owned by the user.
-   */
-  async deleteRoadmap(
-    userId,
+    Roadmap.countDocuments(filter),
+  ]);
 
-    roadmapId,
-  ) {
-    if (!userId) {
-      throw new Error("userId is required");
-    }
+  return {
+    roadmaps,
 
-    if (!roadmapId) {
-      throw new Error("roadmapId is required");
-    }
+    pagination: {
+      page: safePage,
 
-    return Roadmap.findOneAndDelete({
-      _id: roadmapId,
+      limit: safeLimit,
 
-      userId,
-    });
-  }
+      total,
+
+      pages: Math.ceil(total / safeLimit),
+    },
+  };
 }
 
-const roadmapService = new RoadmapService();
+// ============================================================
+// DELETE ROADMAP
+// ============================================================
 
-export default roadmapService;
+async function deleteRoadmap(userId, roadmapId) {
+  if (!userId) {
+    const error = new Error("userId is required");
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+
+  const result = await Roadmap.deleteOne({
+    _id: roadmapId,
+
+    userId,
+  });
+
+  if (result.deletedCount === 0) {
+    const error = new Error("Roadmap not found");
+
+    error.statusCode = 404;
+
+    throw error;
+  }
+
+  return {
+    roadmapId,
+
+    deleted: true,
+  };
+}
+
+// ============================================================
+// EXPORT
+// ============================================================
+
+export {
+  generateRoadmap,
+  getRoadmap,
+  getRoadmaps,
+  deleteRoadmap,
+  createFingerprint,
+  calculateProgress,
+  buildCurrentFocus,
+};
+
+export default {
+  generateRoadmap,
+  getRoadmap,
+  getRoadmaps,
+  deleteRoadmap,
+};

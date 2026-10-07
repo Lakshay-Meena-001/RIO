@@ -1,16 +1,3 @@
-/**
- * RIO Roadmap Draft Model
- *
- * Stores incomplete roadmap-builder state.
- *
- * Important:
- * - Draft != generated roadmap.
- * - Drafts are editable.
- * - Drafts survive refresh/browser close.
- * - A draft can later produce a Roadmap document.
- * - No LLM output is stored here.
- */
-
 import mongoose from "mongoose";
 
 import {
@@ -19,30 +6,29 @@ import {
   ROADMAP_INPUT_SOURCES,
 } from "../constants/roadmap.constants.js";
 
-/* -------------------------------------------------------------------------- */
-/* Target Schema                                                              */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// TARGET
+// ============================================================
 
 const targetSchema = new mongoose.Schema(
   {
     compensation: {
       type: Number,
       min: 0,
+      max: 1000,
       default: 12,
     },
 
     currency: {
       type: String,
-      default: "INR",
       trim: true,
-      uppercase: true,
+      default: "INR",
     },
 
     unit: {
       type: String,
-      default: "LPA",
       trim: true,
-      uppercase: true,
+      default: "LPA",
     },
   },
   {
@@ -50,19 +36,12 @@ const targetSchema = new mongoose.Schema(
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Custom Requirement Schema                                                  */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// CUSTOM REQUIREMENTS
+// ============================================================
 
-const customRequirementSchema = new mongoose.Schema(
+const customRequirementsSchema = new mongoose.Schema(
   {
-    /**
-     * Natural-language requirement written by the user.
-     *
-     * Example:
-     *
-     * "I want to become a backend engineer..."
-     */
     prompt: {
       type: String,
       trim: true,
@@ -89,43 +68,52 @@ const customRequirementSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+
+    notes: {
+      type: String,
+      trim: true,
+      maxlength: 5000,
+      default: "",
+    },
   },
   {
     _id: false,
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Main Draft Schema                                                          */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// ROADMAP DRAFT
+// ============================================================
 
 const roadmapDraftSchema = new mongoose.Schema(
   {
-    /* ---------------------------------------------------------------------- */
-    /* Ownership                                                              */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // OWNER
+    // --------------------------------------------------------
 
     userId: {
-      type: String,
+      type: mongoose.Schema.Types.ObjectId,
       required: true,
       index: true,
-      trim: true,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Builder Mode                                                           */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // GENERATION MODE
+    // --------------------------------------------------------
 
     generationMode: {
       type: String,
+
       enum: Object.values(ROADMAP_GENERATION_MODES),
+
       default: ROADMAP_GENERATION_MODES.STANDARD,
+
       required: true,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Role                                                                   */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // ROLE
+    // --------------------------------------------------------
 
     role: {
       type: String,
@@ -134,54 +122,54 @@ const roadmapDraftSchema = new mongoose.Schema(
       default: "",
     },
 
-    /**
-     * Canonical template selected by the builder.
-     *
-     * Example:
-     * "frontend-developer"
-     *
-     * For a fully custom roadmap this may initially be null
-     * until the system determines the appropriate base knowledge.
-     */
+    // --------------------------------------------------------
+    // TEMPLATE
+    // --------------------------------------------------------
+
     templateId: {
       type: String,
       trim: true,
       default: null,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Target                                                                 */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // TARGET
+    // --------------------------------------------------------
 
     target: {
       type: targetSchema,
-      default: () => ({
-        compensation: 12,
-        currency: "INR",
-        unit: "LPA",
-      }),
+      default: () => ({}),
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* User Profile                                                           */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // LEVEL
+    // --------------------------------------------------------
 
     level: {
       type: String,
+
       enum: Object.values(ROADMAP_LEVELS),
+
       default: ROADMAP_LEVELS.BEGINNER,
     },
 
+    // --------------------------------------------------------
+    // AVAILABLE TIME
+    // --------------------------------------------------------
+
     availableHoursPerDay: {
       type: Number,
-      min: 0.5,
+
+      min: 0,
+
       max: 24,
+
       default: 2,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Resume Context                                                         */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // RESUME
+    // --------------------------------------------------------
 
     useResume: {
       type: Boolean,
@@ -189,97 +177,97 @@ const roadmapDraftSchema = new mongoose.Schema(
     },
 
     resumeId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: String,
+      trim: true,
       default: null,
     },
 
     resumeVersion: {
-      type: Number,
+      type: mongoose.Schema.Types.Mixed,
       default: null,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Manual Skills                                                          */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // MANUAL SKILLS
+    // --------------------------------------------------------
 
     manualSkills: {
       type: [String],
       default: [],
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Custom Requirements                                                    */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // CUSTOM REQUIREMENTS
+    // --------------------------------------------------------
 
     customRequirements: {
-      type: customRequirementSchema,
-      default: null,
+      type: customRequirementsSchema,
+
+      default: () => ({}),
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Input Source                                                           */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // INPUT SOURCE
+    // --------------------------------------------------------
 
     inputSource: {
       type: String,
+
       enum: Object.values(ROADMAP_INPUT_SOURCES),
+
       default: ROADMAP_INPUT_SOURCES.STANDARD,
     },
 
-    /* ---------------------------------------------------------------------- */
-    /* Draft Lifecycle                                                        */
-    /* ---------------------------------------------------------------------- */
+    // --------------------------------------------------------
+    // BUILDER PROGRESS
+    // --------------------------------------------------------
 
-    /**
-     * Whether the user has completed enough information
-     * for generation.
-     */
+    currentStep: {
+      type: Number,
+
+      min: 0,
+
+      max: 100,
+
+      default: 0,
+    },
+
     readyForGeneration: {
       type: Boolean,
+
       default: false,
     },
 
-    /**
-     * Whether this draft has already been converted
-     * into a generated roadmap.
-     */
+    // --------------------------------------------------------
+    // GENERATION RESULT
+    // --------------------------------------------------------
+
     generated: {
       type: Boolean,
+
       default: false,
     },
 
     generatedRoadmapId: {
       type: mongoose.Schema.Types.ObjectId,
+
       ref: "Roadmap",
+
       default: null,
     },
-
-    /* ---------------------------------------------------------------------- */
-    /* Last Saved Step                                                        */
-    /* ---------------------------------------------------------------------- */
-
-    /**
-     * Useful for restoring the builder exactly where
-     * the user left it.
-     */
-    currentStep: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
   },
+
   {
     timestamps: true,
-    versionKey: false,
   },
 );
 
-/* -------------------------------------------------------------------------- */
-/* Indexes                                                                    */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// INDEXES
+// ============================================================
 
 /**
- * User's drafts.
+ * Fast lookup for the user's latest draft.
  */
 roadmapDraftSchema.index({
   userId: 1,
@@ -287,24 +275,26 @@ roadmapDraftSchema.index({
 });
 
 /**
- * Fast lookup of active/generated draft.
+ * Fast lookup when checking whether
+ * a draft generated a particular roadmap.
  */
 roadmapDraftSchema.index({
   userId: 1,
-  generated: 1,
+  generatedRoadmapId: 1,
 });
 
 /**
- * User + template lookup.
+ * Useful when recovering drafts for
+ * a specific roadmap template.
  */
 roadmapDraftSchema.index({
   userId: 1,
   templateId: 1,
 });
 
-/* -------------------------------------------------------------------------- */
-/* Export                                                                     */
-/* -------------------------------------------------------------------------- */
+// ============================================================
+// MODEL
+// ============================================================
 
 const RoadmapDraft = mongoose.model("RoadmapDraft", roadmapDraftSchema);
 

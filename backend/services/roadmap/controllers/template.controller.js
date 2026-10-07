@@ -1,129 +1,138 @@
 import templateService from "../services/template.service.js";
 
-const successResponse = (res, data, statusCode = 200) => {
+// ============================================================
+// HELPERS
+// ============================================================
+
+function sendSuccess(res, data, statusCode = 200) {
   return res.status(statusCode).json({
     success: true,
     data,
   });
-};
+}
 
-const errorResponse = (res, error) => {
-  const statusCode = error.statusCode || 500;
+// ============================================================
+// PARAM VALIDATION
+// ============================================================
 
-  return res.status(statusCode).json({
-    success: false,
-    message: statusCode === 500 ? "Internal server error." : error.message,
-  });
-};
+function requireParam(value, name) {
+  if (typeof value !== "string" || !value.trim()) {
+    const error = new Error(`${name} is required`);
 
-/*
-|--------------------------------------------------------------------------
-| Get Available Templates
-|--------------------------------------------------------------------------
-*/
+    error.statusCode = 400;
 
-const getTemplates = async (req, res) => {
+    throw error;
+  }
+
+  return value.trim();
+}
+
+// ============================================================
+// GET TEMPLATES
+// ============================================================
+
+async function getTemplates(req, res, next) {
   try {
     const templates = templateService.getAvailableTemplates();
 
-    return successResponse(res, templates);
+    return sendSuccess(res, templates);
   } catch (error) {
-    return errorResponse(res, error);
+    return next(error);
   }
-};
+}
 
-/*
-|--------------------------------------------------------------------------
-| Get Template
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// GET TEMPLATE
+// ============================================================
 
-const getTemplate = async (req, res) => {
+async function getTemplate(req, res, next) {
   try {
-    const { templateId } = req.params;
+    const templateId = requireParam(req.params.templateId, "templateId");
 
-    const template = templateService.getTemplateSummary(templateId);
+    const template = templateService.getTemplate(templateId);
 
-    return successResponse(res, template);
+    return sendSuccess(res, template);
   } catch (error) {
-    return errorResponse(res, error);
+    return next(error);
   }
-};
+}
 
-/*
-|--------------------------------------------------------------------------
-| Get Template Phases
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// GET TEMPLATE PHASES
+// ============================================================
 
-const getTemplatePhases = async (req, res) => {
+async function getTemplatePhases(req, res, next) {
   try {
-    const { templateId } = req.params;
+    const templateId = requireParam(req.params.templateId, "templateId");
 
     const phases = templateService.getTemplatePhases(templateId);
 
-    return successResponse(res, phases);
+    return sendSuccess(res, phases);
   } catch (error) {
-    return errorResponse(res, error);
+    return next(error);
   }
-};
+}
 
-/*
-|--------------------------------------------------------------------------
-| Get Template Node
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// GET TEMPLATE NODE
+// ============================================================
 
-const getTemplateNode = async (req, res) => {
+async function getTemplateNode(req, res, next) {
   try {
-    const { templateId, nodeId } = req.params;
+    const templateId = requireParam(req.params.templateId, "templateId");
+
+    const nodeId = requireParam(req.params.nodeId, "nodeId");
 
     const node = templateService.getTemplateNode(templateId, nodeId);
 
-    return successResponse(res, node);
+    return sendSuccess(res, node);
   } catch (error) {
-    return errorResponse(res, error);
+    return next(error);
   }
-};
+}
 
-/*
-|--------------------------------------------------------------------------
-| Get Node Next Steps
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// GET NODE NEXT STEPS
+// ============================================================
 
-const getNodeNextSteps = async (req, res) => {
+async function getNodeNextSteps(req, res, next) {
   try {
-    const { templateId, nodeId } = req.params;
+    const templateId = requireParam(req.params.templateId, "templateId");
+
+    const nodeId = requireParam(req.params.nodeId, "nodeId");
 
     const nextSteps = templateService.getNodeNextSteps(templateId, nodeId);
 
-    return successResponse(res, nextSteps);
+    return sendSuccess(res, nextSteps);
   } catch (error) {
-    return errorResponse(res, error);
+    return next(error);
   }
-};
+}
 
-/*
-|--------------------------------------------------------------------------
-| Get Node Dependencies
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// GET NODE DEPENDENCIES
+// ============================================================
 
-const getNodeDependencies = async (req, res) => {
+async function getNodeDependencies(req, res, next) {
   try {
-    const { templateId, nodeId } = req.params;
+    const templateId = requireParam(req.params.templateId, "templateId");
+
+    const nodeId = requireParam(req.params.nodeId, "nodeId");
 
     const dependencies = templateService.getNodeDependencies(
       templateId,
       nodeId,
     );
 
-    return successResponse(res, dependencies);
+    return sendSuccess(res, dependencies);
   } catch (error) {
-    return errorResponse(res, error);
+    return next(error);
   }
-};
+}
+
+// ============================================================
+// EXPORTS
+// ============================================================
 
 export {
   getTemplates,

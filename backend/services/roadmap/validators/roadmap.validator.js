@@ -1,18 +1,16 @@
 import { z } from "zod";
 
 import {
-  ROADMAP_DEFAULTS,
   ROADMAP_GENERATION_MODES,
   ROADMAP_LEVELS,
+  ROADMAP_INPUT_SOURCES,
 } from "../constants/roadmap.constants.js";
 
 import { roadmapExists } from "../knowledge/loader.js";
 
-/*
-|--------------------------------------------------------------------------
-| Reusable Schemas
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// COMMON SCHEMAS
+// ============================================================
 
 const generationModeSchema = z.enum(Object.values(ROADMAP_GENERATION_MODES));
 
@@ -20,33 +18,51 @@ const levelSchema = z.enum(Object.values(ROADMAP_LEVELS));
 
 const targetSchema = z
   .object({
-    compensation: z.coerce.number().nonnegative().optional(),
+    compensation: z.coerce.number().min(0).max(1000).default(12),
 
-    currency: z.string().trim().min(1).optional(),
+    currency: z.string().trim().min(1).default("INR"),
 
-    unit: z.string().trim().min(1).optional(),
+    unit: z.string().trim().min(1).default("LPA"),
   })
-  .optional();
+  .default({});
 
 const customRequirementsSchema = z
   .object({
-    prompt: z.string().trim().optional(),
+    prompt: z.string().trim().max(10000).optional().default(""),
 
-    goals: z.array(z.string().trim().min(1)).optional(),
+    goals: z.array(z.string().trim().min(1).max(500)).max(50).default([]),
 
-    technologies: z.array(z.string().trim().min(1)).optional(),
+    technologies: z
+      .array(z.string().trim().min(1).max(100))
+      .max(100)
+      .default([]),
 
-    exclusions: z.array(z.string().trim().min(1)).optional(),
+    exclusions: z.array(z.string().trim().min(1).max(200)).max(100).default([]),
 
-    projectPreferences: z.string().trim().optional(),
+    projectPreferences: z
+      .array(z.string().trim().min(1).max(500))
+      .max(50)
+      .default([]),
+
+    notes: z.string().trim().max(5000).optional().default(""),
   })
-  .optional();
+  .default({});
 
-/*
-|--------------------------------------------------------------------------
-| Generate Roadmap Schema
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// TEMPLATE ID
+// ============================================================
+
+const templateIdSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .refine((templateId) => roadmapExists(templateId), {
+    message: "Invalid roadmap template",
+  });
+
+// ============================================================
+// GENERATE ROADMAP
+// ============================================================
 
 const generateRoadmapSchema = z
   .object({
@@ -54,168 +70,169 @@ const generateRoadmapSchema = z
       ROADMAP_GENERATION_MODES.STANDARD,
     ),
 
-    templateId: z
-      .string()
-      .trim()
-      .min(1, "templateId is required")
-      .refine((templateId) => roadmapExists(templateId), {
-        message: "Unknown roadmap template",
-      }),
+    templateId: templateIdSchema,
 
-    role: z.string().trim().optional(),
+    role: z.string().trim().max(200).optional().default(""),
 
-    level: levelSchema.default(ROADMAP_DEFAULTS.LEVEL),
+    level: levelSchema.default(ROADMAP_LEVELS.BEGINNER),
 
-    availableHoursPerDay: z.coerce
-      .number()
-      .positive()
-      .max(24)
-      .default(ROADMAP_DEFAULTS.AVAILABLE_HOURS_PER_DAY),
+    availableHoursPerDay: z.coerce.number().min(0).max(24).default(2),
 
-    target: targetSchema.default({
-      compensation: ROADMAP_DEFAULTS.TARGET_COMPENSATION,
+    target: targetSchema,
 
-      currency: ROADMAP_DEFAULTS.CURRENCY,
+    resumeId: z.string().trim().min(1).optional().nullable().default(null),
 
-      unit: ROADMAP_DEFAULTS.TARGET_UNIT,
-    }),
+    resumeVersion: z
+      .union([z.string().trim().min(1), z.number().int().positive()])
+      .optional()
+      .nullable()
+      .default(null),
 
-    resumeId: z.string().trim().min(1).optional(),
+    manualSkills: z
+      .array(z.string().trim().min(1).max(100))
+      .max(200)
+      .default([]),
 
-    resumeVersion: z.coerce.number().int().positive().optional(),
+    customRequirements: customRequirementsSchema,
 
-    manualSkills: z.array(z.string().trim().min(1)).default([]),
-
-    customRequirements: customRequirementsSchema.default({}),
-
-    inputSource: z.string().trim().optional(),
+    inputSource: z.enum(Object.values(ROADMAP_INPUT_SOURCES)).optional(),
   })
   .superRefine((data, ctx) => {
-    /*
-     * Resume mode requires resumeId.
-     */
+    // ----------------------------------------------------
+    // RESUME MODE
+    // ----------------------------------------------------
+
     if (
       data.generationMode === ROADMAP_GENERATION_MODES.RESUME &&
       !data.resumeId
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-
         path: ["resumeId"],
-
-        message: "resumeId is required for resume roadmap generation",
+        message: "resumeId is required for resume-based roadmap generation",
       });
+    }
+
+    // ----------------------------------------------------
+    // CUSTOM MODE
+    // ----------------------------------------------------
+
+    if (data.generationMode === ROADMAP_GENERATION_MODES.CUSTOM) {
+      const hasPrompt = Boolean(data.customRequirements?.prompt?.trim());
+
+      const hasGoals = data.customRequirements?.goals?.length > 0;
+
+      const hasTechnologies = data.customRequirements?.technologies?.length > 0;
+
+      const hasExclusions = data.customRequirements?.exclusions?.length > 0;
+
+      const hasProjectPreferences =
+        data.customRequirements?.projectPreferences?.length > 0;
+
+      if (
+        !hasPrompt &&
+        !hasGoals &&
+        !hasTechnologies &&
+        !hasExclusions &&
+        !hasProjectPreferences
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["customRequirements"],
+          message:
+            "Custom roadmap generation requires at least one custom requirement",
+        });
+      }
     }
   });
 
-/*
-|--------------------------------------------------------------------------
-| Update Node Status Schema
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// UPDATE NODE STATUS
+// ============================================================
 
 const updateNodeStatusSchema = z.object({
-  roadmapId: z.string().trim().min(1, "roadmapId is required"),
-
-  nodeId: z.string().trim().min(1, "nodeId is required"),
-
-  status: z.enum(["not_started", "learning", "completed", "skipped"]),
+  status: z.string().trim().min(1),
 });
 
-/*
-|--------------------------------------------------------------------------
-| Skip Node Schema
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// SKIP NODE
+// ============================================================
 
 const skipNodeSchema = z.object({
-  roadmapId: z.string().trim().min(1, "roadmapId is required"),
-
-  nodeId: z.string().trim().min(1, "nodeId is required"),
-
-  reason: z.string().trim().max(1000).optional(),
+  reason: z.string().trim().max(1000).optional().nullable().default(null),
 });
 
-/*
-|--------------------------------------------------------------------------
-| Roadmap ID Schema
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// ROADMAP ID
+// ============================================================
 
 const roadmapIdSchema = z.object({
-  roadmapId: z.string().trim().min(1, "roadmapId is required"),
+  roadmapId: z.string().trim().min(1),
 });
 
-/*
-|--------------------------------------------------------------------------
-| List Roadmaps Schema
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// LIST ROADMAPS
+// ============================================================
 
 const listRoadmapsSchema = z.object({
-  limit: z.coerce.number().int().positive().max(100).default(20),
+  status: z.string().trim().optional(),
 
-  skip: z.coerce.number().int().nonnegative().default(0),
+  generationMode: generationModeSchema.optional(),
+
+  page: z.coerce.number().int().min(1).default(1),
+
+  limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
-/*
-|--------------------------------------------------------------------------
-| Validator Class
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// VALIDATOR CLASS
+// ============================================================
 
 class RoadmapValidator {
-  /**
-   * Validate and parse roadmap generation input.
-   *
-   * Returns cleaned/normalized data.
-   */
-  validateGenerate(input = {}) {
+  validateGenerate(input) {
     return generateRoadmapSchema.parse(input);
   }
 
-  /**
-   * Safe version for controllers that want
-   * to handle validation errors themselves.
-   */
-  safeValidateGenerate(input = {}) {
-    return generateRoadmapSchema.safeParse(input);
-  }
-
-  /**
-   * Validate node status update.
-   */
-  validateNodeStatus(input = {}) {
+  validateUpdateNodeStatus(input) {
     return updateNodeStatusSchema.parse(input);
   }
 
-  /**
-   * Validate skip-node request.
-   */
-  validateSkipNode(input = {}) {
+  validateSkipNode(input) {
     return skipNodeSchema.parse(input);
   }
 
-  /**
-   * Validate roadmap ID.
-   */
-  validateRoadmapId(input = {}) {
+  validateRoadmapId(input) {
     return roadmapIdSchema.parse(input);
   }
 
-  /**
-   * Validate pagination.
-   */
-  validateList(input = {}) {
+  validateList(input) {
     return listRoadmapsSchema.parse(input);
+  }
+
+  safeValidateGenerate(input) {
+    return generateRoadmapSchema.safeParse(input);
+  }
+
+  safeValidateUpdateNodeStatus(input) {
+    return updateNodeStatusSchema.safeParse(input);
+  }
+
+  safeValidateSkipNode(input) {
+    return skipNodeSchema.safeParse(input);
+  }
+
+  safeValidateRoadmapId(input) {
+    return roadmapIdSchema.safeParse(input);
+  }
+
+  safeValidateList(input) {
+    return listRoadmapsSchema.safeParse(input);
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Exports
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// EXPORTS
+// ============================================================
 
 const roadmapValidator = new RoadmapValidator();
 

@@ -1,141 +1,329 @@
-import { ROADMAP_GENERATION_MODES } from "../constants/roadmap.constants.js";
+import {
+  ROADMAP_GENERATION_MODES,
+  ROADMAP_NODE_STATUSES,
+} from "../constants/roadmap.constants.js";
+
+import { loadRoadmap, findKnowledgeNode } from "../knowledge/index.js";
 
 import { buildRoadmapAdaptationPrompt } from "../prompts/roadmap.adaptation.prompt.js";
 
-class RoadmapAdaptationAgent {
-  constructor({ llm = null } = {}) {
-    this.llm = llm;
+// ============================================================
+// LLM
+// ============================================================
+
+let llmClient = null;
+
+// ============================================================
+// CONFIGURE LLM
+// ============================================================
+
+function setLLM(client) {
+  if (!client || typeof client.generate !== "function") {
+    throw new Error("Invalid LLM client");
   }
 
-  setLLM(llm) {
-    this.llm = llm;
+  llmClient = client;
+}
+
+// ============================================================
+// VALIDATE MODE
+// ============================================================
+
+function validateMode(generationMode) {
+  const allowedModes = [
+    ROADMAP_GENERATION_MODES.RESUME,
+    ROADMAP_GENERATION_MODES.CUSTOM,
+  ];
+
+  if (!allowedModes.includes(generationMode)) {
+    throw new Error(
+      `Roadmap adaptation does not support generation mode: ${generationMode}`,
+    );
+  }
+}
+
+// ============================================================
+// VALIDATE NODE STATUS
+// ============================================================
+
+function isValidNodeStatus(status) {
+  return Object.values(ROADMAP_NODE_STATUSES).includes(status);
+}
+
+// ============================================================
+// SAFE JSON EXTRACTION
+// ============================================================
+
+function extractJson(response) {
+  if (typeof response !== "string") {
+    throw new Error("LLM response must be a string");
   }
 
-  validateMode(mode) {
-    const supportedModes = [
-      ROADMAP_GENERATION_MODES.RESUME,
-      ROADMAP_GENERATION_MODES.CUSTOM,
-    ];
+  const trimmed = response.trim();
 
-    if (!supportedModes.includes(mode)) {
-      throw new Error(`Unsupported adaptation mode: ${mode}`);
+  // ----------------------------------------------------------
+  // Direct JSON
+  // ----------------------------------------------------------
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Continue.
+  }
+
+  // ----------------------------------------------------------
+  // Markdown code block
+  // ----------------------------------------------------------
+
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+
+  if (fencedMatch) {
+    try {
+      return JSON.parse(fencedMatch[1]);
+    } catch {
+      // Continue.
     }
   }
 
-  validateResult(result, canonicalNodeIds) {
-    if (!result || typeof result !== "object") {
-      throw new Error("Roadmap adaptation returned an invalid result");
-    }
+  // ----------------------------------------------------------
+  // JSON object inside surrounding text
+  // ----------------------------------------------------------
 
-    if (!Array.isArray(result.nodes)) {
-      throw new Error("Roadmap adaptation result must contain nodes[]");
-    }
+  const firstBrace = trimmed.indexOf("{");
 
-    const seen = new Set();
+  const lastBrace = trimmed.lastIndexOf("}");
 
-    for (const node of result.nodes) {
-      if (!node || typeof node !== "object") {
-        throw new Error("Invalid roadmap adaptation node");
-      }
-
-      if (!node.nodeId) {
-        throw new Error("Adapted node is missing nodeId");
-      }
-
-      if (!canonicalNodeIds.has(node.nodeId)) {
-        throw new Error(`LLM returned non-canonical node: ${node.nodeId}`);
-      }
-
-      if (seen.has(node.nodeId)) {
-        throw new Error(`LLM returned duplicate node: ${node.nodeId}`);
-      }
-
-      seen.add(node.nodeId);
-    }
-
-    return true;
-  }
-
-  parseResponse(response) {
-    if (!response) {
-      throw new Error("Empty response from roadmap adaptation model");
-    }
-
-    if (typeof response === "object") {
-      return response;
-    }
-
-    if (typeof response !== "string") {
-      throw new Error("Unexpected roadmap adaptation response type");
-    }
-
-    let text = response.trim();
-
-    if (text.startsWith("```")) {
-      text = text
-        .replace(/^```(?:json)?/i, "")
-        .replace(/```$/i, "")
-        .trim();
-    }
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    const possibleJson = trimmed.slice(firstBrace, lastBrace + 1);
 
     try {
-      return JSON.parse(text);
-    } catch (error) {
+      return JSON.parse(possibleJson);
+    } catch {
+      // Continue.
+    }
+  }
+
+  throw new Error("LLM returned invalid JSON");
+}
+
+// ============================================================
+// VALIDATE RESPONSE SHAPE
+// ============================================================
+
+function validateResponseShape(result) {
+  if (!result || typeof result !== "object" || Array.isArray(result)) {
+    throw new Error("Invalid roadmap adaptation response");
+  }
+
+  if (!Array.isArray(result.nodes)) {
+    throw new Error("Roadmap adaptation response must contain a nodes array");
+  }
+
+  if (result.summary !== undefined && typeof result.summary !== "string") {
+    throw new Error("Roadmap adaptation summary must be a string");
+  }
+}
+
+// ============================================================
+// VALIDATE CANONICAL NODES
+// ============================================================
+
+function validateCanonicalNodes(template, nodes) {
+  const canonicalIds = new Set(template.nodes.map((node) => node.id));
+
+  const seenIds = new Set();
+
+  for (const node of nodes) {
+    if (!node || typeof node !== "object") {
+      throw new Error("Invalid node returned by roadmap adaptation");
+    }
+
+    const nodeId = node.nodeId;
+
+    // --------------------------------------------------------
+    // ID
+    // --------------------------------------------------------
+
+    if (typeof nodeId !== "string" || !nodeId.trim()) {
+      throw new Error("Every adapted node must contain a valid nodeId");
+    }
+
+    // --------------------------------------------------------
+    // CANONICAL ID
+    // --------------------------------------------------------
+
+    if (!canonicalIds.has(nodeId)) {
+      throw new Error(`LLM returned a non-canonical roadmap node: ${nodeId}`);
+    }
+
+    // --------------------------------------------------------
+    // DUPLICATE
+    // --------------------------------------------------------
+
+    if (seenIds.has(nodeId)) {
+      throw new Error(`LLM returned duplicate roadmap node: ${nodeId}`);
+    }
+
+    seenIds.add(nodeId);
+
+    // --------------------------------------------------------
+    // STATUS
+    // --------------------------------------------------------
+
+    if (!isValidNodeStatus(node.status)) {
       throw new Error(
-        `Failed to parse roadmap adaptation JSON: ${error.message}`,
+        `Invalid roadmap node status for ${nodeId}: ${node.status}`,
       );
     }
   }
 
-  async callModel(prompt) {
-    if (!this.llm) {
-      throw new Error("Roadmap adaptation LLM is not configured");
-    }
-
-    if (typeof this.llm.generate !== "function") {
-      throw new Error("Roadmap adaptation LLM must expose generate(prompt)");
-    }
-
-    return this.llm.generate(prompt);
-  }
-
-  async adapt({ mode, context }) {
-    this.validateMode(mode);
-
-    if (!context) {
-      throw new Error("Adaptation context is required");
-    }
-
-    const canonicalNodes = context.template?.nodes || [];
-
-    if (!canonicalNodes.length) {
-      throw new Error("Canonical roadmap contains no nodes");
-    }
-
-    const canonicalNodeIds = new Set(canonicalNodes.map((node) => node.id));
-
-    const prompt = buildRoadmapAdaptationPrompt({
-      mode,
-      context,
-    });
-
-    const rawResponse = await this.callModel(prompt);
-
-    const parsedResponse = this.parseResponse(rawResponse);
-
-    this.validateResult(parsedResponse, canonicalNodeIds);
-
-    return {
-      nodes: parsedResponse.nodes,
-
-      summary:
-        typeof parsedResponse.summary === "string"
-          ? parsedResponse.summary
-          : null,
-    };
-  }
+  return true;
 }
 
-const roadmapAdaptationAgent = new RoadmapAdaptationAgent();
+// ============================================================
+// NORMALIZE ADAPTED NODES
+// ============================================================
 
-export default roadmapAdaptationAgent;
+function normalizeAdaptedNodes(template, adaptedNodes) {
+  const adaptedById = new Map(adaptedNodes.map((node) => [node.nodeId, node]));
+
+  /**
+   * IMPORTANT:
+   *
+   * The LLM is NOT allowed to decide
+   * canonical roadmap ordering.
+   *
+   * We always preserve template order.
+   */
+  return template.nodes.map((canonicalNode) => {
+    const adapted = adaptedById.get(canonicalNode.id);
+
+    // ------------------------------------------------------
+    // LLM DID NOT RETURN THIS NODE
+    // ------------------------------------------------------
+
+    if (!adapted) {
+      return {
+        nodeId: canonicalNode.id,
+
+        status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+      };
+    }
+
+    // ------------------------------------------------------
+    // RETURN ONLY SAFE FIELDS
+    // ------------------------------------------------------
+
+    return {
+      nodeId: canonicalNode.id,
+
+      status: adapted.status,
+    };
+  });
+}
+
+// ============================================================
+// CALL MODEL
+// ============================================================
+
+async function callModel(prompt) {
+  if (!llmClient) {
+    throw new Error("Roadmap adaptation LLM has not been configured");
+  }
+
+  return llmClient.generate(prompt);
+}
+
+// ============================================================
+// ADAPT
+// ============================================================
+
+async function adapt({ generationMode, templateId, userContext = {} }) {
+  validateMode(generationMode);
+
+  // ----------------------------------------------------------
+  // LOAD CANONICAL TEMPLATE
+  // ----------------------------------------------------------
+
+  const template = loadRoadmap(templateId);
+
+  if (!template) {
+    throw new Error(`Roadmap template not found: ${templateId}`);
+  }
+
+  // ----------------------------------------------------------
+  // BUILD PROMPT
+  // ----------------------------------------------------------
+
+  const prompt = buildRoadmapAdaptationPrompt({
+    generationMode,
+
+    template,
+
+    userContext,
+  });
+
+  // ----------------------------------------------------------
+  // CALL LLM
+  // ----------------------------------------------------------
+
+  const rawResponse = await callModel(prompt);
+
+  // ----------------------------------------------------------
+  // PARSE
+  // ----------------------------------------------------------
+
+  const result = extractJson(rawResponse);
+
+  // ----------------------------------------------------------
+  // STRUCTURE VALIDATION
+  // ----------------------------------------------------------
+
+  validateResponseShape(result);
+
+  // ----------------------------------------------------------
+  // CANONICAL VALIDATION
+  // ----------------------------------------------------------
+
+  validateCanonicalNodes(template, result.nodes);
+
+  // ----------------------------------------------------------
+  // NORMALIZE
+  // ----------------------------------------------------------
+
+  const nodes = normalizeAdaptedNodes(template, result.nodes);
+
+  // ----------------------------------------------------------
+  // RETURN
+  // ----------------------------------------------------------
+
+  return {
+    nodes,
+
+    summary: typeof result.summary === "string" ? result.summary.trim() : "",
+
+    metadata: {
+      templateId,
+      generationMode,
+
+      adaptedBy: "roadmap-adaptation-agent",
+    },
+  };
+}
+
+// ============================================================
+// EXPORTS
+// ============================================================
+
+export {
+  setLLM,
+  adapt,
+  validateMode,
+  validateCanonicalNodes,
+  normalizeAdaptedNodes,
+};
+
+export default {
+  setLLM,
+  adapt,
+};

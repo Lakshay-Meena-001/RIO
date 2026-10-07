@@ -1,4 +1,8 @@
-import { Router } from "express";
+import express from "express";
+
+// ============================================================
+// CONTROLLERS
+// ============================================================
 
 import {
   generateRoadmap,
@@ -14,6 +18,15 @@ import {
 } from "../controllers/roadmap.controller.js";
 
 import {
+  getTemplates,
+  getTemplate,
+  getTemplatePhases,
+  getTemplateNode,
+  getNodeNextSteps,
+  getNodeDependencies,
+} from "../controllers/template.controller.js";
+
+import {
   createDraft,
   getLatestDraft,
   getDraft,
@@ -23,219 +36,155 @@ import {
   deleteDraft,
 } from "../controllers/draft.controller.js";
 
-import {
-  getTemplates,
-  getTemplate,
-  getTemplatePhases,
-  getTemplateNode,
-  getNodeNextSteps,
-  getNodeDependencies,
-} from "../controllers/template.controller.js";
+// ============================================================
+// ROUTER
+// ============================================================
 
-const router = Router();
+const router = express.Router();
 
-/*
-|--------------------------------------------------------------------------
-| Template Routes
-|--------------------------------------------------------------------------
-|
-| These routes expose the canonical roadmap knowledge base.
-| They must appear before /:roadmapId because /:roadmapId
-| is a generic route.
-|
-*/
+// ============================================================
+// TEMPLATE ROUTES
+// ============================================================
 
 /**
- * Get all available roadmap templates.
+ * These routes expose the canonical
+ * roadmap knowledge base.
  *
- * GET /api/roadmaps/templates
+ * They do NOT generate a user roadmap.
+ *
+ * No LLM.
+ * No user progress.
+ * No user-specific state.
  */
+
+// List available roadmap templates
 router.get("/templates", getTemplates);
 
-/**
- * Get one roadmap template.
- *
- * GET /api/roadmaps/templates/:templateId
- */
+// Get complete template
 router.get("/templates/:templateId", getTemplate);
 
-/**
- * Get all phases of a template.
- *
- * GET /api/roadmaps/templates/:templateId/phases
- */
+// Get template phases
 router.get("/templates/:templateId/phases", getTemplatePhases);
 
-/**
- * Get one canonical node.
- *
- * GET /api/roadmaps/templates/:templateId/nodes/:nodeId
- */
+// Get a canonical node
 router.get("/templates/:templateId/nodes/:nodeId", getTemplateNode);
 
-/**
- * Get recommended next steps for a node.
- *
- * GET /api/roadmaps/templates/:templateId/nodes/:nodeId/next
- */
+// Get recommended next nodes
 router.get("/templates/:templateId/nodes/:nodeId/next", getNodeNextSteps);
 
-/**
- * Get dependencies/prerequisites for a node.
- *
- * GET /api/roadmaps/templates/:templateId/nodes/:nodeId/dependencies
- */
+// Get node dependencies
 router.get(
   "/templates/:templateId/nodes/:nodeId/dependencies",
   getNodeDependencies,
 );
 
-/*
-|--------------------------------------------------------------------------
-| Draft Routes
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// DRAFT ROUTES
+// ============================================================
 
 /**
- * Create a builder draft.
+ * Draft routes MUST come before
+ * /:roadmapId routes.
  *
- * POST /api/roadmaps/drafts
+ * Otherwise future route changes can
+ * accidentally create collisions.
  */
+
+// Create builder draft
 router.post("/drafts", createDraft);
 
-/**
- * Get the latest builder draft.
- *
- * IMPORTANT:
- * This must come before /drafts/:draftId.
- */
+// Get latest unfinished builder draft
 router.get("/drafts/latest", getLatestDraft);
 
-/**
- * Get one builder draft.
- *
- * GET /api/roadmaps/drafts/:draftId
- */
+// Get specific draft
 router.get("/drafts/:draftId", getDraft);
 
-/**
- * Update a builder draft.
- *
- * PATCH /api/roadmaps/drafts/:draftId
- */
+// Update builder draft
 router.patch("/drafts/:draftId", updateDraft);
 
-/**
- * Update current builder step.
- *
- * PATCH /api/roadmaps/drafts/:draftId/step
- */
+// Update current builder step
 router.patch("/drafts/:draftId/step", updateCurrentStep);
 
-/**
- * Mark a draft as generated.
- *
- * POST /api/roadmaps/drafts/:draftId/generated
- */
+// Mark draft as generated
 router.post("/drafts/:draftId/generated", markGenerated);
 
-/**
- * Delete a builder draft.
- *
- * DELETE /api/roadmaps/drafts/:draftId
- */
+// Delete builder draft
 router.delete("/drafts/:draftId", deleteDraft);
 
-/*
-|--------------------------------------------------------------------------
-| Roadmap Collection Routes
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// ROADMAP COLLECTION
+// ============================================================
 
 /**
- * Generate a new roadmap.
+ * Generate a roadmap.
  *
- * POST /api/roadmaps
+ * Depending on generationMode:
+ *
+ * standard
+ *   → canonical knowledge
+ *
+ * resume
+ *   → canonical knowledge + resume adaptation
+ *
+ * custom
+ *   → canonical knowledge + custom adaptation
  */
 router.post("/", generateRoadmap);
 
-/**
- * Get all roadmaps belonging to the user.
- *
- * GET /api/roadmaps
- */
+// List user's generated roadmaps
 router.get("/", getRoadmaps);
 
-/*
-|--------------------------------------------------------------------------
-| Roadmap Item Routes
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// ROADMAP ITEM
+// ============================================================
 
 /**
- * Get one roadmap.
+ * IMPORTANT:
  *
- * GET /api/roadmaps/:roadmapId
+ * Specific nested routes are declared before
+ * the generic roadmap item route.
  *
- * Keep this AFTER specific routes such as:
- * /templates
- * /drafts
+ * This makes the intended API structure
+ * obvious and protects us from future
+ * route additions.
  */
-router.get("/:roadmapId", getRoadmap);
 
-/**
- * Delete one roadmap.
- *
- * DELETE /api/roadmaps/:roadmapId
- */
-router.delete("/:roadmapId", deleteRoadmap);
+// ------------------------------------------------------------
+// PROGRESS
+// ------------------------------------------------------------
 
-/*
-|--------------------------------------------------------------------------
-| Progress Routes
-|--------------------------------------------------------------------------
-*/
-
-/**
- * Get roadmap progress.
- *
- * GET /api/roadmaps/:roadmapId/progress
- */
 router.get("/:roadmapId/progress", getProgress);
 
-/**
- * Update node status.
- *
- * PATCH /api/roadmaps/:roadmapId/nodes/:nodeId/status
- */
+// ------------------------------------------------------------
+// NODE STATUS
+// ------------------------------------------------------------
+
 router.patch("/:roadmapId/nodes/:nodeId/status", updateNodeStatus);
 
-/**
- * Start a node.
- *
- * POST /api/roadmaps/:roadmapId/nodes/:nodeId/start
- */
+// ------------------------------------------------------------
+// NODE ACTIONS
+// ------------------------------------------------------------
+
 router.post("/:roadmapId/nodes/:nodeId/start", startNode);
 
-/**
- * Complete a node.
- *
- * POST /api/roadmaps/:roadmapId/nodes/:nodeId/complete
- */
 router.post("/:roadmapId/nodes/:nodeId/complete", completeNode);
 
-/**
- * Reset a node.
- *
- * POST /api/roadmaps/:roadmapId/nodes/:nodeId/reset
- */
 router.post("/:roadmapId/nodes/:nodeId/reset", resetNode);
 
-/**
- * Skip a node.
- *
- * POST /api/roadmaps/:roadmapId/nodes/:nodeId/skip
- */
 router.post("/:roadmapId/nodes/:nodeId/skip", skipNode);
+
+// ------------------------------------------------------------
+// ROADMAP ITSELF
+// ------------------------------------------------------------
+
+// Get roadmap
+router.get("/:roadmapId", getRoadmap);
+
+// Delete roadmap
+router.delete("/:roadmapId", deleteRoadmap);
+
+// ============================================================
+// EXPORT
+// ============================================================
 
 export default router;

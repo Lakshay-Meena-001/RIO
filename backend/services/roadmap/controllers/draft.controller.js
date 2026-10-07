@@ -1,18 +1,11 @@
 import draftService from "../services/draft.service.js";
+
 import draftValidator from "../validators/draft.validator.js";
 
-/*
-|--------------------------------------------------------------------------
-| Helpers
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// HELPERS
+// ============================================================
 
-/**
- * Get authenticated user ID.
- *
- * Depending on the auth middleware/gateway,
- * user information may exist in different places.
- */
 function getUserId(req) {
   return (
     req.user?.id ||
@@ -23,45 +16,32 @@ function getUserId(req) {
   );
 }
 
-/**
- * Standard success response.
- */
-function success(res, data, statusCode = 200) {
+function sendSuccess(res, data, statusCode = 200) {
   return res.status(statusCode).json({
     success: true,
     data,
   });
 }
 
-/**
- * Standard controller error response.
- */
-function handleError(res, error) {
-  console.error("[DraftController]", error);
+function sendError(res, error) {
+  const statusCode = error?.statusCode || 500;
 
-  return res.status(error.statusCode || 500).json({
+  return res.status(statusCode).json({
     success: false,
 
-    message: error.message || "Something went wrong",
+    message: error?.message || "Something went wrong",
 
-    ...(error.details
-      ? {
-          details: error.details,
-        }
-      : {}),
+    ...(error?.code && {
+      code: error.code,
+    }),
   });
 }
 
-/*
-|--------------------------------------------------------------------------
-| Create Draft
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// CREATE DRAFT
+// ============================================================
 
-/**
- * POST /roadmaps/drafts
- */
-async function createDraft(req, res) {
+async function createDraft(req, res, next) {
   try {
     const userId = getUserId(req);
 
@@ -72,30 +52,21 @@ async function createDraft(req, res) {
       });
     }
 
-    /*
-     * Zod validates and normalizes
-     * the incoming builder data.
-     */
     const input = draftValidator.validateCreate(req.body);
 
     const draft = await draftService.createDraft(userId, input);
 
-    return success(res, draft, 201);
+    return sendSuccess(res, draft, 201);
   } catch (error) {
-    return handleError(res, error);
+    return next(error);
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Get Latest Draft
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// GET LATEST DRAFT
+// ============================================================
 
-/**
- * GET /roadmaps/drafts/latest
- */
-async function getLatestDraft(req, res) {
+async function getLatestDraft(req, res, next) {
   try {
     const userId = getUserId(req);
 
@@ -108,26 +79,23 @@ async function getLatestDraft(req, res) {
 
     const draft = await draftService.getLatestDraft(userId);
 
-    if (!draft) {
-      return success(res, null);
-    }
-
-    return success(res, draft);
+    /**
+     * No draft is not a server error.
+     *
+     * Frontend can interpret null as:
+     * "start a new builder".
+     */
+    return sendSuccess(res, draft);
   } catch (error) {
-    return handleError(res, error);
+    return next(error);
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Get Draft
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// GET DRAFT
+// ============================================================
 
-/**
- * GET /roadmaps/drafts/:draftId
- */
-async function getDraft(req, res) {
+async function getDraft(req, res, next) {
   try {
     const userId = getUserId(req);
 
@@ -138,35 +106,21 @@ async function getDraft(req, res) {
       });
     }
 
-    const { draftId } = draftValidator.validateDraftId({
-      draftId: req.params.draftId,
-    });
+    const { draftId } = draftValidator.validateDraftId(req.params);
 
     const draft = await draftService.getDraft(userId, draftId);
 
-    if (!draft) {
-      return res.status(404).json({
-        success: false,
-        message: "Draft not found",
-      });
-    }
-
-    return success(res, draft);
+    return sendSuccess(res, draft);
   } catch (error) {
-    return handleError(res, error);
+    return next(error);
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Update Draft
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// UPDATE DRAFT
+// ============================================================
 
-/**
- * PATCH /roadmaps/drafts/:draftId
- */
-async function updateDraft(req, res) {
+async function updateDraft(req, res, next) {
   try {
     const userId = getUserId(req);
 
@@ -177,41 +131,23 @@ async function updateDraft(req, res) {
       });
     }
 
-    const { draftId } = draftValidator.validateDraftId({
-      draftId: req.params.draftId,
-    });
+    const { draftId } = draftValidator.validateDraftId(req.params);
 
-    /*
-     * Partial Zod schema means the frontend
-     * can save only the fields that changed.
-     */
-    const input = draftValidator.validateUpdate(req.body);
+    const updates = draftValidator.validateUpdate(req.body);
 
-    const draft = await draftService.updateDraft(userId, draftId, input);
+    const draft = await draftService.updateDraft(userId, draftId, updates);
 
-    if (!draft) {
-      return res.status(404).json({
-        success: false,
-        message: "Draft not found",
-      });
-    }
-
-    return success(res, draft);
+    return sendSuccess(res, draft);
   } catch (error) {
-    return handleError(res, error);
+    return next(error);
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Update Current Step
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// UPDATE CURRENT STEP
+// ============================================================
 
-/**
- * PATCH /roadmaps/drafts/:draftId/step
- */
-async function updateCurrentStep(req, res) {
+async function updateCurrentStep(req, res, next) {
   try {
     const userId = getUserId(req);
 
@@ -222,43 +158,27 @@ async function updateCurrentStep(req, res) {
       });
     }
 
-    const input = draftValidator.validateCurrentStep({
-      draftId: req.params.draftId,
+    const { draftId } = draftValidator.validateDraftId(req.params);
 
-      currentStep: req.body?.currentStep,
-    });
+    const { currentStep } = draftValidator.validateCurrentStep(req.body);
 
     const draft = await draftService.updateCurrentStep(
       userId,
-
-      input.draftId,
-
-      input.currentStep,
+      draftId,
+      currentStep,
     );
 
-    if (!draft) {
-      return res.status(404).json({
-        success: false,
-        message: "Draft not found",
-      });
-    }
-
-    return success(res, draft);
+    return sendSuccess(res, draft);
   } catch (error) {
-    return handleError(res, error);
+    return next(error);
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Mark Draft As Generated
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// MARK GENERATED
+// ============================================================
 
-/**
- * POST /roadmaps/drafts/:draftId/generated
- */
-async function markGenerated(req, res) {
+async function markGenerated(req, res, next) {
   try {
     const userId = getUserId(req);
 
@@ -269,43 +189,23 @@ async function markGenerated(req, res) {
       });
     }
 
-    const input = draftValidator.validateMarkGenerated({
-      draftId: req.params.draftId,
+    const { draftId } = draftValidator.validateDraftId(req.params);
 
-      generatedRoadmapId: req.body?.generatedRoadmapId,
-    });
+    const { roadmapId } = draftValidator.validateMarkGenerated(req.body);
 
-    const draft = await draftService.markGenerated(
-      userId,
+    const draft = await draftService.markGenerated(userId, draftId, roadmapId);
 
-      input.draftId,
-
-      input.generatedRoadmapId,
-    );
-
-    if (!draft) {
-      return res.status(404).json({
-        success: false,
-        message: "Draft not found",
-      });
-    }
-
-    return success(res, draft);
+    return sendSuccess(res, draft);
   } catch (error) {
-    return handleError(res, error);
+    return next(error);
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Delete Draft
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// DELETE DRAFT
+// ============================================================
 
-/**
- * DELETE /roadmaps/drafts/:draftId
- */
-async function deleteDraft(req, res) {
+async function deleteDraft(req, res, next) {
   try {
     const userId = getUserId(req);
 
@@ -316,33 +216,19 @@ async function deleteDraft(req, res) {
       });
     }
 
-    const { draftId } = draftValidator.validateDraftId({
-      draftId: req.params.draftId,
-    });
+    const { draftId } = draftValidator.validateDraftId(req.params);
 
-    const deleted = await draftService.deleteDraft(userId, draftId);
+    const result = await draftService.deleteDraft(userId, draftId);
 
-    if (!deleted) {
-      return res.status(404).json({
-        success: false,
-        message: "Draft not found",
-      });
-    }
-
-    return success(res, {
-      id: deleted._id,
-      deleted: true,
-    });
+    return sendSuccess(res, result);
   } catch (error) {
-    return handleError(res, error);
+    return next(error);
   }
 }
 
-/*
-|--------------------------------------------------------------------------
-| Exports
-|--------------------------------------------------------------------------
-*/
+// ============================================================
+// EXPORTS
+// ============================================================
 
 export {
   createDraft,

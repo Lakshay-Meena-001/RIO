@@ -1,10 +1,65 @@
 import Roadmap from "../models/roadmap.model.js";
-import { ROADMAP_NODE_STATUSES } from "../constants/roadmap.constants.js";
+
+import {
+  ROADMAP_NODE_STATUSES,
+  ROADMAP_STATUSES,
+} from "../constants/roadmap.constants.js";
+
 import { loadRoadmap, loadRoadmapNode } from "../knowledge/loader.js";
 
+// ============================================================
+// PROGRESS SERVICE
+// ============================================================
+
 class ProgressService {
+  // ==========================================================
+  // IMPORTANCE → PRIORITY
+  // ==========================================================
+
   /**
-   * Calculate progress summary from roadmap nodes.
+   * Knowledge importance and user-facing focus priority
+   * are different concepts.
+   *
+   * Knowledge:
+   *   core
+   *   important
+   *   optional
+   *   advanced
+   *
+   * Focus:
+   *   low
+   *   medium
+   *   high
+   */
+  mapImportanceToPriority(importance) {
+    switch (importance) {
+      case "core":
+        return "high";
+
+      case "important":
+        return "high";
+
+      case "advanced":
+        return "medium";
+
+      case "optional":
+        return "low";
+
+      default:
+        return "medium";
+    }
+  }
+
+  // ==========================================================
+  // CALCULATE PROGRESS
+  // ==========================================================
+
+  /**
+   * Calculate aggregate progress from actual node states.
+   *
+   * completed + skipped = progressed
+   *
+   * learning is NOT counted as completed.
    */
   calculateProgress(nodes = []) {
     const total = nodes.length;
@@ -36,12 +91,18 @@ class ProgressService {
     };
   }
 
+  // ==========================================================
+  // CURRENT FOCUS
+  // ==========================================================
+
   /**
-   * Find the first node that still needs attention.
+   * Determine the user's next move.
    *
    * Priority:
-   * 1. Currently learning
+   *
+   * 1. Currently learning node
    * 2. First not-started node
+   * 3. null when everything is completed/skipped
    */
   getCurrentFocus(nodes = [], roadmapTemplate) {
     const learningNode = nodes.find(
@@ -63,11 +124,23 @@ class ProgressService {
     return null;
   }
 
+  // ==========================================================
+  // BUILD CURRENT FOCUS
+  // ==========================================================
+
   /**
-   * Build the "Your Next Move" object.
+   * Convert a roadmap node into the
+   * "Your Next Move" object.
    */
   buildFocus(roadmapNode, roadmapTemplate) {
-    const knowledgeNode = loadRoadmapNode(roadmapTemplate, roadmapNode.nodeId);
+    const knowledgeNode = loadRoadmapNode(
+      roadmapTemplate.id,
+      roadmapNode.nodeId,
+    );
+
+    if (!knowledgeNode) {
+      return null;
+    }
 
     return {
       nodeId: roadmapNode.nodeId,
@@ -77,14 +150,20 @@ class ProgressService {
         knowledgeNode.description ||
         "This is the next recommended step in your roadmap.",
 
-      priority: knowledgeNode.importance || "important",
+      priority: this.mapImportanceToPriority(knowledgeNode.importance),
     };
   }
 
+  // ==========================================================
+  // ROADMAP LOOKUP
+  // ==========================================================
+
   /**
-   * Recalculate and persist roadmap progress.
+   * Fetch a roadmap owned by the current user.
+   *
+   * Never allow one user to modify another user's roadmap.
    */
-  async recalculate(userId, roadmapId) {
+  async getOwnedRoadmap(userId, roadmapId) {
     if (!userId) {
       throw new Error("userId is required");
     }
@@ -99,8 +178,26 @@ class ProgressService {
     });
 
     if (!roadmap) {
-      return null;
+      const error = new Error("Roadmap not found");
+
+      error.statusCode = 404;
+
+      throw error;
     }
+
+    return roadmap;
+  }
+
+  // ==========================================================
+  // RECALCULATE
+  // ==========================================================
+
+  /**
+   * Recalculate progress and current focus
+   * after a node changes.
+   */
+  async recalculate(userId, roadmapId) {
+    const roadmap = await this.getOwnedRoadmap(userId, roadmapId);
 
     const roadmapTemplate = loadRoadmap(roadmap.templateId);
 
@@ -109,12 +206,22 @@ class ProgressService {
     const currentFocus = this.getCurrentFocus(roadmap.nodes, roadmapTemplate);
 
     roadmap.progress = progress;
+
     roadmap.currentFocus = currentFocus;
 
-    // If every node is completed/skipped,
-    // the roadmap itself is considered completed.
+    /**
+     * No remaining work means roadmap is complete.
+     */
     if (progress.total > 0 && progress.remaining === 0) {
-      roadmap.status = "completed";
+      roadmap.status = ROADMAP_STATUSES.COMPLETED;
+    } else {
+      /**
+       * If user previously completed the roadmap
+       * but resets/skips something, reopen it.
+       */
+      if (roadmap.status === ROADMAP_STATUSES.COMPLETED) {
+        roadmap.status = ROADMAP_STATUSES.ACTIVE;
+      }
     }
 
     await roadmap.save();
@@ -122,21 +229,12 @@ class ProgressService {
     return roadmap;
   }
 
-  /**
-   * Update one node's progress state.
-   */
+  // ==========================================================
+  // UPDATE NODE STATUS
+  // ==========================================================
+
   async updateNodeStatus(userId, roadmapId, nodeId, status) {
-    if (!userId) {
-      throw new Error("userId is required");
-    }
-
-    if (!roadmapId) {
-      throw new Error("roadmapId is required");
-    }
-
-    if (!nodeId) {
-      throw new Error("nodeId is required");
-    }
+    const roadmap = await this.getOwnedRoadmap(userId, roadmapId);
 
     const validStatuses = Object.values(ROADMAP_NODE_STATUSES);
 
@@ -144,54 +242,73 @@ class ProgressService {
       throw new Error(`Invalid roadmap node status: ${status}`);
     }
 
-    const roadmap = await Roadmap.findOne({
-      _id: roadmapId,
-      userId,
-    });
-
-    if (!roadmap) {
-      return null;
-    }
-
     const roadmapNode = roadmap.nodes.find((node) => node.nodeId === nodeId);
 
     if (!roadmapNode) {
-      throw new Error(`Node not found in roadmap: ${nodeId}`);
+      const error = new Error(`Node not found in roadmap: ${nodeId}`);
+
+      error.statusCode = 404;
+
+      throw error;
     }
 
     const now = new Date();
 
     roadmapNode.status = status;
+
     roadmapNode.updatedAt = now;
 
-    // --------------------------------
-    // Learning
-    // --------------------------------
-    if (status === ROADMAP_NODE_STATUSES.LEARNING) {
-      roadmapNode.startedAt ??= now;
-    }
+    // --------------------------------------------------------
+    // LEARNING
+    // --------------------------------------------------------
 
-    // --------------------------------
-    // Completed
-    // --------------------------------
-    if (status === ROADMAP_NODE_STATUSES.COMPLETED) {
-      roadmapNode.startedAt ??= now;
-      roadmapNode.completedAt = now;
+    if (status === ROADMAP_NODE_STATUSES.LEARNING) {
+      /**
+       * Don't overwrite the original start time
+       * if the user returns to a learning node.
+       */
+      if (!roadmapNode.startedAt) {
+        roadmapNode.startedAt = now;
+      }
+
+      roadmapNode.completedAt = null;
+
       roadmapNode.skippedReason = null;
     }
 
-    // --------------------------------
-    // Skipped
-    // --------------------------------
+    // --------------------------------------------------------
+    // COMPLETED
+    // --------------------------------------------------------
+
+    if (status === ROADMAP_NODE_STATUSES.COMPLETED) {
+      /**
+       * A node cannot be completed without
+       * having effectively started.
+       */
+      if (!roadmapNode.startedAt) {
+        roadmapNode.startedAt = now;
+      }
+
+      roadmapNode.completedAt = now;
+
+      roadmapNode.skippedReason = null;
+    }
+
+    // --------------------------------------------------------
+    // SKIPPED
+    // --------------------------------------------------------
+
     if (status === ROADMAP_NODE_STATUSES.SKIPPED) {
       roadmapNode.completedAt = null;
     }
 
-    // --------------------------------
-    // Not started
-    // --------------------------------
+    // --------------------------------------------------------
+    // NOT STARTED
+    // --------------------------------------------------------
+
     if (status === ROADMAP_NODE_STATUSES.NOT_STARTED) {
       roadmapNode.completedAt = null;
+
       roadmapNode.skippedReason = null;
     }
 
@@ -200,9 +317,10 @@ class ProgressService {
     return this.recalculate(userId, roadmapId);
   }
 
-  /**
-   * Mark a node as completed.
-   */
+  // ==========================================================
+  // COMPLETE NODE
+  // ==========================================================
+
   async completeNode(userId, roadmapId, nodeId) {
     return this.updateNodeStatus(
       userId,
@@ -212,9 +330,10 @@ class ProgressService {
     );
   }
 
-  /**
-   * Mark a node as currently learning.
-   */
+  // ==========================================================
+  // START NODE
+  // ==========================================================
+
   async startNode(userId, roadmapId, nodeId) {
     return this.updateNodeStatus(
       userId,
@@ -224,9 +343,10 @@ class ProgressService {
     );
   }
 
-  /**
-   * Mark a node as not started.
-   */
+  // ==========================================================
+  // RESET NODE
+  // ==========================================================
+
   async resetNode(userId, roadmapId, nodeId) {
     return this.updateNodeStatus(
       userId,
@@ -236,40 +356,30 @@ class ProgressService {
     );
   }
 
-  /**
-   * Skip a node.
-   */
+  // ==========================================================
+  // SKIP NODE
+  // ==========================================================
+
   async skipNode(userId, roadmapId, nodeId, reason = null) {
-    if (!userId) {
-      throw new Error("userId is required");
-    }
-
-    if (!roadmapId) {
-      throw new Error("roadmapId is required");
-    }
-
-    if (!nodeId) {
-      throw new Error("nodeId is required");
-    }
-
-    const roadmap = await Roadmap.findOne({
-      _id: roadmapId,
-      userId,
-    });
-
-    if (!roadmap) {
-      return null;
-    }
+    const roadmap = await this.getOwnedRoadmap(userId, roadmapId);
 
     const roadmapNode = roadmap.nodes.find((node) => node.nodeId === nodeId);
 
     if (!roadmapNode) {
-      throw new Error(`Node not found in roadmap: ${nodeId}`);
+      const error = new Error(`Node not found in roadmap: ${nodeId}`);
+
+      error.statusCode = 404;
+
+      throw error;
     }
 
     roadmapNode.status = ROADMAP_NODE_STATUSES.SKIPPED;
-    roadmapNode.skippedReason = reason?.trim?.() || null;
+
+    roadmapNode.skippedReason =
+      typeof reason === "string" ? reason.trim() || null : null;
+
     roadmapNode.completedAt = null;
+
     roadmapNode.updatedAt = new Date();
 
     await roadmap.save();
@@ -277,35 +387,34 @@ class ProgressService {
     return this.recalculate(userId, roadmapId);
   }
 
+  // ==========================================================
+  // GET PROGRESS
+  // ==========================================================
+
   /**
-   * Get current progress without changing the database.
+   * Return calculated progress without
+   * modifying the database.
    */
   async getProgress(userId, roadmapId) {
-    if (!userId) {
-      throw new Error("userId is required");
-    }
-
-    if (!roadmapId) {
-      throw new Error("roadmapId is required");
-    }
-
-    const roadmap = await Roadmap.findOne({
-      _id: roadmapId,
-      userId,
-    }).lean();
-
-    if (!roadmap) {
-      return null;
-    }
+    const roadmap = await this.getOwnedRoadmap(userId, roadmapId);
 
     const roadmapTemplate = loadRoadmap(roadmap.templateId);
 
     return {
+      roadmapId: roadmap._id,
+
       progress: this.calculateProgress(roadmap.nodes),
+
       currentFocus: this.getCurrentFocus(roadmap.nodes, roadmapTemplate),
+
+      status: roadmap.status,
     };
   }
 }
+
+// ============================================================
+// EXPORT
+// ============================================================
 
 const progressService = new ProgressService();
 

@@ -7,218 +7,352 @@ import { loadRoadmap } from "../knowledge/loader.js";
 
 import { getLLMClient } from "../config/llm.js";
 
-import roadmapAdaptationAgent from "../agents/roadmap.adaptation.agent.js";
+import { adapt, setLLM } from "../agents/roadmap.adaptation.agent.js";
 
-class PersonalizationService {
-  buildAdaptationContext({ template, input, resume = null }) {
-    return {
-      template: {
-        id: template.id,
-        version: template.version,
-        title: template.title,
-        description: template.description,
-        goal: template.goal,
+// ============================================================
+// HELPERS
+// ============================================================
 
-        phases: template.metadata?.phases || [],
-        progression: template.metadata?.progression || [],
-
-        nodes: template.nodes,
-        edges: template.edges,
-
-        alternatives: template.alternatives || [],
-      },
-
-      user: {
-        role: input.role || null,
-
-        level: input.level || null,
-
-        availableHoursPerDay: input.availableHoursPerDay ?? null,
-
-        target: {
-          compensation: input.target?.compensation ?? null,
-
-          currency: input.target?.currency || "INR",
-
-          unit: input.target?.unit || "LPA",
-        },
-
-        manualSkills: input.manualSkills || [],
-      },
-
-      resume: resume
-        ? {
-            id: resume.id || resume._id || null,
-
-            version: resume.version ?? null,
-
-            profile: resume.profile || null,
-
-            summary: resume.summary || null,
-
-            skills: resume.skills || null,
-
-            technologies: resume.technologies || null,
-
-            experience: resume.experience || null,
-
-            projects: resume.projects || null,
-
-            education: resume.education || null,
-          }
-        : null,
-
-      customRequirements: input.customRequirements || {},
-    };
+function normalizeString(value) {
+  if (typeof value !== "string") {
+    return "";
   }
 
-  validateAdaptedNodes(adaptedNodes, template) {
-    if (!Array.isArray(adaptedNodes)) {
-      throw new Error("Adaptation result must contain an array of nodes");
-    }
+  return value.trim();
+}
 
-    const canonicalNodeIds = new Set(template.nodes.map((node) => node.id));
-
-    const seenNodeIds = new Set();
-
-    for (const node of adaptedNodes) {
-      if (!node || !node.nodeId) {
-        throw new Error("Every adapted roadmap node must contain nodeId");
-      }
-
-      if (!canonicalNodeIds.has(node.nodeId)) {
-        throw new Error(
-          `Unknown roadmap node returned by adaptation: ${node.nodeId}`,
-        );
-      }
-
-      if (seenNodeIds.has(node.nodeId)) {
-        throw new Error(`Duplicate roadmap node returned: ${node.nodeId}`);
-      }
-
-      seenNodeIds.add(node.nodeId);
-
-      const validStatuses = Object.values(ROADMAP_NODE_STATUSES);
-
-      if (node.status && !validStatuses.includes(node.status)) {
-        throw new Error(`Invalid adapted node status: ${node.status}`);
-      }
-    }
-
-    return true;
+function normalizeStringArray(value) {
+  if (!Array.isArray(value)) {
+    return [];
   }
 
-  normalizeAdaptedNodes(adaptedNodes, template) {
-    const adaptedMap = new Map(adaptedNodes.map((node) => [node.nodeId, node]));
+  return [...new Set(value.map(normalizeString).filter(Boolean))];
+}
 
-    return template.nodes.map((canonicalNode) => {
-      const adapted = adaptedMap.get(canonicalNode.id);
+// ============================================================
+// BUILD RESUME CONTEXT
+// ============================================================
 
-      if (!adapted) {
-        return {
-          nodeId: canonicalNode.id,
-
-          status: ROADMAP_NODE_STATUSES.NOT_STARTED,
-
-          skippedReason: null,
-          startedAt: null,
-          completedAt: null,
-          updatedAt: new Date(),
-        };
-      }
-
-      return {
-        nodeId: canonicalNode.id,
-
-        status: adapted.status || ROADMAP_NODE_STATUSES.NOT_STARTED,
-
-        skippedReason: adapted.skippedReason || null,
-
-        startedAt: adapted.startedAt || null,
-
-        completedAt: adapted.completedAt || null,
-
-        updatedAt: new Date(),
-      };
-    });
+function buildResumeContext(resume) {
+  if (!resume) {
+    return null;
   }
 
-  async adapt({ generationMode, templateId, input, resume = null }) {
-    if (generationMode === ROADMAP_GENERATION_MODES.STANDARD) {
-      throw new Error("Standard roadmap does not require personalization");
-    }
+  return {
+    id: resume.id || null,
 
-    const template = loadRoadmap(templateId);
+    version: resume.version || null,
 
-    const context = this.buildAdaptationContext({
-      template,
-      input,
-      resume,
-    });
+    profile: resume.profile || null,
 
-    /*
-     * LLM client is created lazily.
-     *
-     * Therefore standard roadmap generation never
-     * initializes the LLM.
-     */
-    const llm = await getLLMClient();
+    summary: normalizeString(resume.summary),
 
-    roadmapAdaptationAgent.setLLM(llm);
+    skills: normalizeStringArray(resume.skills),
 
-    const result = await roadmapAdaptationAgent.adapt({
-      mode: generationMode,
-      context,
-    });
+    technologies: normalizeStringArray(resume.technologies),
 
-    const adaptedNodes = result?.nodes || [];
+    experience: Array.isArray(resume.experience) ? resume.experience : [],
 
-    this.validateAdaptedNodes(adaptedNodes, template);
+    projects: Array.isArray(resume.projects) ? resume.projects : [],
 
-    const normalizedNodes = this.normalizeAdaptedNodes(adaptedNodes, template);
+    education: Array.isArray(resume.education) ? resume.education : [],
 
-    return {
-      nodes: normalizedNodes,
+    certifications: Array.isArray(resume.certifications)
+      ? resume.certifications
+      : [],
 
-      metadata: {
-        adapted: true,
+    achievements: Array.isArray(resume.achievements) ? resume.achievements : [],
 
-        mode: generationMode,
+    languages: Array.isArray(resume.languages) ? resume.languages : [],
 
-        templateId: template.id,
+    analysis: resume.analysis || null,
+  };
+}
 
-        templateVersion: template.version,
+// ============================================================
+// BUILD CUSTOM CONTEXT
+// ============================================================
 
-        adaptationSummary: result?.summary || null,
-      },
-    };
-  }
+function buildCustomContext(customRequirements = {}) {
+  return {
+    prompt: normalizeString(customRequirements.prompt),
 
-  resolveMode({ generationMode, useResume = false, hasManualSkills = false }) {
-    if (generationMode === ROADMAP_GENERATION_MODES.STANDARD) {
-      return ROADMAP_GENERATION_MODES.STANDARD;
-    }
+    goals: normalizeStringArray(customRequirements.goals),
 
-    if (generationMode === ROADMAP_GENERATION_MODES.RESUME) {
-      return ROADMAP_GENERATION_MODES.RESUME;
-    }
+    technologies: normalizeStringArray(customRequirements.technologies),
 
-    if (generationMode === ROADMAP_GENERATION_MODES.CUSTOM) {
-      return ROADMAP_GENERATION_MODES.CUSTOM;
-    }
+    exclusions: normalizeStringArray(customRequirements.exclusions),
 
-    if (useResume) {
-      return ROADMAP_GENERATION_MODES.RESUME;
-    }
+    projectPreferences: normalizeStringArray(
+      customRequirements.projectPreferences,
+    ),
 
-    if (hasManualSkills) {
-      return ROADMAP_GENERATION_MODES.CUSTOM;
-    }
+    notes: normalizeString(customRequirements.notes),
+  };
+}
 
-    return ROADMAP_GENERATION_MODES.STANDARD;
+// ============================================================
+// BUILD USER CONTEXT
+// ============================================================
+
+function buildAdaptationContext({ input, resume }) {
+  return {
+    role: normalizeString(input.role),
+
+    level: input.level,
+
+    target: input.target || {},
+
+    availableHoursPerDay: input.availableHoursPerDay ?? null,
+
+    currentSkills: normalizeStringArray(input.profile?.currentSkills),
+
+    manualSkills: normalizeStringArray(input.manualSkills),
+
+    resume: buildResumeContext(resume),
+
+    customRequirements: buildCustomContext(input.customRequirements),
+  };
+}
+
+// ============================================================
+// VALIDATE MODE
+// ============================================================
+
+function validateAdaptationMode(generationMode) {
+  if (
+    generationMode !== ROADMAP_GENERATION_MODES.RESUME &&
+    generationMode !== ROADMAP_GENERATION_MODES.CUSTOM
+  ) {
+    const error = new Error(
+      `Unsupported personalization mode: ${generationMode}`,
+    );
+
+    error.statusCode = 400;
+
+    throw error;
   }
 }
 
-const personalizationService = new PersonalizationService();
+// ============================================================
+// VALIDATE ADAPTED NODES
+// ============================================================
 
-export default personalizationService;
+function validateAdaptedNodes({ template, nodes }) {
+  if (!Array.isArray(nodes)) {
+    throw new Error("Personalization result must contain a nodes array");
+  }
+
+  const canonicalIds = new Set(template.nodes.map((node) => node.id));
+
+  const seenIds = new Set();
+
+  for (const node of nodes) {
+    if (!node || typeof node !== "object") {
+      throw new Error("Invalid personalized roadmap node");
+    }
+
+    if (typeof node.nodeId !== "string" || !node.nodeId.trim()) {
+      throw new Error("Personalized roadmap node is missing nodeId");
+    }
+
+    if (!canonicalIds.has(node.nodeId)) {
+      throw new Error(`Personalization returned unknown node: ${node.nodeId}`);
+    }
+
+    if (seenIds.has(node.nodeId)) {
+      throw new Error(`Duplicate personalized node: ${node.nodeId}`);
+    }
+
+    seenIds.add(node.nodeId);
+
+    if (!Object.values(ROADMAP_NODE_STATUSES).includes(node.status)) {
+      throw new Error(`Invalid personalized node status: ${node.status}`);
+    }
+  }
+}
+
+// ============================================================
+// NORMALIZE NODE ORDER
+// ============================================================
+
+function normalizeNodeOrder({ template, nodes }) {
+  const byId = new Map(nodes.map((node) => [node.nodeId, node]));
+
+  /**
+   * Canonical template controls ordering.
+   *
+   * Personalization can change state,
+   * never graph order.
+   */
+  return template.nodes.map((canonicalNode) => {
+    const personalized = byId.get(canonicalNode.id);
+
+    if (!personalized) {
+      return {
+        nodeId: canonicalNode.id,
+
+        status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+      };
+    }
+
+    return {
+      nodeId: canonicalNode.id,
+
+      status: personalized.status,
+    };
+  });
+}
+
+// ============================================================
+// SETUP LLM
+// ============================================================
+
+async function ensureLLM() {
+  const client = await getLLMClient();
+
+  setLLM(client);
+
+  return client;
+}
+
+// ============================================================
+// PERSONALIZE
+// ============================================================
+
+async function personalize({
+  generationMode,
+  templateId,
+  input = {},
+  resume = null,
+}) {
+  validateAdaptationMode(generationMode);
+
+  // ----------------------------------------------------------
+  // LOAD CANONICAL TEMPLATE
+  // ----------------------------------------------------------
+
+  const template = loadRoadmap(templateId);
+
+  if (!template) {
+    const error = new Error(`Roadmap template not found: ${templateId}`);
+
+    error.statusCode = 404;
+
+    throw error;
+  }
+
+  // ----------------------------------------------------------
+  // BUILD CONTEXT
+  // ----------------------------------------------------------
+
+  const userContext = buildAdaptationContext({
+    input,
+    resume,
+  });
+
+  // ----------------------------------------------------------
+  // INITIALIZE LLM
+  // ----------------------------------------------------------
+
+  await ensureLLM();
+
+  // ----------------------------------------------------------
+  // ADAPT
+  // ----------------------------------------------------------
+
+  const result = await adapt({
+    generationMode,
+
+    templateId,
+
+    userContext,
+  });
+
+  // ----------------------------------------------------------
+  // VALIDATE
+  // ----------------------------------------------------------
+
+  validateAdaptedNodes({
+    template,
+
+    nodes: result.nodes,
+  });
+
+  // ----------------------------------------------------------
+  // NORMALIZE
+  // ----------------------------------------------------------
+
+  const nodes = normalizeNodeOrder({
+    template,
+
+    nodes: result.nodes,
+  });
+
+  // ----------------------------------------------------------
+  // RETURN
+  // ----------------------------------------------------------
+
+  return {
+    nodes,
+
+    adaptationSummary: result.summary || "",
+
+    metadata: {
+      templateId,
+
+      generationMode,
+
+      personalized: true,
+
+      llm: true,
+    },
+  };
+}
+
+// ============================================================
+// STANDARD PASSTHROUGH
+// ============================================================
+
+/**
+ * Standard roadmaps never need the LLM.
+ *
+ * This helper is useful for callers that want
+ * one unified personalization interface.
+ */
+function getStandardNodes(templateId) {
+  const template = loadRoadmap(templateId);
+
+  if (!template) {
+    const error = new Error(`Roadmap template not found: ${templateId}`);
+
+    error.statusCode = 404;
+
+    throw error;
+  }
+
+  return template.nodes.map((node) => ({
+    nodeId: node.id,
+
+    status: ROADMAP_NODE_STATUSES.NOT_STARTED,
+  }));
+}
+
+// ============================================================
+// EXPORTS
+// ============================================================
+
+export {
+  personalize,
+  getStandardNodes,
+  buildResumeContext,
+  buildCustomContext,
+  buildAdaptationContext,
+  validateAdaptedNodes,
+  normalizeNodeOrder,
+};
+
+export default {
+  personalize,
+  getStandardNodes,
+};
