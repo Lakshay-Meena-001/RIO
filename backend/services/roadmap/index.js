@@ -39,7 +39,6 @@ app.use(
 app.use(
   express.urlencoded({
     extended: true,
-
     limit: process.env.JSON_BODY_LIMIT || "1mb",
   }),
 );
@@ -51,11 +50,8 @@ app.use(
 app.get("/health", (req, res) => {
   return res.status(200).json({
     success: true,
-
     service: "roadmap-service",
-
     status: "healthy",
-
     timestamp: new Date().toISOString(),
   });
 });
@@ -73,7 +69,6 @@ app.use("/api/roadmaps", roadmapRoutes);
 app.use((req, res) => {
   return res.status(404).json({
     success: false,
-
     message: "Route not found",
   });
 });
@@ -89,7 +84,6 @@ app.use(errorHandler);
 // ============================================================
 
 let server = null;
-
 let shuttingDown = false;
 
 async function startServer() {

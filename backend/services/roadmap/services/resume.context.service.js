@@ -53,7 +53,7 @@ function normalizeArray(value) {
 }
 
 function buildResumeServiceUrl() {
-  return `${RESUME_SERVICE_URL}/get-resume`;
+  return `${RESUME_SERVICE_URL}/api/resumes/get-resume`;
 }
 
 // ============================================================
@@ -61,6 +61,9 @@ function buildResumeServiceUrl() {
 // ============================================================
 
 async function fetchResume({ userId }) {
+  console.log("[Roadmap → Resume] URL:", buildResumeServiceUrl());
+  console.log("[Roadmap → Resume] User:", userId);
+
   if (!userId) {
     throw new ResumeServiceError("userId is required to fetch resume context", {
       statusCode: 400,

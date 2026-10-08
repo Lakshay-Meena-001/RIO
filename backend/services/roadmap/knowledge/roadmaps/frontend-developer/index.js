@@ -11,7 +11,7 @@
  * It does not contain the actual knowledge itself.
  */
 
-import { createRoadmapTemplate } from "../../index.js";
+import { createRoadmapTemplate } from "../../factory.js";
 
 import { frontendPhases } from "./phase.js";
 import { frontendNodes } from "./node.js";

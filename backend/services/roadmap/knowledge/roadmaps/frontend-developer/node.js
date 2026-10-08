@@ -10,7 +10,7 @@
  * - User progress belongs to the user roadmap model.
  */
 
-import { createKnowledgeNode } from "../../index.js";
+import { createKnowledgeNode } from "../../factory.js";
 
 /* -------------------------------------------------------------------------- */
 /* Web Foundation                                                             */

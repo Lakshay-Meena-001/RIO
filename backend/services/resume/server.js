@@ -14,11 +14,12 @@ const PORT = process.env.PORT || 6002;
 
 app.use(express.json());
 
-app.use("/",resumeRouter)
+app.use("/api/resumes", resumeRouter);
 
 app.get("/", (req, res) => {
   res.send("Hello! From Resume service");
 });
+
 
 
 const startServer = async () => {

@@ -1,13 +1,11 @@
 import frontendDeveloper from "./frontend-developer.js";
+import backendDeveloperRoadmap from "./roadmaps/backend-developer/index.js";
 
-const roadmaps = Object.freeze({
-  "frontend-developer": frontendDeveloper,
-});
-
-const getRoadmapTemplate = (roadmapId) =>
-  roadmaps[roadmapId] ?? null;
-
-export {
-  roadmaps,
-  getRoadmapTemplate,
+export const roadmapTemplates = {
+  "frontend-developer": frontendDeveloperRoadmap,
+  "backend-developer": backendDeveloperRoadmap,
 };
+
+const getRoadmapTemplate = (roadmapId) => roadmaps[roadmapId] ?? null;
+
+export { roadmaps, getRoadmapTemplate };

@@ -268,6 +268,7 @@ export const getPrerequisiteIds = (template, nodeId) => {
  */
 
 import frontendDeveloperRoadmap from "./roadmaps/frontend-developer/index.js";
+import backendDeveloperRoadmap from "./roadmaps/backend-developer/index.js";
 
 /**
  * Canonical roadmap registry.
@@ -276,6 +277,7 @@ import frontendDeveloperRoadmap from "./roadmaps/frontend-developer/index.js";
  */
 export const roadmapTemplates = {
   "frontend-developer": frontendDeveloperRoadmap,
+  "backend-developer": backendDeveloperRoadmap,
 };
 
 /* -------------------------------------------------------------------------- */

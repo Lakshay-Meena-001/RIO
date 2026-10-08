@@ -10,7 +10,7 @@
  *   alternative paths, and roadmap adaptation.
  */
 
-import { createKnowledgeEdge } from "../../index.js";
+import { createKnowledgeEdge } from "../../factory.js";
 
 /* -------------------------------------------------------------------------- */
 /* Web Foundation                                                             */
@@ -354,12 +354,12 @@ const productionEdges = [
   }),
 
   createKnowledgeEdge({
-    source: "react-typescript",
-    target: "production-frontend",
-    type: "recommended-next",
-    reason:
-      "Typed React applications are a strong foundation for production engineering.",
-  }),
+  source: "react-typescript",
+  target: "frontend-testing",
+  type: "recommended-next",
+  reason:
+    "Typed React applications are a strong foundation for production engineering and reliable testing.",
+}),
 ];
 
 /* -------------------------------------------------------------------------- */

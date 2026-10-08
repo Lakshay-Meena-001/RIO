@@ -6,7 +6,7 @@ import { ROADMAP_GENERATION_MODES } from "../constants/roadmap.constants.js";
 
 function safeJson(value) {
   try {
-    return JSON.stringify(value, null, 2);
+    return JSON.stringify(value);
   } catch {
     return "{}";
   }
@@ -20,139 +20,67 @@ function normalizeText(value) {
   return value.trim();
 }
 
+function compactArray(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value;
+}
+
+// ============================================================
+// CANONICAL CONTEXT
+// ============================================================
+
+/**
+ * The LLM only needs enough canonical information to classify
+ * the user's relationship with each roadmap node.
+ *
+ * The full canonical roadmap remains the backend source of truth.
+ * We deliberately do NOT send descriptions, resources,
+ * guidance, alternatives, metadata, etc.
+ */
 function buildCanonicalNodeContext(template) {
   return template.nodes.map((node) => ({
     id: node.id,
-
     title: node.title,
-
-    category: node.category,
-
     importance: node.importance,
-
-    description: node.description,
-
-    whyItMatters: node.whyItMatters,
-
-    prerequisites: node.prerequisites || [],
-
-    enables: node.enables || [],
-
-    alternatives: node.alternatives || [],
-
-    guidance: node.guidance || {},
+    prerequisites: compactArray(node.prerequisites),
   }));
 }
-
-function buildCanonicalEdgeContext(template) {
-  return (template.edges || []).map((edge) => ({
-    from: edge.from,
-
-    to: edge.to,
-
-    type: edge.type,
-  }));
-}
-
-// ============================================================
-// SYSTEM INSTRUCTIONS
-// ============================================================
-
-const SYSTEM_INSTRUCTIONS = `
-You are RIO's Roadmap Adaptation Engine.
-
-Your job is NOT to invent a roadmap.
-
-Your job is to adapt an EXISTING CANONICAL ROADMAP
-to a user's known skills, experience, goals, and requirements.
-
-The canonical roadmap is the source of truth.
-
-You MUST follow these rules:
-
-1. NEVER invent roadmap nodes.
-
-2. NEVER invent node IDs.
-
-3. NEVER remove canonical nodes from the actual roadmap.
-
-4. NEVER create new technologies, topics, phases, dependencies,
-   resources, certifications, projects, or learning paths.
-
-5. ONLY use node IDs explicitly provided in the canonical roadmap.
-
-6. Preserve the canonical roadmap ordering.
-
-7. Preserve canonical prerequisites and dependencies.
-
-8. You may determine whether a canonical node is:
-   - completed
-   - learning
-   - not_started
-   - skipped
-
-9. "completed" means the user's evidence strongly indicates
-   that they already know or have demonstrated the topic.
-
-10. "learning" means the topic is relevant and the user appears
-    to have partial knowledge or should focus on it now.
-
-11. "not_started" means the user should learn it and there is
-    insufficient evidence that they already know it.
-
-12. "skipped" should be used sparingly.
-    Use it only when the user's context clearly makes the topic
-    unnecessary or explicitly excluded.
-
-13. Do NOT mark a topic completed merely because the user
-    mentioned the technology once.
-
-14. Distinguish between:
-    - mentioned
-    - partial knowledge
-    - demonstrated knowledge
-
-15. Avoid FOMO.
-    Do not force advanced topics merely because they exist
-    in the canonical roadmap.
-
-16. The user's target role, level, available time, compensation
-    goal, and explicit requirements can affect emphasis.
-
-17. Compensation is a planning signal, NOT a guarantee.
-    Never promise salary outcomes.
-
-18. Do not create a completely new roadmap structure.
-
-19. Do not reorder canonical nodes.
-
-20. Return ONLY valid JSON.
-
-21. Do not wrap JSON in markdown.
-
-22. Do not add explanations outside the JSON object.
-
-The final response must have this exact top-level shape:
-
-{
-  "nodes": [
-    {
-      "nodeId": "canonical-node-id",
-      "status": "completed|learning|not_started|skipped"
-    }
-  ],
-  "summary": "short adaptation summary"
-}
-
-The "nodes" array may contain only canonical node IDs.
-
-The summary must be concise and explain the broad adaptation,
-not introduce new roadmap content.
-`;
 
 // ============================================================
 // USER CONTEXT
 // ============================================================
+
+/**
+ * Resume data can become very large.
+ *
+ * Adaptation only needs evidence of existing knowledge,
+ * therefore we keep the useful evidence fields and discard
+ * processing/analysis metadata and other unnecessary payload.
+ */
+function buildCompactResumeContext(resume) {
+  if (!resume || typeof resume !== "object") {
+    return null;
+  }
+
+  return {
+    profile: resume.profile || null,
+    summary: normalizeText(resume.summary),
+
+    skills: compactArray(resume.skills),
+    technologies: compactArray(resume.technologies),
+
+    experience: compactArray(resume.experience),
+    projects: compactArray(resume.projects),
+
+    education: compactArray(resume.education),
+    certifications: compactArray(resume.certifications),
+    achievements: compactArray(resume.achievements),
+    languages: compactArray(resume.languages),
+  };
+}
 
 function buildUserContext({ generationMode, userContext }) {
   const {
@@ -177,15 +105,75 @@ function buildUserContext({ generationMode, userContext }) {
 
     availableHoursPerDay,
 
-    currentSkills,
+    currentSkills: compactArray(currentSkills),
 
-    manualSkills,
+    manualSkills: compactArray(manualSkills),
 
-    resume,
+    resume: buildCompactResumeContext(resume),
 
     customRequirements,
   };
 }
+
+// ============================================================
+// SYSTEM INSTRUCTIONS
+// ============================================================
+
+const SYSTEM_INSTRUCTIONS = `
+You are RIO's Roadmap Adaptation Engine.
+
+Your job is to adapt an EXISTING CANONICAL ROADMAP
+to a user's known skills, experience, goals, and requirements.
+
+The canonical roadmap is the source of truth.
+
+RULES:
+
+1. NEVER invent roadmap nodes.
+2. NEVER invent node IDs.
+3. NEVER remove canonical nodes.
+4. ONLY use node IDs explicitly provided in the canonical roadmap.
+5. Preserve canonical roadmap ordering.
+6. Preserve canonical prerequisites.
+7. Do not create new technologies, topics, phases,
+   dependencies, resources, projects, or learning paths.
+8. You may assign only these statuses:
+   - completed
+   - learning
+   - not_started
+   - skipped
+9. "completed" requires strong evidence that the user
+   already knows or has demonstrated the topic.
+10. "learning" means partial knowledge or a strong current
+    learning focus.
+11. "not_started" means the topic is needed but evidence
+    of knowledge is insufficient.
+12. "skipped" should be rare and only used when the topic
+    is genuinely unnecessary or explicitly excluded.
+13. A resume keyword alone is NOT proof of mastery.
+14. Distinguish between mentioned, partial, and demonstrated
+    knowledge.
+15. Avoid FOMO.
+16. Respect prerequisites.
+17. Compensation is a planning signal, NOT a guarantee.
+18. Do not reorder the canonical roadmap.
+19. Return ONLY valid JSON.
+20. Do not return markdown or commentary.
+
+Output shape:
+
+{
+  "nodes": [
+    {
+      "nodeId": "canonical-node-id",
+      "status": "completed|learning|not_started|skipped"
+    }
+  ],
+  "summary": "short adaptation summary"
+}
+
+The nodes array may contain only canonical node IDs.
+`;
 
 // ============================================================
 // PROMPT BUILDER
@@ -205,11 +193,8 @@ function buildRoadmapAdaptationPrompt({
 
   const canonicalNodes = buildCanonicalNodeContext(template);
 
-  const canonicalEdges = buildCanonicalEdgeContext(template);
-
   const normalizedUserContext = buildUserContext({
     generationMode,
-
     userContext,
   });
 
@@ -221,7 +206,6 @@ ADAPTATION MODE
 ============================================================
 
 ${generationMode}
-
 
 ============================================================
 CANONICAL ROADMAP
@@ -236,26 +220,12 @@ ${template.version}
 Title:
 ${template.title}
 
-Description:
-${template.description}
-
 Goal:
 ${template.goal}
 
-
-------------------------------------------------------------
-CANONICAL NODES
-------------------------------------------------------------
+CANONICAL NODES:
 
 ${safeJson(canonicalNodes)}
-
-
-------------------------------------------------------------
-CANONICAL DEPENDENCIES
-------------------------------------------------------------
-
-${safeJson(canonicalEdges)}
-
 
 ============================================================
 USER CONTEXT
@@ -263,76 +233,51 @@ USER CONTEXT
 
 ${safeJson(normalizedUserContext)}
 
-
 ============================================================
-ADAPTATION TASK
+TASK
 ============================================================
 
-Analyze the user's context against the canonical roadmap.
+Compare the user's evidence against every canonical roadmap node.
 
-For every canonical node, decide the most appropriate status:
+For each node decide:
 
-- completed
-- learning
-- not_started
-- skipped
+completed:
+Strong evidence of existing knowledge or demonstrated work.
 
-Use evidence conservatively.
+learning:
+Partial knowledge or an important current focus.
 
-If the user clearly demonstrates knowledge:
-→ completed
+not_started:
+Needed but insufficient evidence of knowledge.
 
-If the user has partial knowledge or the topic is currently
-the most relevant next learning area:
-→ learning
-
-If the topic is needed but there is not enough evidence
-of knowledge:
-→ not_started
-
-If the topic is genuinely unnecessary or explicitly excluded:
-→ skipped
+skipped:
+Only when clearly unnecessary or explicitly excluded.
 
 IMPORTANT:
 
-Do not treat a user's resume keyword as proof of mastery.
+Do not treat resume keywords as mastery.
 
-Example:
+For example, "Worked with React" does not automatically
+prove mastery of React architecture, performance, testing,
+or advanced state management.
 
-If the resume says:
-"Worked with React"
-
-that alone does NOT prove mastery of:
-- React architecture
-- performance
-- testing
-- advanced state management
-
-Use reasonable evidence from experience, projects,
-responsibilities, and explicit user input.
+Use evidence from:
+- skills
+- technologies
+- experience
+- projects
+- education
+- certifications
+- achievements
+- explicit user requirements
 
 Respect prerequisites.
 
-If a later topic appears known but its prerequisite is clearly
-missing, prefer a conservative status rather than pretending
-the prerequisite does not matter.
+If evidence is ambiguous, prefer the conservative status.
 
-Do not manufacture missing evidence.
+Return every canonical node exactly once.
 
-Do not invent roadmap nodes.
-
-Do not modify the canonical graph.
-
-Do not reorder nodes.
-
-The final output must contain canonical node IDs only.
-
-
-============================================================
-OUTPUT
-============================================================
-
-Return ONLY this JSON object:
+Return ONLY JSON:
 
 {
   "nodes": [
@@ -341,12 +286,8 @@ Return ONLY this JSON object:
       "status": "completed|learning|not_started|skipped"
     }
   ],
-  "summary": "short explanation of how the canonical roadmap was adapted"
+  "summary": "short explanation of the adaptation"
 }
-
-Return no markdown.
-Return no commentary.
-Return no additional keys.
 `;
 }
 
