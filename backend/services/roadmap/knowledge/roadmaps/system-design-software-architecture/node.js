@@ -23,7 +23,7 @@ const systemDesignSoftwareArchitectureNodes = [
       "system-design-thinking",
     ],
     alternatives: [],
-    related: ["software-architecture", "distributed-systems"],
+    related: ["software-architecture"],
     metadata: {
       phase: "system-design-foundation",
       primary: true,
@@ -105,9 +105,9 @@ const systemDesignSoftwareArchitectureNodes = [
     whyItMatters:
       "Distributed systems communicate over networks where latency, failure and bandwidth matter.",
     prerequisites: ["system-design-fundamentals"],
-    enables: ["http-protocol", "dns", "tls", "load-balancing"],
+    enables: ["http-protocol", "dns", "tls"],
     alternatives: [],
-    related: ["distributed-systems"],
+    related: [],
     metadata: {
       phase: "networking-for-system-design",
       primary: true,
@@ -124,7 +124,7 @@ const systemDesignSoftwareArchitectureNodes = [
     whyItMatters:
       "HTTP is a primary communication protocol for modern application architectures.",
     prerequisites: ["networking-fundamentals"],
-    enables: ["api-design", "web-caching"],
+    enables: ["api-design"],
     alternatives: [],
     related: ["rest-api-design"],
     metadata: {
@@ -143,7 +143,7 @@ const systemDesignSoftwareArchitectureNodes = [
     whyItMatters:
       "DNS is often the first infrastructure component involved when clients reach distributed systems.",
     prerequisites: ["networking-fundamentals"],
-    enables: ["cloud-system-architecture", "load-balancing"],
+    enables: ["cloud-system-architecture"],
     alternatives: [],
     related: ["cdn"],
     metadata: {
@@ -163,7 +163,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["networking-fundamentals"],
     enables: ["system-security"],
     alternatives: [],
-    related: ["https"],
+    related: [],
     metadata: {
       phase: "networking-for-system-design",
     },
@@ -185,7 +185,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["http-protocol"],
     enables: ["rest-api-design", "api-pagination", "api-versioning"],
     alternatives: ["graphql", "grpc"],
-    related: ["microservices"],
+    related: [],
     metadata: {
       phase: "api-design",
       primary: true,
@@ -398,7 +398,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["relational-databases", "data-modeling"],
     enables: ["database-scaling", "system-performance"],
     alternatives: [],
-    related: ["query-optimization"],
+    related: [],
     metadata: {
       phase: "database-fundamentals",
     },
@@ -416,7 +416,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["relational-databases"],
     enables: ["consistency-models", "distributed-transactions"],
     alternatives: [],
-    related: ["database-consistency"],
+    related: [],
     metadata: {
       phase: "database-fundamentals",
     },
@@ -433,7 +433,7 @@ const systemDesignSoftwareArchitectureNodes = [
       "A concrete relational database makes system-design database concepts practical.",
     prerequisites: ["relational-databases"],
     enables: [],
-    alternatives: ["mysql", "sql-server"],
+    alternatives: [],
     related: ["database-scaling"],
     metadata: {
       phase: "database-fundamentals",
@@ -453,7 +453,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["nosql-databases"],
     enables: ["database-scaling"],
     alternatives: ["relational-databases"],
-    related: ["mongodb"],
+    related: [],
     metadata: {
       phase: "database-fundamentals",
       optional: true,
@@ -572,7 +572,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["partitioning", "database-scaling"],
     enables: ["distributed-databases", "data-intensive-systems"],
     alternatives: [],
-    related: ["consistent-hashing"],
+    related: [],
     metadata: {
       phase: "database-scaling",
     },
@@ -827,7 +827,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["system-design-fundamentals", "api-design"],
     enables: ["background-jobs", "event-driven-architecture"],
     alternatives: ["rabbitmq", "kafka", "cloud-messaging"],
-    related: ["distributed-systems"],
+    related: [],
     metadata: {
       phase: "message-queues-and-events",
       primary: true,
@@ -905,7 +905,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["message-queues"],
     enables: ["reliability-patterns", "event-driven-architecture"],
     alternatives: [],
-    related: ["distributed-systems"],
+    related: [],
     metadata: {
       phase: "background-processing",
       primary: true,
@@ -987,7 +987,7 @@ const systemDesignSoftwareArchitectureNodes = [
     ],
     enables: ["saga-pattern", "advanced-distributed-systems"],
     alternatives: [],
-    related: ["eventual-consistency"],
+    related: [],
     metadata: {
       phase: "consistency-and-transactions",
     },
@@ -1926,7 +1926,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["distributed-id-generation"],
     enables: [],
     alternatives: ["uuid", "ulid"],
-    related: ["database-sharding"],
+    related: [],
     metadata: {
       phase: "distributed-id-generation",
     },
@@ -2222,7 +2222,7 @@ const systemDesignSoftwareArchitectureNodes = [
     prerequisites: ["data-intensive-systems"],
     enables: ["production-system-architecture"],
     alternatives: [],
-    related: ["data-engineer"],
+    related: [],
     metadata: {
       phase: "data-intensive-systems",
       optional: true,

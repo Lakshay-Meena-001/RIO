@@ -1444,7 +1444,7 @@ const dataEngineerNodes = [
     description:
       "Design pipelines with retries, idempotency, recovery, backfills and failure isolation.",
     whyItMatters: "Production data systems must recover safely from failures.",
-    prerequisites: ["data-observability", "data-transactions"],
+    prerequisites: ["data-observability", "database-transactions"],
     enables: ["backfills-and-recovery"],
     alternatives: [],
     related: ["data-testing"],

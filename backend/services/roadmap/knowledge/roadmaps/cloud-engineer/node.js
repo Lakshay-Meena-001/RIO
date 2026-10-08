@@ -246,6 +246,25 @@ const cloudEngineerNodes = [
   }),
 
   node({
+    id: "cloud-routing",
+    title: "Cloud Routing & Route Tables",
+    category: "networking",
+    importance: "critical",
+    description:
+      "Understand route tables, default routes, private and public routing, internet gateways, NAT gateways and traffic paths inside cloud networks.",
+    whyItMatters:
+      "Cloud workloads communicate through explicitly defined network paths, so routing is fundamental to secure and reliable cloud architecture.",
+    prerequisites: ["ip-addressing", "dns"],
+    enables: ["aws-vpc", "network-security-groups"],
+    alternatives: [],
+    related: ["cloud-networking", "aws-vpc"],
+    metadata: {
+      phase: "networking-foundation",
+      primary: true,
+    },
+  }),
+
+  node({
     id: "tcp-udp",
     title: "TCP & UDP",
     category: "networking",
@@ -270,7 +289,7 @@ const cloudEngineerNodes = [
       "Understand domain resolution, DNS records, TTL and DNS-based routing concepts.",
     whyItMatters: "Almost every production cloud application depends on DNS.",
     prerequisites: ["ip-addressing"],
-    enables: ["cloud-dns", "cdn-and-edge"],
+    enables: ["cdn-and-edge"],
     alternatives: [],
     related: ["load-balancing"],
     metadata: { phase: "networking-foundation" },
@@ -317,7 +336,7 @@ const cloudEngineerNodes = [
     whyItMatters:
       "Cloud applications need deliberate network architecture rather than a flat network.",
     prerequisites: ["ip-addressing", "dns"],
-    enables: ["cloud-vpc", "cloud-routing", "network-security-groups"],
+    enables: ["aws-vpc", "cloud-routing", "network-security-groups"],
     alternatives: [],
     related: ["cloud-routing"],
     metadata: { phase: "networking-foundation", primary: true },
@@ -1019,6 +1038,26 @@ const cloudEngineerNodes = [
   }),
 
   node({
+    id: "cloudflare",
+    title: "Cloudflare Awareness",
+    category: "edge",
+    importance: "medium",
+    description:
+      "Understand Cloudflare's CDN, DNS, edge networking, security and traffic protection capabilities at an awareness level.",
+    whyItMatters:
+      "Cloudflare is widely used for CDN, DNS, edge security and traffic protection in production architectures.",
+    prerequisites: ["load-balancing"],
+    enables: [],
+    alternatives: ["aws-load-balancer"],
+    related: ["cloud-networking"],
+    metadata: {
+      phase: "load-balancing-and-edge",
+      optional: true,
+      awareness: true,
+    },
+  }),
+
+  node({
     id: "cloud-api-gateway",
     title: "Cloud API Gateway",
     category: "networking",
@@ -1636,7 +1675,7 @@ const cloudEngineerNodes = [
     prerequisites: ["linux-process-management", "cloud-computing-fundamentals"],
     enables: ["cloudwatch", "opentelemetry", "cloud-alerting"],
     alternatives: [],
-    related: ["cloud-reliability"],
+    related: ["cloud-reliability-architecture"],
     metadata: { phase: "cloud-observability" },
   }),
 
@@ -1717,7 +1756,7 @@ const cloudEngineerNodes = [
     whyItMatters:
       "Distributed systems require request-level visibility across service boundaries.",
     prerequisites: ["opentelemetry"],
-    enables: ["cloud-reliability"],
+    enables: ["cloud-reliability-architecture"],
     alternatives: [],
     related: ["cloud-alerting"],
     metadata: { phase: "cloud-observability" },
@@ -1733,7 +1772,7 @@ const cloudEngineerNodes = [
     whyItMatters:
       "Monitoring without actionable alerts does not provide operational protection.",
     prerequisites: ["cloudwatch", "opentelemetry"],
-    enables: ["cloud-reliability"],
+    enables: ["cloud-reliability-architecture"],
     alternatives: [],
     related: ["cloud-disaster-recovery"],
     metadata: { phase: "cloud-observability" },
@@ -1760,7 +1799,7 @@ const cloudEngineerNodes = [
     enables: ["cloud-reliability-architecture"],
     alternatives: [],
     related: ["cloud-disaster-recovery"],
-    metadata: { phase: "cloud-reliability" },
+    metadata: { phase: "cloud-reliability-architecture" },
   }),
 
   node({
@@ -1776,7 +1815,7 @@ const cloudEngineerNodes = [
     enables: ["cloud-reliability-architecture"],
     alternatives: [],
     related: ["cloud-high-availability"],
-    metadata: { phase: "cloud-reliability" },
+    metadata: { phase: "cloud-reliability-architecture" },
   }),
 
   node({
@@ -1796,7 +1835,7 @@ const cloudEngineerNodes = [
     enables: ["cloud-architecture"],
     alternatives: [],
     related: ["cloud-scaling"],
-    metadata: { phase: "cloud-reliability" },
+    metadata: { phase: "cloud-reliability-architecture" },
   }),
 
   // ============================================================
@@ -1941,6 +1980,46 @@ const cloudEngineerNodes = [
   }),
 
   node({
+    id: "azure-vnet",
+    title: "Azure Virtual Network Awareness",
+    category: "networking",
+    importance: "medium",
+    description:
+      "Understand Azure Virtual Network concepts, subnets, routing and network security at an awareness level.",
+    whyItMatters:
+      "Azure VNet is the primary networking building block when following an Azure cloud path.",
+    prerequisites: ["cloud-networking"],
+    enables: [],
+    alternatives: ["aws-vpc", "gcp-vpc"],
+    related: ["network-security-groups"],
+    metadata: {
+      phase: "cloud-networking",
+      optional: true,
+      awareness: true,
+    },
+  }),
+
+  node({
+    id: "azure-blob-storage",
+    title: "Azure Blob Storage Awareness",
+    category: "storage",
+    importance: "medium",
+    description:
+      "Understand Azure Blob Storage for object storage workloads, access control and lifecycle management.",
+    whyItMatters:
+      "Blob Storage is Azure's primary object-storage service and an important alternative to Amazon S3.",
+    prerequisites: ["aws-storage"],
+    enables: [],
+    alternatives: ["aws-storage"],
+    related: ["object-storage-architecture"],
+    metadata: {
+      phase: "cloud-storage",
+      optional: true,
+      awareness: true,
+    },
+  }),
+
+  node({
     id: "gcp-functions",
     title: "Google Cloud Functions Awareness",
     category: "serverless",
@@ -1954,6 +2033,46 @@ const cloudEngineerNodes = [
     metadata: {
       phase: "serverless-and-managed-services",
       optional: true,
+    },
+  }),
+
+  node({
+    id: "gcp-vpc",
+    title: "Google Cloud VPC Awareness",
+    category: "networking",
+    importance: "medium",
+    description:
+      "Understand Google Cloud VPC concepts, subnets, routes and network boundaries at an awareness level.",
+    whyItMatters:
+      "Google Cloud VPC is the core networking model for workloads deployed on GCP.",
+    prerequisites: ["cloud-networking"],
+    enables: [],
+    alternatives: ["aws-vpc", "azure-vnet"],
+    related: ["gcp-iam"],
+    metadata: {
+      phase: "cloud-networking",
+      optional: true,
+      awareness: true,
+    },
+  }),
+
+  node({
+    id: "google-cloud-storage",
+    title: "Google Cloud Storage Awareness",
+    category: "storage",
+    importance: "medium",
+    description:
+      "Understand Google Cloud Storage for object storage, access control, durability and lifecycle management.",
+    whyItMatters:
+      "Google Cloud Storage is the primary GCP object-storage service and an alternative to Amazon S3.",
+    prerequisites: ["aws-storage"],
+    enables: [],
+    alternatives: ["aws-storage", "azure-blob-storage"],
+    related: ["object-storage-architecture"],
+    metadata: {
+      phase: "cloud-storage",
+      optional: true,
+      awareness: true,
     },
   }),
 

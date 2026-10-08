@@ -365,16 +365,17 @@ const genAiLlmEngineerNodes = [
     id: "tensorflow-awareness",
     title: "TensorFlow Awareness",
     category: "framework",
-    importance: "low",
+    importance: "medium",
     description:
-      "Understand TensorFlow as an alternative deep-learning framework.",
-    whyItMatters: "Some organizations still use TensorFlow-based ML systems.",
-    prerequisites: ["deep-learning-foundations"],
+      "Understand TensorFlow as an alternative deep learning framework.",
+    whyItMatters:
+      "TensorFlow remains relevant in some production and enterprise environments.",
+    prerequisites: [],
     enables: [],
-    alternatives: ["pytorch-for-llm"],
-    related: ["model-serving"],
+    alternatives: [],
+    related: [],
     metadata: {
-      phase: "pytorch-foundation",
+      phase: "pytorch",
       optional: true,
     },
   }),
@@ -1087,7 +1088,7 @@ const genAiLlmEngineerNodes = [
     prerequisites: ["llm-security", "llm-evaluation"],
     enables: ["ai-production-engineering"],
     alternatives: [],
-    related: ["responsible-ai"],
+    related: [],
     metadata: { phase: "ai-safety-and-guardrails", primary: true },
   }),
 

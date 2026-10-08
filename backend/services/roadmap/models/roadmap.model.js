@@ -16,7 +16,7 @@
  * - User progress lives inside nodes[].
  * - Resume itself remains owned by Resume Service.
  */
-
+import crypto from "crypto";
 import mongoose from "mongoose";
 
 import {
@@ -543,7 +543,6 @@ const roadmapSchema = new mongoose.Schema(
     fingerprint: {
       type: String,
       default: null,
-      index: true,
     },
 
     // ----------------------------------------------------------
@@ -566,14 +565,6 @@ const roadmapSchema = new mongoose.Schema(
 // ============================================================
 
 /**
- * User's recently updated roadmaps.
- */
-roadmapSchema.index({
-  userId: 1,
-  updatedAt: -1,
-});
-
-/**
  * User's roadmap history.
  */
 roadmapSchema.index({
@@ -584,10 +575,15 @@ roadmapSchema.index({
 /**
  * Exact generation deduplication.
  */
-roadmapSchema.index({
-  userId: 1,
-  fingerprint: 1,
-});
+roadmapSchema.index(
+  {
+    userId: 1,
+    fingerprint: 1,
+  },
+  {
+    unique: true,
+  },
+);
 
 /**
  * Active/completed roadmap filtering.

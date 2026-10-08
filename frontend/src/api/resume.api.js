@@ -2,7 +2,7 @@ import api from "../utils/axios";
 
 export const getResume = async () => {
   try {
-    const response = await api.get("/api/resume/get-resume");
+    const response = await api.get("/api/resumes/get-resume");
 
     return response.data;
   } catch (error) {
@@ -13,7 +13,7 @@ export const getResume = async () => {
 
 export const updateResume = async (resumeData) => {
   try {
-    const response = await api.patch("/api/resume/update", resumeData);
+    const response = await api.patch("/api/resumes/update", resumeData);
 
     return response.data;
   } catch (error) {
@@ -21,4 +21,3 @@ export const updateResume = async (resumeData) => {
     throw error;
   }
 };
-

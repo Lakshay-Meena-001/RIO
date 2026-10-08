@@ -570,7 +570,6 @@ const cybersecuritySecurityEngineerNodes = [
       optional: true,
     },
   }),
-
   node({
     id: "grpc-security-awareness",
     title: "gRPC Security Awareness",
@@ -582,7 +581,7 @@ const cybersecuritySecurityEngineerNodes = [
     prerequisites: ["api-security"],
     enables: [],
     alternatives: ["api-security"],
-    related: ["service-to-service-security"],
+    related: [],
     metadata: {
       phase: "api-security",
       optional: true,

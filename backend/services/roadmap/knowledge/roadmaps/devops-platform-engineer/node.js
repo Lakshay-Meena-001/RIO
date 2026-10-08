@@ -286,7 +286,7 @@ const devopsPlatformEngineerNodes = [
     whyItMatters: "Reverse proxies are common production traffic boundaries.",
     prerequisites: ["http-https", "linux-services"],
     enables: ["load-balancing"],
-    alternatives: ["nginx", "cloud-load-balancer"],
+    alternatives: [],
     related: ["tls-certificates"],
     metadata: { phase: "networking-for-devops" },
   }),
@@ -1585,7 +1585,7 @@ const devopsPlatformEngineerNodes = [
     prerequisites: ["centralized-logging"],
     enables: [],
     alternatives: ["elk"],
-    related: ["logging"],
+    related: [],
     metadata: {
       phase: "logging",
       optional: true,

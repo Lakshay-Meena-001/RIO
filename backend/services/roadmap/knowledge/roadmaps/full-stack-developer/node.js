@@ -19,7 +19,7 @@ const fullStackDeveloperNodes = [
     prerequisites: [],
     enables: ["html", "css", "http-and-apis"],
     alternatives: [],
-    related: ["networking-foundation"],
+    related: [],
     metadata: { phase: "web-foundation", primary: true },
   }),
 
@@ -127,7 +127,7 @@ const fullStackDeveloperNodes = [
     whyItMatters:
       "Python is useful for teams building full-stack applications alongside AI and data workloads.",
     prerequisites: ["web-fundamentals"],
-    enables: ["python-backend"],
+    enables: [],
     alternatives: ["javascript"],
     related: ["ai-powered-full-stack"],
     metadata: {
@@ -144,7 +144,7 @@ const fullStackDeveloperNodes = [
     description: "Understand Java as an enterprise backend programming path.",
     whyItMatters: "Java remains important for enterprise full-stack systems.",
     prerequisites: ["web-fundamentals"],
-    enables: ["java-backend"],
+    enables: [],
     alternatives: ["javascript"],
     related: ["microservices"],
     metadata: {
@@ -565,7 +565,7 @@ const fullStackDeveloperNodes = [
       "Full-stack engineers must understand the server-side half of their applications.",
     prerequisites: ["web-fundamentals", "javascript", "async-javascript"],
     enables: ["nodejs-runtime", "api-engineering"],
-    alternatives: ["python-backend", "java-backend"],
+    alternatives: [],
     related: ["full-stack-integration"],
     metadata: {
       phase: "backend-foundation",
@@ -664,7 +664,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["web-fundamentals"],
     enables: ["api-engineering"],
     alternatives: [],
-    related: ["networking-foundation"],
+    related: [],
     metadata: { phase: "api-engineering" },
   }),
 
@@ -679,7 +679,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["api-engineering", "express-backend"],
     enables: ["full-stack-integration"],
     alternatives: ["graphql-api", "grpc-api"],
-    related: ["api-security"],
+    related: [],
     metadata: {
       phase: "api-engineering",
       primary: true,
@@ -795,7 +795,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["database-engineering"],
     enables: ["database-querying", "database-transactions"],
     alternatives: ["mysql", "sql-server"],
-    related: ["data-modeling"],
+    related: [],
     metadata: {
       phase: "database-engineering",
       primary: true,
@@ -848,7 +848,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["database-engineering"],
     enables: [],
     alternatives: ["postgresql"],
-    related: ["java-backend"],
+    related: [],
     metadata: {
       phase: "database-engineering",
       optional: true,
@@ -969,10 +969,9 @@ const fullStackDeveloperNodes = [
     prerequisites: ["oauth-oidc", "authorization"],
     enables: ["full-stack-security"],
     alternatives: [],
-    related: ["cloud-security"],
+    related: [],
     metadata: { phase: "authentication-security" },
   }),
-
   // ============================================================
   // PHASE 11 — FULL STACK INTEGRATION
   // ============================================================
@@ -1377,7 +1376,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["realtime"],
     enables: ["realtime-architecture"],
     alternatives: ["server-sent-events"],
-    related: ["scaling-realtime"],
+    related: [],
     metadata: {
       phase: "realtime-systems",
       primary: true,
@@ -1508,7 +1507,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["devops-foundation", "full-stack-testing"],
     enables: ["cloud-deployment"],
     alternatives: ["gitlab-ci", "jenkins"],
-    related: ["security-supply-chain"],
+    related: [],
     metadata: {
       phase: "ci-cd",
       primary: true,
@@ -1677,7 +1676,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["cloud-deployment", "full-stack-performance"],
     enables: ["full-stack-architecture"],
     alternatives: [],
-    related: ["security-observability"],
+    related: [],
     metadata: {
       phase: "observability",
       primary: true,
@@ -1792,7 +1791,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["microservices"],
     enables: [],
     alternatives: ["microservices"],
-    related: ["java-backend"],
+    related: [],
     metadata: {
       phase: "microservices",
       optional: true,
@@ -1948,7 +1947,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["full-stack-security", "ci-cd"],
     enables: ["production-full-stack"],
     alternatives: [],
-    related: ["security-supply-chain"],
+    related: [],
     metadata: {
       phase: "full-stack-security",
       optional: true,
@@ -1971,7 +1970,7 @@ const fullStackDeveloperNodes = [
     prerequisites: ["full-stack-integration", "api-engineering"],
     enables: ["rag-integration", "ai-agents-integration"],
     alternatives: ["open-source-models"],
-    related: ["gen-ai-llm-engineer"],
+    related: [],
     metadata: {
       phase: "ai-powered-full-stack",
       primary: true,
@@ -2068,7 +2067,7 @@ const fullStackDeveloperNodes = [
     ],
     enables: ["production-full-stack"],
     alternatives: [],
-    related: ["system-design-software-architecture"],
+    related: [],
     metadata: {
       phase: "full-stack-system-design",
       primary: true,

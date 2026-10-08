@@ -245,7 +245,7 @@ const aiMlEngineerNodes = [
     prerequisites: ["data-analysis"],
     enables: ["feature-engineering", "scikit-learn"],
     alternatives: [],
-    related: ["data-quality"],
+    related: [],
     metadata: { phase: "data-analysis" },
   }),
 
@@ -672,7 +672,7 @@ const aiMlEngineerNodes = [
     prerequisites: ["deep-learning-foundation"],
     enables: [],
     alternatives: ["pytorch"],
-    related: ["model-serving"],
+    related: [],
     metadata: {
       phase: "pytorch",
       optional: true,
@@ -1092,7 +1092,7 @@ const aiMlEngineerNodes = [
     prerequisites: ["mlops-foundation", "model-registry"],
     enables: ["ml-production-infrastructure"],
     alternatives: [],
-    related: ["workflow-orchestration"],
+    related: [],
     metadata: { phase: "ml-pipelines" },
   }),
 
@@ -1287,7 +1287,7 @@ const aiMlEngineerNodes = [
     prerequisites: ["ml-system-design", "model-serving"],
     enables: ["responsible-ai"],
     alternatives: [],
-    related: ["data-privacy"],
+    related: [],
     metadata: { phase: "ml-security" },
   }),
 

@@ -1,4 +1,5 @@
 import Roadmap from "../models/roadmap.model.js";
+import crypto from "crypto";
 
 import {
   ROADMAP_GENERATION_MODES,
@@ -38,13 +39,11 @@ function normalizeStringArray(value) {
 
 function normalizeTarget(target = {}) {
   return {
-    compensation: Number(
-      target.compensation ?? ROADMAP_DEFAULTS.TARGET_COMPENSATION,
-    ),
+    compensation: Number(target.compensation ?? 12),
 
-    currency: normalizeString(target.currency || ROADMAP_DEFAULTS.CURRENCY),
+    currency: normalizeString(target.currency || "INR"),
 
-    unit: normalizeString(target.unit || ROADMAP_DEFAULTS.TARGET_UNIT),
+    unit: normalizeString(target.unit || "LPA"),
   };
 }
 
@@ -125,7 +124,7 @@ function validateGenerationInput(input) {
 // FINGERPRINT
 // ============================================================
 
-function createFingerprint({ userId, input }) {
+function createFingerprint({ userId, input, resume = null, template }) {
   const customRequirements = normalizeCustomRequirements(
     input.customRequirements,
   );
@@ -133,7 +132,9 @@ function createFingerprint({ userId, input }) {
   const fingerprintPayload = {
     userId: String(userId),
 
-    templateId: input.templateId,
+    templateId: template.id,
+
+    templateVersion: getRoadmapTemplateVersion(template.id),
 
     generationMode: input.generationMode,
 
@@ -145,9 +146,9 @@ function createFingerprint({ userId, input }) {
 
     target: normalizeTarget(input.target),
 
-    resumeId: input.resumeId ? String(input.resumeId) : null,
+    resumeId: resume?.id || (input.resumeId ? String(input.resumeId) : null),
 
-    resumeVersion: input.resumeVersion ?? null,
+    resumeVersion: resume?.version ?? input.resumeVersion ?? null,
 
     manualSkills: normalizeStringArray(input.manualSkills),
 
@@ -156,7 +157,10 @@ function createFingerprint({ userId, input }) {
     knowledgeVersion: ROADMAP_KNOWLEDGE_VERSION,
   };
 
-  return JSON.stringify(fingerprintPayload);
+  return crypto
+    .createHash("sha256")
+    .update(JSON.stringify(fingerprintPayload))
+    .digest("hex");
 }
 
 // ============================================================
@@ -165,8 +169,7 @@ function createFingerprint({ userId, input }) {
 
 function initializeNodes(template, statuses = {}) {
   return template.nodes.map((knowledgeNode) => {
-    const status =
-      statuses[knowledgeNode.id] || NODE_STATUS.NOT_STARTED;
+    const status = statuses[knowledgeNode.id] || NODE_STATUS.NOT_STARTED;
 
     const now = new Date();
 
@@ -349,11 +352,6 @@ function buildRoadmapPayload({
     currentFocus,
 
     adaptationSummary: normalizeString(adaptationSummary),
-
-    fingerprint: createFingerprint({
-      userId,
-      input,
-    }),
   };
 }
 
@@ -389,54 +387,6 @@ async function generateStandardRoadmap({ userId, input, template }) {
 }
 
 // ============================================================
-// ADAPTIVE GENERATION
-// ============================================================
-
-async function generateAdaptiveRoadmap({ userId, input, template }) {
-  let resume = null;
-
-  // ----------------------------------------------------------
-  // RESUME CONTEXT
-  // ----------------------------------------------------------
-
-  if (input.generationMode === ROADMAP_GENERATION_MODES.RESUME) {
-    resume = await resumeContextService.getResume({
-      userId,
-
-      resumeId: input.resumeId || null,
-    });
-  }
-
-  // ----------------------------------------------------------
-  // PERSONALIZATION
-  // ----------------------------------------------------------
-
-  const result = await personalizationService.personalize({
-    generationMode: input.generationMode,
-
-    templateId: template.id,
-
-    input,
-
-    resume,
-  });
-
-  return buildRoadmapPayload({
-    userId,
-
-    input,
-
-    template,
-
-    adaptedNodes: result.nodes,
-
-    adaptationSummary: result.adaptationSummary,
-
-    resume,
-  });
-}
-
-// ============================================================
 // GENERATE ROADMAP
 // ============================================================
 
@@ -462,32 +412,95 @@ async function generateRoadmap(userId, input) {
   }
 
   // ----------------------------------------------------------
+  // RESUME CONTEXT
+  // ----------------------------------------------------------
+
+  let resume = null;
+
+  if (input.generationMode === ROADMAP_GENERATION_MODES.RESUME) {
+    resume = await resumeContextService.getResume({
+      userId,
+      resumeId: input.resumeId || null,
+    });
+  }
+
+  // ----------------------------------------------------------
+  // FINGERPRINT
+  // ----------------------------------------------------------
+
+  const fingerprint = createFingerprint({
+    userId,
+    input,
+    resume,
+    template,
+  });
+
+  // ----------------------------------------------------------
+  // DEDUPLICATION
+  // IMPORTANT:
+  // Check existing roadmap BEFORE any LLM call.
+  // ----------------------------------------------------------
+
+  const existingRoadmap = await Roadmap.findOne({
+    userId,
+    fingerprint,
+  }).sort({
+    updatedAt: -1,
+  });
+
+  if (existingRoadmap) {
+    return existingRoadmap;
+  }
+
+  // ----------------------------------------------------------
   // STANDARD
+  // Canonical roadmap only.
+  // No Resume Service.
+  // No LLM.
   // ----------------------------------------------------------
 
   if (input.generationMode === ROADMAP_GENERATION_MODES.STANDARD) {
     const payload = await generateStandardRoadmap({
       userId,
-
       input,
-
       template,
     });
+
+    payload.fingerprint = fingerprint;
 
     return Roadmap.create(payload);
   }
 
   // ----------------------------------------------------------
   // RESUME / CUSTOM
+  // LLM only when a genuinely new roadmap is required.
   // ----------------------------------------------------------
 
-  const payload = await generateAdaptiveRoadmap({
+  const result = await personalizationService.personalize({
+    generationMode: input.generationMode,
+
+    templateId: template.id,
+
+    input,
+
+    resume,
+  });
+
+  const payload = buildRoadmapPayload({
     userId,
 
     input,
 
     template,
+
+    adaptedNodes: result.nodes,
+
+    adaptationSummary: result.adaptationSummary,
+
+    resume,
   });
+
+  payload.fingerprint = fingerprint;
 
   return Roadmap.create(payload);
 }

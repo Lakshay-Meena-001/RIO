@@ -79,9 +79,9 @@ app.use(
 
 // Resume service.
 app.use(
-  "/api/resume",
+  "/api/resumes",
   isAuth,
-  proxyWithHeaders(RESUME_SERVICE_URL),
+  proxyWithHeaders(RESUME_SERVICE_URL, true)
 );
 
 // Interview service.
