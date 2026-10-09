@@ -1,23 +1,30 @@
 import api from "../utils/axios";
 
 export const getResume = async () => {
-  try {
-    const response = await api.get("/api/resumes/get-resume");
+  const response = await api.get("/api/resumes/get-resume");
+  return response.data;
+};
 
-    return response.data;
-  } catch (error) {
-    console.error("Failed to fetch resume:", error);
-    throw error;
+// Fetch every active resume belonging to the current user.
+export const getResumes = async () => {
+  const response = await api.get("/api/resumes");
+  return response.data;
+};
+
+// Fetch one resume by its stable MongoDB ID.
+export const getResumeById = async (resumeId) => {
+  if (!resumeId) {
+    throw new Error("Resume ID is required.");
   }
+
+  const response = await api.get(
+    `/api/resumes/${encodeURIComponent(resumeId)}`,
+  );
+
+  return response.data;
 };
 
 export const updateResume = async (resumeData) => {
-  try {
-    const response = await api.patch("/api/resumes/update", resumeData);
-
-    return response.data;
-  } catch (error) {
-    console.error("Failed to update resume:", error);
-    throw error;
-  }
+  const response = await api.patch("/api/resumes/update", resumeData);
+  return response.data;
 };

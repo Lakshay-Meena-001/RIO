@@ -1,6 +1,6 @@
 import React from 'react'
 
-const RoadmapDetailPage = () => {
+const RoadmapHistoryPage = () => {
   return (
     <div>
       
@@ -8,4 +8,4 @@ const RoadmapDetailPage = () => {
   )
 }
 
-export default RoadmapDetailPage
+export default RoadmapHistoryPage

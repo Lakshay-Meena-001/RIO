@@ -403,6 +403,19 @@ async function generateRoadmap(userId, input) {
 
   const template = loadRoadmap(input.templateId);
 
+  const templateVersion = getRoadmapTemplateVersion(template.id);
+
+  if (!Number.isInteger(templateVersion) || templateVersion < 1) {
+    const error = new Error(
+      `Roadmap template "${template.id}" has no valid registered version.`,
+    );
+
+    error.statusCode = 500;
+    error.code = "ROADMAP_TEMPLATE_VERSION_MISSING";
+
+    throw error;
+  }
+
   if (!template) {
     const error = new Error(`Roadmap template not found: ${input.templateId}`);
 

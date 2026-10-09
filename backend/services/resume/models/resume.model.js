@@ -1,201 +1,110 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
+
+// ============================================================
+// SUB-SCHEMAS
+// ============================================================
 
 const educationSchema = new mongoose.Schema(
   {
-    institution: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    degree: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    field: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    startDate: {
-      type: String,
-      default: "",
-    },
-
-    endDate: {
-      type: String,
-      default: "",
-    },
-
-    description: {
-      type: String,
-      trim: true,
-      default: "",
-    },
+    institution: { type: String, trim: true, default: "" },
+    degree: { type: String, trim: true, default: "" },
+    field: { type: String, trim: true, default: "" },
+    startDate: { type: String, default: "" },
+    endDate: { type: String, default: "" },
+    description: { type: String, trim: true, default: "" },
   },
-  {
-    _id: false,
-  },
+  { _id: false },
 );
 
 const experienceSchema = new mongoose.Schema(
   {
-    company: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    role: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    location: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    startDate: {
-      type: String,
-      default: "",
-    },
-
-    endDate: {
-      type: String,
-      default: "",
-    },
-
-    description: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    technologies: {
-      type: [String],
-      default: [],
-    },
+    company: { type: String, trim: true, default: "" },
+    role: { type: String, trim: true, default: "" },
+    location: { type: String, trim: true, default: "" },
+    startDate: { type: String, default: "" },
+    endDate: { type: String, default: "" },
+    description: { type: String, trim: true, default: "" },
+    technologies: { type: [String], default: [] },
   },
-  {
-    _id: false,
-  },
+  { _id: false },
 );
 
 const projectSchema = new mongoose.Schema(
   {
-    title: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    description: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    technologies: {
-      type: [String],
-      default: [],
-    },
-
-    url: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    githubUrl: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    startDate: {
-      type: String,
-      default: "",
-    },
-
-    endDate: {
-      type: String,
-      default: "",
-    },
+    title: { type: String, trim: true, default: "" },
+    description: { type: String, trim: true, default: "" },
+    technologies: { type: [String], default: [] },
+    url: { type: String, trim: true, default: "" },
+    githubUrl: { type: String, trim: true, default: "" },
+    startDate: { type: String, default: "" },
+    endDate: { type: String, default: "" },
   },
-  {
-    _id: false,
-  },
+  { _id: false },
 );
+
+// ============================================================
+// FINGERPRINT HELPER
+// ============================================================
+
+const normalizeResumeText = (text = "") =>
+  String(text).replace(/\r\n/g, "\n").trim().replace(/\s+/g, " ");
+
+const createResumeFingerprint = (text = "") =>
+  crypto.createHash("sha256").update(normalizeResumeText(text)).digest("hex");
+
+// ============================================================
+// RESUME SCHEMA
+// ============================================================
 
 const resumeSchema = new mongoose.Schema(
   {
+    // Multiple resumes can belong to the same user.
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      unique: true,
       index: true,
     },
 
+    // Original extracted resume text.
     extractedText: {
       type: String,
       default: "",
     },
 
-    profile: {
-      name: {
-        type: String,
-        trim: true,
-        default: "",
-      },
+    // Stable hash to identify duplicate resume content.
+    contentFingerprint: {
+      type: String,
+      default: "",
+      index: true,
+    },
 
+    // Archive/soft-delete support.
+    isArchived: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+
+    profile: {
+      name: { type: String, trim: true, default: "" },
       email: {
         type: String,
         trim: true,
         lowercase: true,
         default: "",
       },
-
-      phone: {
-        type: String,
-        trim: true,
-        default: "",
-      },
-
-      location: {
-        type: String,
-        trim: true,
-        default: "",
-      },
-
-      linkedIn: {
-        type: String,
-        trim: true,
-        default: "",
-      },
-
-      github: {
-        type: String,
-        trim: true,
-        default: "",
-      },
-
-      portfolio: {
-        type: String,
-        trim: true,
-        default: "",
-      },
-      
-      leetcode: {
-        type: String,
-        trim: true,
-        default: "",
-      },
+      phone: { type: String, trim: true, default: "" },
+      location: { type: String, trim: true, default: "" },
+      linkedIn: { type: String, trim: true, default: "" },
+      github: { type: String, trim: true, default: "" },
+      portfolio: { type: String, trim: true, default: "" },
+      leetcode: { type: String, trim: true, default: "" },
     },
 
     summary: {
@@ -301,6 +210,32 @@ const resumeSchema = new mongoose.Schema(
   },
 );
 
-const Resume = mongoose.model("Resume", resumeSchema);
+// ============================================================
+// AUTOMATIC FINGERPRINT
+// ============================================================
+
+resumeSchema.pre("validate", function () {
+  if (this.isModified("extractedText")) {
+    const text = normalizeResumeText(this.extractedText || "");
+
+    this.contentFingerprint = text ? createResumeFingerprint(text) : "";
+  }
+});
+
+// ============================================================
+// INDEXES
+// ============================================================
+
+// Efficient lookup for a user's resumes.
+resumeSchema.index({ userId: 1, updatedAt: -1 });
+
+// Efficient duplicate lookup.
+resumeSchema.index({ userId: 1, contentFingerprint: 1 });
+
+// IMPORTANT:
+// Do not add unique: true to userId.
+// One user must be able to store multiple resumes.
+
+const Resume = mongoose.models.Resume || mongoose.model("Resume", resumeSchema);
 
 export default Resume;

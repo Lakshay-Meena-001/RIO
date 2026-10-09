@@ -27,6 +27,15 @@ export const ROADMAP_KNOWLEDGE_VERSION = 1;
  */
 export const ROADMAP_TEMPLATE_VERSIONS = Object.freeze({
   "frontend-developer": 1,
+  "backend-developer": 1,
+  "cloud-engineer": 1,
+  "devops-platform-engineer": 1,
+  "data-engineer": 1,
+  "ai-ml-engineer": 1,
+  "gen-ai-llm-engineer": 1,
+  "cybersecurity-security-engineer": 1,
+  "full-stack-developer": 1,
+  "system-design-software-architecture": 1,
 });
 
 /* -------------------------------------------------------------------------- */
@@ -46,21 +55,15 @@ export const getRoadmapTemplateVersion = (templateId) => {
 export const hasRoadmapTemplateVersion = (templateId) => {
   return Object.prototype.hasOwnProperty.call(
     ROADMAP_TEMPLATE_VERSIONS,
-    templateId
+    templateId,
   );
 };
 
 /**
  * Check whether two template versions are identical.
  */
-export const isSameTemplateVersion = (
-  templateId,
-  version
-) => {
-  const currentVersion = getRoadmapTemplateVersion(templateId);
-
-  return currentVersion !== null && currentVersion === version;
-};
+export const isSameTemplateVersion = (templateId, version) =>
+  getRoadmapTemplateVersion(templateId) === version;
 
 /* -------------------------------------------------------------------------- */
 /* Public Export                                                              */
