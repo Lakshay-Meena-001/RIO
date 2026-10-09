@@ -7,8 +7,8 @@ import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Scorer from "./pages/Scorer";
 import ResumeBuilder from "./pages/ResumeBuilder";
-import RoadmapPage from "./pages/roadmap/RoadmapPage";
 import RoadmapDetailPage from "./pages/roadmap/RoadmapDetailPage";
+import RoadmapDashboardPage from "./pages/roadmap/RoadmapDashboardPage";
 
 // // Roadmap pages
 // import RoadmapPage from "./pages/roadmap/RoadmapPage";
@@ -158,12 +158,11 @@ const App = () => {
       {/* ==================================================
     ROADMAP
 ================================================== */}
-
       <Route
         path="/roadmap"
         element={
           isProtected ? (
-            <RoadmapPage user={user} setUser={setUser} />
+            <RoadmapDashboardPage user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
           )

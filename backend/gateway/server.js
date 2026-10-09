@@ -94,7 +94,7 @@ app.use(
 );
 
 app.use(
-  "/api/roadmap",
+  "/api/roadmaps",
   isAuth,
   proxyWithHeaders(ROADMAP_SERVICE_URL, true),
 );

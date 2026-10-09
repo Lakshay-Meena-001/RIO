@@ -84,3 +84,28 @@ export const deleteRoadmap = async (roadmapId) => {
 
   return response.data;
 };
+
+/**
+ * Get the authenticated user's roadmaps from the current Roadmap Service.
+ *
+ * Response:
+ * {
+ *   success: true,
+ *   data: {
+ *     roadmaps: [],
+ *     pagination: {}
+ *   }
+ * }
+ */
+export const getRoadmaps = async ({
+  page = 1,
+  limit = 20,
+  status,
+  generationMode,
+} = {}) => {
+  const response = await api.get("/api/roadmaps/", {
+    params: { page, limit, status, generationMode },
+  });
+
+  return response.data;
+};
