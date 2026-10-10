@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 
@@ -26,6 +26,18 @@ import { getResume } from "./api/resume.api";
 
 // Redux
 import { setResume } from "./redux/resumeSlice";
+import RoadmapHistoryPage from "./pages/roadmap/RoadmapHistoryPage";
+
+function LegacyRoadmapRedirect() {
+  const { roadmapId } = useParams();
+
+  return (
+    <Navigate
+      to={`/roadmap/history?roadmap=${encodeURIComponent(roadmapId)}`}
+      replace
+    />
+  );
+}
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -98,7 +110,6 @@ const App = () => {
       {/* ==================================================
           PUBLIC / HOME
       ================================================== */}
-
       <Route
         path="/"
         element={
@@ -109,11 +120,9 @@ const App = () => {
           )
         }
       />
-
       {/* ==================================================
           DASHBOARD
       ================================================== */}
-
       <Route
         path="/dashboard"
         element={
@@ -124,11 +133,9 @@ const App = () => {
           )
         }
       />
-
       {/* ==================================================
           RESUME SCORER
       ================================================== */}
-
       <Route
         path="/scorer"
         element={
@@ -139,11 +146,9 @@ const App = () => {
           )
         }
       />
-
       {/* ==================================================
           RESUME BUILDER
       ================================================== */}
-
       <Route
         path="/builder"
         element={
@@ -154,7 +159,7 @@ const App = () => {
           )
         }
       />
-
+      ```jsx
       {/* ==================================================
     ROADMAP
 ================================================== */}
@@ -168,7 +173,6 @@ const App = () => {
           )
         }
       />
-
       <Route
         path="/roadmap/new"
         element={
@@ -179,11 +183,28 @@ const App = () => {
           )
         }
       />
-
+      {/* Permanent roadmap learning workspace */}
+      <Route
+        path="/roadmap/history"
+        element={
+          isProtected ? (
+            <RoadmapHistoryPage user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+      {/* Legacy roadmap URLs redirect into History */}
+      <Route
+        path="/roadmap/:roadmapId"
+        element={
+          isProtected ? <LegacyRoadmapRedirect /> : <Navigate to="/" replace />
+        }
+      />
+      ```
       {/* ==================================================
           MOCK INTERVIEW
       ================================================== */}
-
       <Route
         path="/mock-interview"
         element={
@@ -194,11 +215,9 @@ const App = () => {
           )
         }
       />
-
       {/* ==================================================
           NEW INTERVIEW
       ================================================== */}
-
       <Route
         path="/mock-interview/new"
         element={
@@ -209,11 +228,9 @@ const App = () => {
           )
         }
       />
-
       {/* ==================================================
           ACTIVE INTERVIEW
       ================================================== */}
-
       <Route
         path="/mock-interview/:interviewId"
         element={
@@ -224,11 +241,9 @@ const App = () => {
           )
         }
       />
-
       {/* ==================================================
           INTERVIEW HISTORY
       ================================================== */}
-
       <Route
         path="/mock-interview/history"
         element={
@@ -239,11 +254,9 @@ const App = () => {
           )
         }
       />
-
       {/* ==================================================
           FALLBACK
       ================================================== */}
-
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );

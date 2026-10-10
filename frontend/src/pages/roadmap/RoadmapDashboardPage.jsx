@@ -257,7 +257,7 @@ const RoadmapDashboardPage = ({
           <main
             className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
           >
-            <div className="mx-auto w-full max-w-[1480px] px-5 pb-32 pt-[88px] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10">
+            <div className="mx-auto w-full max-w-[1480px] px-5 pb-24 pt-[88px] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10">
               {/***** Editorial hero: typography, spacing and actions copied from Mock Interview. *****/}
 
               <motion.section
@@ -838,7 +838,7 @@ const RoadmapDashboardPage = ({
 
             <span>Build roadmap</span>
 
-            <FiArrowRight size={14} />
+            <FiArrowRight size={14} className="sm:hidden" />
           </button>
         </div>
       </div>

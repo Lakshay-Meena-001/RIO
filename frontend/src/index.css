@@ -1,10 +1,102 @@
 @import "tailwindcss";
 
-html,
+/* =========================================================
+   RIO DESIGN SYSTEM
+   LUXURY MONOCHROME — CHARCOAL / BLACK / WHITE
+========================================================= */
+
+:root {
+  color-scheme: dark;
+
+  /* Backgrounds */
+  --bg: #08090B;
+  --bg-secondary: #101114;
+  --surface: #151619;
+  --surface-elevated: #1C1D21;
+  --surface-hover: #24252A;
+
+  /* Text */
+  --text: #F5F5F5;
+  --muted: rgba(245, 245, 245, 0.58);
+  --muted-strong: rgba(245, 245, 245, 0.78);
+
+  /* Glass surfaces */
+  --glass: rgba(255, 255, 255, 0.035);
+  --glass-strong: rgba(255, 255, 255, 0.065);
+
+  /* Borders */
+  --border: rgba(255, 255, 255, 0.075);
+  --border-strong: rgba(255, 255, 255, 0.13);
+
+  /* Buttons */
+  --button: rgba(255, 255, 255, 0.055);
+  --button-hover: rgba(255, 255, 255, 0.10);
+
+  /* Primary action — white on dark */
+  --accent: #F5F5F5;
+  --accent-foreground: #101114;
+  --accent-shadow: rgba(255, 255, 255, 0.08);
+
+  /* Focus and selection */
+  --focus-ring: rgba(255, 255, 255, 0.65);
+  --selection: rgba(255, 255, 255, 0.09);
+
+  /* Gradients */
+  --gradient-page:
+    linear-gradient(
+      145deg,
+      #08090B 0%,
+      #111215 48%,
+      #090A0C 100%
+    );
+
+  --gradient-surface:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.045) 0%,
+      rgba(255, 255, 255, 0.012) 100%
+    );
+
+  --gradient-button:
+    linear-gradient(
+      180deg,
+      #FFFFFF 0%,
+      #E8E8E8 100%
+    );
+
+  /* Shadows */
+  --shadow-soft:
+    0 8px 28px rgba(0, 0, 0, 0.20);
+
+  --shadow-elevated:
+    0 18px 55px rgba(0, 0, 0, 0.32);
+
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  /* Motion */
+  --transition-fast: 160ms ease;
+  --transition-normal: 240ms ease;
+}
+
+/* =========================================================
+   GLOBAL FOUNDATION
+========================================================= */
+
+html {
+  min-height: 100%;
+  background: var(--bg);
+  color-scheme: dark;
+}
+
 body,
 #root {
   min-height: 100%;
-  background: #17191C;
+  background: var(--gradient-page);
+  color: var(--text);
 }
 
 body {
@@ -12,76 +104,93 @@ body {
 }
 
 * {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--text);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* Smooth scrolling only where explicitly needed */
+html {
   scroll-behavior: smooth;
 }
 
-
-*{
-  scroll-behavior: smooth;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
+
 /* =========================================================
-   RYVO DESIGN TOKENS
-   DEFAULT THEME = DARK
+   LUXURY GLASS SURFACES
 ========================================================= */
 
-:root {
-  /* Background */
-  --bg: #050608;
-
-  /* Text */
-  --text: #f5f7fa;
-  --muted: rgba(245, 247, 250, 0.52);
-  --muted-strong: rgba(245, 247, 250, 0.72);
-
-  /* Glass */
-  --glass: rgba(255, 255, 255, 0.045);
-
-  /* Borders */
-  --border: rgba(255, 255, 255, 0.075);
-  --border-strong: rgba(255, 255, 255, 0.11);
-
-  /* Buttons */
-  --button: rgba(255, 255, 255, 0.045);
-  --button-hover: rgba(255, 255, 255, 0.075);
-
-  /* Accent */
-  --accent: #22d3ee;
-  --accent-shadow: rgba(34, 211, 238, 0.18);
+.glass-surface {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
+.glass-surface-strong {
+  background: var(--glass-strong);
+  border: 1px solid var(--border-strong);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
 
 /* =========================================================
-   LIGHT THEME
-   Activated later with: <html class="light">
+   PREMIUM BUTTONS
 ========================================================= */
 
-.light {
-  --bg: #f5f6f8;
-
-  --text: #111318;
-  --muted: rgba(17, 19, 24, 0.55);
-  --muted-strong: rgba(17, 19, 24, 0.72);
-
-  --glass: rgba(255, 255, 255, 0.62);
-
-  --border: rgba(17, 19, 24, 0.08);
-  --border-strong: rgba(17, 19, 24, 0.12);
-
-  --button: rgba(255, 255, 255, 0.55);
-  --button-hover: rgba(255, 255, 255, 0.82);
-
-  --accent: #0891b2;
-  --accent-shadow: rgba(8, 145, 178, 0.20);
+.btn-primary {
+  color: var(--accent-foreground);
+  background: var(--gradient-button);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  transition:
+    background var(--transition-normal),
+    transform var(--transition-fast),
+    box-shadow var(--transition-normal);
 }
 
+.btn-primary:hover {
+  box-shadow: 0 5px 22px var(--accent-shadow);
+  transform: translateY(-1px);
+}
+
+.btn-secondary {
+  color: var(--text);
+  background: var(--button);
+  border: 1px solid var(--border);
+  transition:
+    background var(--transition-normal),
+    border-color var(--transition-normal);
+}
+
+.btn-secondary:hover {
+  background: var(--button-hover);
+  border-color: var(--border-strong);
+}
 
 /* =========================================================
-   AMBIENT HERO GRADIENT
+   AMBIENT HERO GRADIENT — MONOCHROME
 ========================================================= */
 
 .hero-gradient {
   position: absolute;
-
   left: 50%;
   top: 50%;
 
@@ -95,57 +204,43 @@ body {
 
   background: radial-gradient(
     circle,
-    rgba(34, 211, 238, 0.075) 0%,
-    rgba(59, 130, 246, 0.035) 28%,
+    rgba(255, 255, 255, 0.055) 0%,
+    rgba(190, 190, 190, 0.025) 30%,
     transparent 68%
   );
 
-  opacity: 0.7;
+  opacity: 0.65;
+  pointer-events: none;
 
-  animation: heroGradient 20s ease-in-out infinite;
+  animation: heroGradient 22s ease-in-out infinite;
 }
-
-
-/* =========================================================
-   LIGHT THEME GRADIENT
-========================================================= */
-
-.light .hero-gradient {
-  background: radial-gradient(
-    circle,
-    rgba(8, 145, 178, 0.065) 0%,
-    rgba(59, 130, 246, 0.03) 30%,
-    transparent 68%
-  );
-
-  opacity: 0.6;
-}
-
-
-/* =========================================================
-   SLOW AMBIENT MOVEMENT
-========================================================= */
 
 @keyframes heroGradient {
   0%,
   100% {
-    transform: translate(-50%, -50%) scale(0.86);
-    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.90);
+    opacity: 0.45;
   }
 
   50% {
-    transform: translate(-50%, -50%) scale(1.08);
-    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1.06);
+    opacity: 0.75;
   }
 }
 
-
 /* =========================================================
-   REDUCE MOTION
+   RESPONSIVE POLISH
 ========================================================= */
 
-@media (prefers-reduced-motion: reduce) {
+@media (max-width: 768px) {
+  :root {
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+  }
+
   .hero-gradient {
-    animation: none;
+    width: 110vw;
+    height: 110vw;
+    opacity: 0.45;
   }
 }

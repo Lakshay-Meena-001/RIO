@@ -12,6 +12,7 @@ import {
   FiFileText,
   FiLayers,
   FiMenu,
+  FiPlay,
   FiRefreshCw,
   FiSearch,
   FiMonitor,
@@ -102,21 +103,21 @@ const getTemplateIcon = (template) => {
 
 function SectionHeading({ number, icon: Icon, title, description }) {
   return (
-    <div className="mb-4 flex items-start gap-3">
+    <div className="mb-5 flex flex-col items-center gap-3 text-center sm:mb-4 sm:flex-row sm:items-start sm:gap-3 sm:text-left">
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[#D4D4D8]">
         <Icon size={17} />
       </div>
 
-      <div className="min-w-0">
+      <div className="min-w-0 sm:text-left">
         <p className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[#777B85]">
           {number}
         </p>
 
-        <h2 className="mt-1 text-lg font-semibold tracking-tight text-white sm:text-xl">
+        <h2 className="mt-2 text-lg font-semibold tracking-tight text-white sm:text-xl">
           {title}
         </h2>
 
-        <p className="mt-1 text-xs leading-5 text-[#858994] sm:text-sm">
+        <p className="mx-auto mb-2 mt-1 max-w-md text-xs leading-5 text-[#858994] sm:mx-0 sm:text-sm">
           {description}
         </p>
       </div>
@@ -165,7 +166,6 @@ export default function RoadmapBuilderPage({ user, setUser }) {
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateSearch, setTemplateSearch] = useState("");
   const [showModes, setShowModes] = useState(false);
-  const [showAllHours, setShowAllHours] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -634,6 +634,33 @@ export default function RoadmapBuilderPage({ user, setUser }) {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#17191C] text-white">
+      <style>{`
+        .rio-range {
+          height: 5px;
+          appearance: none;
+          -webkit-appearance: none;
+          border-radius: 9999px;
+          outline: none;
+        }
+        .rio-range::-webkit-slider-thumb {
+          appearance: none;
+          -webkit-appearance: none;
+          width: 17px;
+          height: 17px;
+          border-radius: 9999px;
+          border: 3px solid #17191C;
+          background: #F4F4F5;
+          box-shadow: 0 0 0 1px rgba(255,255,255,.42);
+        }
+        .rio-range::-moz-range-thumb {
+          width: 12px;
+          height: 12px;
+          border-radius: 9999px;
+          border: 3px solid #17191C;
+          background: #F4F4F5;
+          box-shadow: 0 0 0 1px rgba(255,255,255,.42);
+        }
+      `}</style>
       <div
         className="pointer-events-none fixed inset-0"
         style={{
@@ -641,7 +668,6 @@ export default function RoadmapBuilderPage({ user, setUser }) {
             "radial-gradient(ellipse 75% 55% at 100% 0%, rgba(255,255,255,.055), transparent 70%), radial-gradient(ellipse 60% 55% at 0% 100%, rgba(255,255,255,.025), transparent 72%)",
         }}
       />
-
       {/* Mobile header */}
       <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-2xl border border-white/10 bg-[#17191C]/90 px-3 backdrop-blur-xl md:hidden">
         <button
@@ -664,7 +690,6 @@ export default function RoadmapBuilderPage({ user, setUser }) {
           {user?.name?.charAt(0)?.toUpperCase() || "U"}
         </span>
       </header>
-
       <div className="relative z-10 flex min-h-screen">
         <Sidebar
           mobileOpen={mobileOpen}
@@ -680,7 +705,7 @@ export default function RoadmapBuilderPage({ user, setUser }) {
             sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
           }`}
         >
-          <div className="mx-auto w-full max-w-none px-3 pb-28 pt-[82px] sm:px-6 sm:pb-32 lg:px-8 lg:py-8 lg:pb-12">
+          <div className="mx-auto w-full max-w-none px-3 pb-16 pt-[82px] sm:px-6 sm:pb-28 lg:px-8 lg:py-8 lg:pb-4">
             {/* Back navigation */}
             <button
               type="button"
@@ -696,10 +721,10 @@ export default function RoadmapBuilderPage({ user, setUser }) {
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.35 }}
-              className="mb-6 flex flex-col gap-4 sm:mb-7 sm:flex-row sm:items-end sm:justify-between"
+              className="mb-6 flex flex-col items-center gap-4  sm:mb-7 sm:items-start sm:text-left lg:flex-row lg:items-end lg:justify-between"
             >
               <div className="max-w-2xl">
-                <p className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#858994]">
+                <p className="mb-3 items-center flex gap-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#858994] sm:justify-start">
                   <span className="h-1.5 w-1.5 rounded-full bg-white" />
                   Roadmap Studio
                 </p>
@@ -711,7 +736,7 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                   </span>
                 </h1>
 
-                <p className="mt-2 max-w-xl text-sm leading-6 text-[#92959E]">
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#92959E] sm:mx-0 ">
                   Pick a direction, set your pace, and let RIO organize the next
                   steps.
                 </p>
@@ -725,10 +750,10 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                 </div>
                 <div>
                   <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-[#6F727A]">
-                    BUILD COST
+                    ROADMAP COST
                   </p>
                   <p className="mt-0.5 text-sm font-semibold text-[#17191C]">
-                    ₹100 / Roadmap
+                    100 INR
                   </p>
                 </div>
               </div>
@@ -813,42 +838,64 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                                 : "Choose a roadmap")}
                           </p>
                         </div>
-                        {showTemplates && (
-                          <label className="relative min-w-0 flex-1 sm:max-w-[280px]">
-                            <FiSearch
-                              size={14}
-                              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#777B85]"
-                            />
-                            <input
-                              type="search"
-                              value={templateSearch}
-                              onChange={(event) =>
-                                setTemplateSearch(event.target.value)
-                              }
-                              placeholder="Search roadmaps..."
-                              aria-label="Search roadmaps"
-                              className={`${inputClass} py-2 pl-9`}
-                            />
-                          </label>
-                        )}
                         <button
                           type="button"
                           onClick={() => {
                             setShowTemplates((value) => !value);
                             if (showTemplates) setTemplateSearch("");
                           }}
+                          aria-label={
+                            showTemplates
+                              ? "Close roadmap list"
+                              : "Open roadmap list"
+                          }
                           aria-expanded={showTemplates}
-                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.11] bg-white/[0.035] px-3 py-2 text-xs font-medium text-[#D4D4D8] transition hover:bg-white/[0.08]"
+                          className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.035] text-[#A1A1AA] transition hover:bg-white/[0.08] hover:text-white sm:ml-0 sm:h-auto sm:w-auto sm:gap-1.5 sm:rounded-lg sm:px-3 sm:py-2 sm:text-xs sm:font-medium sm:text-[#D4D4D8]"
                         >
-                          {showTemplates ? "Done" : "Change"}
                           <motion.span
                             animate={{ rotate: showTemplates ? 180 : 0 }}
                             transition={{ duration: 0.2 }}
                           >
-                            <FiChevronDown size={14} />
+                            <FiChevronDown size={15} />
                           </motion.span>
+                          <span className="hidden sm:inline">
+                            {showTemplates ? "Done" : "Change"}
+                          </span>
                         </button>
                       </div>
+
+                      <label className="relative mt-3 block w-full">
+                        <FiSearch
+                          size={15}
+                          className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#777B85]"
+                        />
+                        <input
+                          type="search"
+                          value={templateSearch}
+                          onFocus={() => setShowTemplates(true)}
+                          onChange={(event) => {
+                            setTemplateSearch(event.target.value);
+                            setShowTemplates(true);
+                          }}
+                          placeholder="Search roadmaps..."
+                          aria-label="Search roadmaps"
+                          className={`${inputClass} py-3 pl-10 pr-10`}
+                        />
+                        {templateSearch && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTemplateSearch("");
+                              setShowTemplates(true);
+                            }}
+                            aria-label="Clear roadmap search"
+                            className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full bg-white/[0.06] text-white/60 transition hover:bg-white/[0.12] hover:text-white"
+                          >
+                            <FiX size={13} />
+                          </button>
+                        )}
+                      </label>
+
                       <AnimatePresence initial={false}>
                         {showTemplates && (
                           <motion.div
@@ -1029,15 +1076,22 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                           type="button"
                           onClick={() => setShowModes((value) => !value)}
                           aria-expanded={showModes}
-                          className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/[0.11] bg-white/[0.035] px-3 py-2 text-xs font-medium text-[#D4D4D8] transition hover:bg-white/[0.08]"
+                          aria-label={
+                            showModes
+                              ? "Close generation options"
+                              : "Change generation mode"
+                          }
+                          className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.035] text-[#A1A1AA] transition hover:bg-white/[0.08] hover:text-white sm:ml-0 sm:h-auto sm:w-auto sm:gap-1.5 sm:rounded-lg sm:px-3 sm:py-2 sm:text-xs sm:font-medium sm:text-[#D4D4D8]"
                         >
-                          {showModes ? "Done" : "Change"}
                           <motion.span
                             animate={{ rotate: showModes ? 180 : 0 }}
                             transition={{ duration: 0.2 }}
                           >
-                            <FiChevronDown size={14} />
+                            <FiChevronDown size={15} />
                           </motion.span>
+                          <span className="hidden sm:inline">
+                            {showModes ? "Done" : "Change"}
+                          </span>
                         </button>
                       </div>
                       <AnimatePresence initial={false}>
@@ -1354,83 +1408,88 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                       description="Set your daily study time and tell RIO what you already know."
                     />
 
-                    <FieldLabel>Available learning time per day</FieldLabel>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      {[
-                        1,
-                        2,
-                        3,
-                        ...(showAllHours ? [4, 6, 8, 10, 12] : []),
-                      ].map((hours) => {
-                        const active =
-                          Number(form.availableHoursPerDay) === hours;
-                        return (
-                          <button
-                            key={hours}
-                            type="button"
-                            onClick={() =>
-                              setField("availableHoursPerDay", hours)
-                            }
-                            aria-pressed={active}
-                            className={`min-w-[62px] rounded-xl border px-4 py-3 text-xs font-semibold transition ${active ? "border-white/25 bg-white/[0.10] text-white shadow-[0_0_0_1px_rgba(255,255,255,0.04)]" : "border-white/[0.08] bg-white/[0.025] text-[#92959E] hover:border-white/[0.16] hover:bg-white/[0.05]"}`}
-                          >
-                            {hours}h
-                          </button>
-                        );
-                      })}
-                      <button
-                        type="button"
-                        onClick={() => setShowAllHours((value) => !value)}
-                        aria-expanded={showAllHours}
-                        className="inline-flex min-h-[42px] items-center gap-1.5 rounded-xl px-3 text-xs font-medium text-[#A1A1AA] transition hover:bg-white/[0.05] hover:text-white"
-                      >
-                        {showAllHours ? "Less" : "More hours"}
-                        <motion.span
-                          animate={{ rotate: showAllHours ? 180 : 0 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <FiChevronDown size={14} />
-                        </motion.span>
-                      </button>
+                    <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+                      <div className="mb-4 flex items-end justify-between gap-3">
+                        <FieldLabel>Available learning time per day</FieldLabel>
+                        <p className="text-lg font-semibold tabular-nums text-white">
+                          {form.availableHoursPerDay}{" "}
+                          <span className="text-xs font-medium text-[#858994]">
+                            {Number(form.availableHoursPerDay) === 1
+                              ? "hour/day"
+                              : "hours/day"}
+                          </span>
+                        </p>
+                      </div>
+                      <input
+                        type="range"
+                        min="1"
+                        max="12"
+                        step="1"
+                        value={Number(form.availableHoursPerDay)}
+                        onChange={(event) =>
+                          setField(
+                            "availableHoursPerDay",
+                            Number(event.target.value),
+                          )
+                        }
+                        aria-label="Available learning hours per day"
+                        className="rio-range w-full cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, #F4F4F5 ${((Number(form.availableHoursPerDay) - 1) / 11) * 100}%, #34363B ${((Number(form.availableHoursPerDay) - 1) / 11) * 100}%)`,
+                        }}
+                      />
+                      <div className="mt-2 flex justify-between text-[10px] text-[#777B85]">
+                        <span>1 hour</span>
+                        <span>6 hours</span>
+                        <span>12 hours</span>
+                      </div>
                     </div>
 
-                    <div className="mt-5">
-                      <FieldLabel>Target package (LPA)</FieldLabel>
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-                        {[
-                          { value: 1, label: "1 LPA" },
-                          { value: 3, label: "3 LPA" },
-                          { value: 5, label: "5 LPA" },
-                          { value: 8, label: "8 LPA" },
-                          { value: 12, label: "12 LPA" },
-                          { value: 20, label: "20 LPA" },
-                          { value: 30, label: "30 LPA" },
-                          { value: 50, label: "50 LPA" },
-                          { value: 75, label: "75 LPA" },
-                          { value: 100, label: "1 Cr+" },
-                        ].map((option) => {
-                          const active =
-                            Number(form.targetLpa) === option.value;
-                          return (
-                            <button
-                              key={option.value}
-                              type="button"
-                              onClick={() =>
-                                setField("targetLpa", option.value)
-                              }
-                              aria-pressed={active}
-                              className={`rounded-xl border px-3 py-2.5 text-xs font-semibold transition ${active ? "border-white/25 bg-white/[0.10] text-white" : "border-white/[0.08] bg-white/[0.025] text-[#92959E] hover:border-white/[0.16] hover:bg-white/[0.05]"}`}
-                            >
-                              {option.label}
-                            </button>
-                          );
-                        })}
+                    <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
+                      <div className="mb-4 flex items-end justify-between gap-3">
+                        <FieldLabel>Target package (LPA)</FieldLabel>
+                        <p className="text-lg font-semibold tabular-nums text-white">
+                          {Number(form.targetLpa) >= 100
+                            ? "1 Cr+"
+                            : `${form.targetLpa} LPA`}
+                        </p>
                       </div>
-                      <p className="mt-2 text-[10px] leading-4 text-[#686B74]">
-                        RIO will use this as a career target when shaping your
-                        learning path. The canonical roadmap remains intact; AI
-                        personalization can add relevant depth and preparation.
+                      <input
+                        type="range"
+                        min="0"
+                        max="9"
+                        step="1"
+                        value={
+                          [1, 3, 5, 8, 12, 20, 30, 50, 75, 100].indexOf(
+                            Number(form.targetLpa),
+                          ) < 0
+                            ? 4
+                            : [1, 3, 5, 8, 12, 20, 30, 50, 75, 100].indexOf(
+                                Number(form.targetLpa),
+                              )
+                        }
+                        onChange={(event) =>
+                          setField(
+                            "targetLpa",
+                            [1, 3, 5, 8, 12, 20, 30, 50, 75, 100][
+                              Number(event.target.value)
+                            ],
+                          )
+                        }
+                        aria-label="Target package in LPA"
+                        className="rio-range w-full cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, #F4F4F5 ${(Number([1, 3, 5, 8, 12, 20, 30, 50, 75, 100].indexOf(Number(form.targetLpa)) < 0 ? 4 : [1, 3, 5, 8, 12, 20, 30, 50, 75, 100].indexOf(Number(form.targetLpa))) / 9) * 100}%, #34363B ${(Number([1, 3, 5, 8, 12, 20, 30, 50, 75, 100].indexOf(Number(form.targetLpa)) < 0 ? 4 : [1, 3, 5, 8, 12, 20, 30, 50, 75, 100].indexOf(Number(form.targetLpa))) / 9) * 100}%)`,
+                        }}
+                      />
+                      <div className="mt-2 flex justify-between text-[10px] text-[#777B85]">
+                        <span>1 LPA</span>
+                        <span>12 LPA</span>
+                        <span>1 Cr+</span>
+                      </div>
+                      <p className="mt-3 text-[10px] leading-4 text-[#686B74]">
+                        RIO uses this as a career target. The canonical roadmap
+                        remains intact; personalization can add relevant depth.
                       </p>
                     </div>
 
@@ -1455,7 +1514,7 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                   </motion.section>
                 </div>
               </div>
-              <div className="mt-6 flex flex-col gap-4 border-t border-white/[0.09] pt-5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="mt-6 flex flex-col gap-4 border-t border-white/[0.09] pt-5 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-white">
                     Build a path that fits your day.
@@ -1474,10 +1533,14 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                           : "Unfinished changes save automatically"}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center justify-end gap-2">
+                <div className="hidden shrink-0 items-center justify-end gap-2 sm:flex">
                   <button
                     type="button"
-                    onClick={() => navigate("/roadmap/history")}
+                    onClick={() =>
+                      navigate(
+                        `/roadmap/history?roadmap=${encodeURIComponent(generatedRoadmapId)}`,
+                      )
+                    }
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.13] bg-white/[0.035] px-4 py-3 text-sm font-medium text-[#E4E4E7] transition hover:bg-white/[0.08]"
                   >
                     <FiClock size={15} /> History
@@ -1505,7 +1568,46 @@ export default function RoadmapBuilderPage({ user, setUser }) {
           </div>
         </main>
       </div>
+      ```jsx
+      {/* Fixed mobile actions — matches the Dashboard bottom bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/[0.92] p-3 backdrop-blur-xl sm:hidden">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              navigate(
+                `/roadmap/history?roadmap=${encodeURIComponent(generatedRoadmapId)}`,
+              )
+            }
+            className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white"
+          >
+            <FiClock size={14} />
+            <span>View history</span>
+          </button>
 
+          <button
+            type="submit"
+            form="roadmap-builder-form"
+            disabled={
+              busy ||
+              templates.length === 0 ||
+              (form.generationMode === "resume" && !selectedResumeId)
+            }
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {generating ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />
+            ) : (
+              <FiPlay size={14} />
+            )}
+
+            <span>{generating ? "Building…" : "Build roadmap"}</span>
+
+            {!generating && <FiArrowRight size={14} className="sm:hidden" />}
+          </button>
+        </div>
+      </div>
+      ```
       <AnimatePresence>
         {(generating || generationComplete) && (
           <motion.div
@@ -1563,7 +1665,9 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                   type="button"
                   onClick={() =>
                     generatedRoadmapId &&
-                    navigate(`/roadmap/${generatedRoadmapId}`)
+                    navigate(
+                      `/roadmap/history?roadmap=${encodeURIComponent(generatedRoadmapId)}`,
+                    )
                   }
                   disabled={!generatedRoadmapId}
                   className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-[#17191C] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
