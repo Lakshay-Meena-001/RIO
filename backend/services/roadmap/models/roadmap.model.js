@@ -1,602 +1,497 @@
-/**
- * RIO Roadmap Model
- *
- * Stores a user's generated roadmap.
- *
- * Three generation modes use the same model:
- *
- * 1. standard
- * 2. resume
- * 3. custom
- *
- * Important:
- *
- * - Canonical roadmap knowledge lives in the knowledge layer.
- * - This model stores the user's roadmap snapshot/state.
- * - User progress lives inside nodes[].
- * - Resume itself remains owned by Resume Service.
- */
-import crypto from "crypto";
 import mongoose from "mongoose";
 
 import {
-  ROADMAP_GENERATION_MODES,
+  ROADMAP_SCHEMA_VERSION,
   ROADMAP_STATUS,
-  NODE_STATUS,
-  EXPERIENCE_LEVELS,
-  ROADMAP_INPUT_SOURCES,
 } from "../constants/roadmap.constants.js";
 
-// ============================================================
-// TARGET
-// ============================================================
+const { Schema, model, models } = mongoose;
 
-const targetSchema = new mongoose.Schema(
+const resourceSchema = new Schema(
   {
-    compensation: {
-      type: Number,
-      min: 0,
-      default: 12,
-    },
-
-    currency: {
-      type: String,
-      trim: true,
-      uppercase: true,
-      default: "INR",
-    },
-
-    unit: {
-      type: String,
-      trim: true,
-      uppercase: true,
-      default: "LPA",
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-// ============================================================
-// PROFILE
-// ============================================================
-
-const profileSchema = new mongoose.Schema(
-  {
-    level: {
-      type: String,
-      enum: Object.values(EXPERIENCE_LEVELS),
-      default: EXPERIENCE_LEVELS.BEGINNER,
-    },
-
-    availableHoursPerDay: {
-      type: Number,
-      min: 0,
-      max: 24,
-      default: 2,
-    },
-
-    /**
-     * Skills explicitly provided by the user.
-     */
-    currentSkills: {
-      type: [String],
-      default: [],
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-// ============================================================
-// ROADMAP NODE
-// ============================================================
-
-/**
- * This is the user's state for one canonical knowledge node.
- *
- * Canonical information such as:
- *
- * - description
- * - whyItMatters
- * - prerequisites
- * - alternatives
- *
- * stays inside the knowledge layer.
- *
- * MongoDB only stores user-specific state here.
- */
-const roadmapNodeSchema = new mongoose.Schema(
-  {
-    nodeId: {
+    title: {
       type: String,
       required: true,
       trim: true,
     },
-
-    status: {
-      type: String,
-      enum: Object.values(NODE_STATUS),
-      default: NODE_STATUS.NOT_STARTED,
-    },
-
-    skippedReason: {
-      type: String,
-      trim: true,
-      maxlength: 1000,
-      default: null,
-    },
-
-    startedAt: {
-      type: Date,
-      default: null,
-    },
-
-    completedAt: {
-      type: Date,
-      default: null,
-    },
-
-    updatedAt: {
-      type: Date,
-      default: Date.now,
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-// ============================================================
-// CUSTOM REQUIREMENTS
-// ============================================================
-
-/**
- * Original requirements used for custom/adaptive generation.
- *
- * Keeping these makes the generated roadmap explainable.
- */
-const customRequirementSchema = new mongoose.Schema(
-  {
-    prompt: {
-      type: String,
-      trim: true,
-      maxlength: 10000,
-      default: "",
-    },
-
-    goals: {
-      type: [String],
-      default: [],
-    },
-
-    technologies: {
-      type: [String],
-      default: [],
-    },
-
-    exclusions: {
-      type: [String],
-      default: [],
-    },
-
-    projectPreferences: {
-      type: [String],
-      default: [],
-    },
-
-    notes: {
-      type: String,
-      trim: true,
-      maxlength: 5000,
-      default: "",
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-// ============================================================
-// INPUT CONTEXT
-// ============================================================
-
-/**
- * Describes where the roadmap came from.
- *
- * Resume itself is NOT stored here.
- *
- * Resume Service remains the source of truth.
- */
-const inputContextSchema = new mongoose.Schema(
-  {
-    source: {
-      type: String,
-      enum: Object.values(ROADMAP_INPUT_SOURCES),
-      default: ROADMAP_INPUT_SOURCES.STANDARD,
-    },
-
-    resumeId: {
-      type: mongoose.Schema.Types.ObjectId,
-      default: null,
-    },
-
-    resumeVersion: {
-      type: mongoose.Schema.Types.Mixed,
-      default: null,
-    },
-
-    manualSkills: {
-      type: [String],
-      default: [],
-    },
-
-    projectPreferences: {
-      type: [String],
-      default: [],
-    },
-
-    customRequirements: {
-      type: customRequirementSchema,
-      default: null,
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-// ============================================================
-// PROGRESS
-// ============================================================
-
-/**
- * Cached aggregate progress.
- *
- * nodes[] remains the source of truth.
- *
- * This object exists so dashboard queries stay cheap.
- */
-const progressSchema = new mongoose.Schema(
-  {
-    percentage: {
-      type: Number,
-      min: 0,
-      max: 100,
-      default: 0,
-    },
-
-    total: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
-
-    completed: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
-
-    learning: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
-
-    skipped: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
-
-    remaining: {
-      type: Number,
-      min: 0,
-      default: 0,
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-// ============================================================
-// CURRENT FOCUS
-// ============================================================
-
-/**
- * "Your Next Move"
- *
- * Priority here is NOT the same thing as knowledge importance.
- *
- * Allowed:
- *
- * low
- * medium
- * high
- */
-const currentFocusSchema = new mongoose.Schema(
-  {
-    nodeId: {
-      type: String,
-      default: null,
-    },
-
-    reason: {
-      type: String,
-      trim: true,
-      maxlength: 2000,
-      default: "",
-    },
-
-    priority: {
-      type: String,
-      enum: ["low", "medium", "high"],
-      default: "medium",
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-// ============================================================
-// GENERATION ERROR
-// ============================================================
-
-const generationErrorSchema = new mongoose.Schema(
-  {
-    code: {
-      type: String,
-      default: null,
-      trim: true,
-    },
-
-    message: {
-      type: String,
-      default: null,
-      trim: true,
-      maxlength: 2000,
-    },
-
-    occurredAt: {
-      type: Date,
-      default: null,
-    },
-  },
-  {
-    _id: false,
-  },
-);
-
-// ============================================================
-// MAIN ROADMAP SCHEMA
-// ============================================================
-
-const roadmapSchema = new mongoose.Schema(
-  {
-    // ----------------------------------------------------------
-    // Ownership
-    // ----------------------------------------------------------
-
-    userId: {
+    url: {
       type: String,
       required: true,
       trim: true,
+    },
+    type: {
+      type: String,
+      default: "other",
+      trim: true,
+    },
+    purpose: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+  },
+  { _id: false },
+);
+
+const topicOptionSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    type: {
+      type: String,
+      enum: ["alternative", "complementary", "specialization"],
+      default: "alternative",
+    },
+    prerequisites: {
+      type: [String],
+      default: [],
+    },
+    whenToChoose: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    tradeoffs: {
+      type: [String],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
+const topicSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    importance: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    type: {
+      type: String,
+      enum: ["core", "optional", "advanced", "project", "specialization"],
+      default: "core",
+    },
+    prerequisites: {
+      type: [String],
+      default: [],
+    },
+    estimatedHours: {
+      type: Number,
+      min: 0,
+      default: 0,
+    },
+    subtopics: {
+      type: [String],
+      default: [],
+    },
+    practiceTasks: {
+      type: [String],
+      default: [],
+    },
+    resources: {
+      type: [resourceSchema],
+      default: [],
+    },
+    completionCriteria: {
+      type: [String],
+      default: [],
+    },
+    options: {
+      type: [topicOptionSchema],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
+const projectSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    requirements: {
+      type: [String],
+      default: [],
+    },
+    skillsPracticed: {
+      type: [String],
+      default: [],
+    },
+    completionCriteria: {
+      type: [String],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
+const phaseSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    order: {
+      type: Number,
+      required: true,
+      min: 0,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    purpose: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    prerequisites: {
+      type: [String],
+      default: [],
+    },
+    learningOutcomes: {
+      type: [String],
+      default: [],
+    },
+    topics: {
+      type: [topicSchema],
+      default: [],
+    },
+    projects: {
+      type: [projectSchema],
+      default: [],
+    },
+    completionCriteria: {
+      type: [String],
+      default: [],
+    },
+    generationStatus: {
+      type: String,
+      enum: ["pending", "generating", "ready", "failed"],
+      default: "pending",
+    },
+    generatedAt: {
+      type: Date,
+      default: null,
+    },
+    generationError: {
+      type: String,
+      default: null,
+    },
+  },
+  { _id: false },
+);
+
+const learningPathSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    recommendedFor: {
+      type: [String],
+      default: [],
+    },
+    topicIds: {
+      type: [String],
+      default: [],
+    },
+    nextPathIds: {
+      type: [String],
+      default: [],
+    },
+    tradeoffs: {
+      type: [String],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
+const decisionAlternativeSchema = new Schema(
+  {
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    whenToChoose: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    tradeoffs: {
+      type: [String],
+      default: [],
+    },
+    prerequisites: {
+      type: [String],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
+const decisionGuideSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    question: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    recommendation: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    alternatives: {
+      type: [decisionAlternativeSchema],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
+const capstoneProjectSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    title: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    requirements: {
+      type: [String],
+      default: [],
+    },
+    skillsPracticed: {
+      type: [String],
+      default: [],
+    },
+    completionCriteria: {
+      type: [String],
+      default: [],
+    },
+  },
+  { _id: false },
+);
+
+const roadmapPackageSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    description: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+  },
+  { _id: false },
+);
+
+const roadmapSchema = new Schema(
+  {
+    roadmapId: {
+      type: String,
+      required: true,
+      immutable: true,
       index: true,
     },
-
-    // ----------------------------------------------------------
-    // Canonical Template
-    // ----------------------------------------------------------
-
-    templateId: {
+    catalogRoadmapId: {
       type: String,
       required: true,
-      trim: true,
+      immutable: true,
       index: true,
     },
-
-    templateVersion: {
+    packageId: {
+      type: String,
+      required: true,
+      immutable: true,
+    },
+    cacheKey: {
+      type: String,
+      required: true,
+      immutable: true,
+    },
+    schemaVersion: {
       type: Number,
       required: true,
-      min: 1,
+      default: ROADMAP_SCHEMA_VERSION,
     },
-
-    knowledgeVersion: {
-      type: Number,
-      required: true,
-      min: 1,
+    blueprint: {
+      type: Schema.Types.Mixed,
+      default: null,
     },
-
-    // ----------------------------------------------------------
-    // Identity
-    // ----------------------------------------------------------
 
     title: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 200,
     },
-
-    role: {
+    summary: {
       type: String,
       required: true,
       trim: true,
-      maxlength: 200,
     },
-
-    description: {
-      type: String,
-      trim: true,
-      maxlength: 5000,
-      default: "",
-    },
-
-    // ----------------------------------------------------------
-    // Goal
-    // ----------------------------------------------------------
-
-    target: {
-      type: targetSchema,
+    package: {
+      type: roadmapPackageSchema,
       required: true,
     },
-
-    profile: {
-      type: profileSchema,
-      required: true,
+    learningOutcomes: {
+      type: [String],
+      default: [],
     },
-
-    // ----------------------------------------------------------
-    // Generation
-    // ----------------------------------------------------------
-
-    generationMode: {
-      type: String,
-      enum: Object.values(ROADMAP_GENERATION_MODES),
-      default: ROADMAP_GENERATION_MODES.STANDARD,
-      index: true,
+    phases: {
+      type: [phaseSchema],
+      default: [],
     },
-
-    inputContext: {
-      type: inputContextSchema,
-
-      default: () => ({
-        source: ROADMAP_INPUT_SOURCES.STANDARD,
-      }),
+    learningPaths: {
+      type: [learningPathSchema],
+      default: [],
     },
-
-    // ----------------------------------------------------------
-    // Lifecycle
-    // ----------------------------------------------------------
-
+    decisionGuides: {
+      type: [decisionGuideSchema],
+      default: [],
+    },
+    capstoneProjects: {
+      type: [capstoneProjectSchema],
+      default: [],
+    },
+    finalReadinessChecklist: {
+      type: [String],
+      default: [],
+    },
     status: {
       type: String,
       enum: Object.values(ROADMAP_STATUS),
-      default: ROADMAP_STATUS.ACTIVE,
+      default: ROADMAP_STATUS.GENERATING,
       index: true,
     },
-
-    // ----------------------------------------------------------
-    // User Roadmap Nodes
-    // ----------------------------------------------------------
-
-    nodes: {
-      type: [roadmapNodeSchema],
-      default: [],
+    totalPhases: {
+      type: Number,
+      min: 0,
+      default: 0,
     },
-
-    // ----------------------------------------------------------
-    // Progress
-    // ----------------------------------------------------------
-
-    progress: {
-      type: progressSchema,
-
-      default: () => ({
-        percentage: 0,
-        total: 0,
-        completed: 0,
-        learning: 0,
-        skipped: 0,
-        remaining: 0,
-      }),
+    completedGenerationPhases: {
+      type: Number,
+      min: 0,
+      default: 0,
     },
-
-    // ----------------------------------------------------------
-    // Current Focus
-    // ----------------------------------------------------------
-
-    currentFocus: {
-      type: currentFocusSchema,
-      default: null,
-    },
-
-    // ----------------------------------------------------------
-    // AI Adaptation Explanation
-    // ----------------------------------------------------------
-
-    /**
-     * Short explanation of how RIO adapted the canonical
-     * roadmap for this user.
-     *
-     * Example:
-     *
-     * "HTML and CSS were de-emphasized because the resume
-     * already demonstrates production frontend experience."
-     */
-    adaptationSummary: {
-      type: String,
-      trim: true,
-      maxlength: 5000,
-      default: null,
-    },
-
-    // ----------------------------------------------------------
-    // Deduplication
-    // ----------------------------------------------------------
-
-    fingerprint: {
-      type: String,
-      default: null,
-    },
-
-    // ----------------------------------------------------------
-    // Generation Error
-    // ----------------------------------------------------------
-
     generationError: {
-      type: generationErrorSchema,
+      type: String,
+      default: null,
+    },
+    generationStartedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    generatedAt: {
+      type: Date,
       default: null,
     },
   },
   {
     timestamps: true,
-    versionKey: false,
+    minimize: false,
   },
 );
 
-// ============================================================
-// INDEXES
-// ============================================================
-
-/**
- * User's roadmap history.
- */
-roadmapSchema.index({
-  userId: 1,
-  createdAt: -1,
-});
-
-/**
- * Exact generation deduplication.
- */
+// One canonical roadmap per catalog + package + schema version.
 roadmapSchema.index(
   {
-    userId: 1,
-    fingerprint: 1,
+    cacheKey: 1,
   },
   {
     unique: true,
   },
 );
 
-/**
- * Active/completed roadmap filtering.
- */
 roadmapSchema.index({
-  userId: 1,
+  catalogRoadmapId: 1,
+  packageId: 1,
   status: 1,
 });
 
-// ============================================================
-// MODEL
-// ============================================================
+roadmapSchema.index({
+  status: 1,
+  updatedAt: -1,
+});
 
-const Roadmap = mongoose.model("Roadmap", roadmapSchema);
+const Roadmap = models.Roadmap || model("Roadmap", roadmapSchema);
 
 export default Roadmap;

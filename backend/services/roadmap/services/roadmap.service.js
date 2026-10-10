@@ -1,664 +1,651 @@
+import mongoose from "mongoose";
+import { createHash } from "node:crypto";
+
 import Roadmap from "../models/roadmap.model.js";
-import crypto from "crypto";
+import UserRoadmap from "../models/userRoadmap.model.js";
 
 import {
-  ROADMAP_GENERATION_MODES,
+  ROADMAP_CACHE_KEY_VERSION,
+  ROADMAP_PACKAGE,
+  ROADMAP_SCHEMA_VERSION,
   ROADMAP_STATUS,
-  NODE_STATUS,
+  USER_ROADMAP_STATUS,
+  ROADMAP_NODE_STATUS,
+  ROADMAP_GENERATION,
 } from "../constants/roadmap.constants.js";
 
+import { getRoadmapById } from "./roadmapCatalog.service.js";
+
 import {
-  ROADMAP_KNOWLEDGE_VERSION,
-  getRoadmapTemplateVersion,
-} from "../constants/roadmap.version.js";
+  generateRoadmapBlueprint,
+  generateRoadmapPhase as generateAIPhase,
+} from "./roadmapAI.service.js";
 
-import { loadRoadmap } from "../knowledge/loader.js";
+import { validateRoadmapRequest } from "../validators/roadmap.validator.js";
 
-import personalizationService from "./personalization.service.js";
-import resumeContextService from "./resume.context.service.js";
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-function normalizeString(value) {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return value.trim();
+function createError(message, code, statusCode = 400) {
+  const error = new Error(message);
+  error.code = code;
+  error.statusCode = statusCode;
+  return error;
 }
 
-function normalizeStringArray(value) {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return [...new Set(value.map(normalizeString).filter(Boolean))].sort();
-}
-
-function normalizeTarget(target = {}) {
-  return {
-    compensation: Number(target.compensation ?? 12),
-
-    currency: normalizeString(target.currency || "INR"),
-
-    unit: normalizeString(target.unit || "LPA"),
-  };
-}
-
-function normalizeCustomRequirements(value = {}) {
-  return {
-    prompt: normalizeString(value.prompt),
-
-    goals: normalizeStringArray(value.goals),
-
-    technologies: normalizeStringArray(value.technologies),
-
-    exclusions: normalizeStringArray(value.exclusions),
-
-    projectPreferences: normalizeStringArray(value.projectPreferences),
-
-    notes: normalizeString(value.notes),
-  };
-}
-
-// ============================================================
-// IMPORTANCE → PRIORITY
-// ============================================================
-
-function mapImportanceToPriority(importance) {
-  switch (importance) {
-    case "core":
-      return "high";
-
-    case "important":
-      return "high";
-
-    case "advanced":
-      return "medium";
-
-    case "optional":
-      return "low";
-
-    default:
-      return "medium";
-  }
-}
-
-// ============================================================
-// VALIDATE INPUT
-// ============================================================
-
-function validateGenerationInput(input) {
-  if (!input) {
-    const error = new Error("Roadmap generation input is required");
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  const allowedModes = Object.values(ROADMAP_GENERATION_MODES);
-
-  if (!allowedModes.includes(input.generationMode)) {
-    const error = new Error(
-      `Invalid roadmap generation mode: ${input.generationMode}`,
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  if (!input.templateId) {
-    const error = new Error("templateId is required");
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-}
-
-// ============================================================
-// FINGERPRINT
-// ============================================================
-
-function createFingerprint({ userId, input, resume = null, template }) {
-  const customRequirements = normalizeCustomRequirements(
-    input.customRequirements,
-  );
-
-  const fingerprintPayload = {
-    userId: String(userId),
-
-    templateId: template.id,
-
-    templateVersion: getRoadmapTemplateVersion(template.id),
-
-    generationMode: input.generationMode,
-
-    role: normalizeString(input.role),
-
-    level: input.level,
-
-    availableHoursPerDay: input.availableHoursPerDay,
-
-    target: normalizeTarget(input.target),
-
-    resumeId: resume?.id || (input.resumeId ? String(input.resumeId) : null),
-
-    resumeVersion: resume?.version ?? input.resumeVersion ?? null,
-
-    manualSkills: normalizeStringArray(input.manualSkills),
-
-    customRequirements,
-
-    knowledgeVersion: ROADMAP_KNOWLEDGE_VERSION,
-  };
-
-  return crypto
-    .createHash("sha256")
-    .update(JSON.stringify(fingerprintPayload))
+function createCacheKey(catalogRoadmapId, packageId) {
+  return createHash("sha256")
+    .update(
+      [
+        `v${ROADMAP_CACHE_KEY_VERSION}`,
+        `schema${ROADMAP_SCHEMA_VERSION}`,
+        catalogRoadmapId,
+        packageId,
+      ].join(":"),
+    )
     .digest("hex");
 }
 
-// ============================================================
-// INITIALIZE NODES
-// ============================================================
-
-function initializeNodes(template, statuses = {}) {
-  return template.nodes.map((knowledgeNode) => {
-    const status = statuses[knowledgeNode.id] || NODE_STATUS.NOT_STARTED;
-
-    const now = new Date();
-
-    return {
-      nodeId: knowledgeNode.id,
-
-      status,
-
-      startedAt: status === NODE_STATUS.LEARNING ? now : null,
-
-      completedAt: status === NODE_STATUS.COMPLETED ? now : null,
-
-      skippedReason: null,
-
-      updatedAt: now,
-    };
-  });
+function createInitialPhaseProgress(phases = []) {
+  return phases
+    .filter((phase) => phase.generationStatus === "ready")
+    .map((phase) => ({
+      phaseId: phase.id,
+      status: ROADMAP_NODE_STATUS.NOT_STARTED,
+      startedAt: null,
+      completedAt: null,
+      topics: (phase.topics || []).map((topic) => ({
+        topicId: topic.id,
+        status: ROADMAP_NODE_STATUS.NOT_STARTED,
+        completedAt: null,
+        notes: "",
+      })),
+    }));
 }
 
-// ============================================================
-// CALCULATE PROGRESS
-// ============================================================
+async function createUserRoadmap(userId, canonicalRoadmap) {
+  try {
+    return await UserRoadmap.findOneAndUpdate(
+      {
+        userId: String(userId),
+        roadmap: canonicalRoadmap._id,
+      },
+      {
+        $setOnInsert: {
+          userId: String(userId),
+          roadmap: canonicalRoadmap._id,
+          catalogRoadmapId: canonicalRoadmap.catalogRoadmapId,
+          packageId: canonicalRoadmap.packageId,
+          status: USER_ROADMAP_STATUS.ACTIVE,
+          startedAt: new Date(),
+          lastAccessedAt: new Date(),
+          progressPercentage: 0,
+          phaseProgress: createInitialPhaseProgress(canonicalRoadmap.phases),
+        },
+      },
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+      },
+    );
+  } catch (error) {
+    if (error.code === 11000) {
+      const existing = await UserRoadmap.findOne({
+        userId: String(userId),
+        roadmap: canonicalRoadmap._id,
+      });
 
-function calculateProgress(nodes = []) {
-  const total = nodes.length;
-
-  const completed = nodes.filter(
-    (node) => node.status === NODE_STATUS.COMPLETED,
-  ).length;
-
-  const learning = nodes.filter(
-    (node) => node.status === NODE_STATUS.LEARNING,
-  ).length;
-
-  const skipped = nodes.filter(
-    (node) => node.status === NODE_STATUS.SKIPPED,
-  ).length;
-
-  const remaining = total - completed - skipped;
-
-  const percentage =
-    total === 0 ? 0 : Math.round(((completed + skipped) / total) * 100);
-
-  return {
-    percentage,
-
-    total,
-
-    completed,
-
-    learning,
-
-    skipped,
-
-    remaining,
-  };
-}
-
-// ============================================================
-// BUILD CURRENT FOCUS
-// ============================================================
-
-function buildCurrentFocus(nodes, template) {
-  const learningNode = nodes.find(
-    (node) => node.status === NODE_STATUS.LEARNING,
-  );
-
-  const nextNode =
-    learningNode ||
-    nodes.find((node) => node.status === NODE_STATUS.NOT_STARTED);
-
-  if (!nextNode) {
-    return null;
-  }
-
-  const knowledgeNode = template.nodes.find(
-    (node) => node.id === nextNode.nodeId,
-  );
-
-  if (!knowledgeNode) {
-    return null;
-  }
-
-  return {
-    nodeId: nextNode.nodeId,
-
-    reason:
-      knowledgeNode.whyItMatters ||
-      knowledgeNode.description ||
-      "This is the next recommended step in your roadmap.",
-
-    priority: mapImportanceToPriority(knowledgeNode.importance),
-  };
-}
-
-// ============================================================
-// BUILD PAYLOAD
-// ============================================================
-
-function buildRoadmapPayload({
-  userId,
-  input,
-  template,
-  adaptedNodes,
-  adaptationSummary = "",
-  resume = null,
-}) {
-  const statusMap = Object.fromEntries(
-    adaptedNodes.map((node) => [node.nodeId, node.status]),
-  );
-
-  const nodes = initializeNodes(template, statusMap);
-
-  const progress = calculateProgress(nodes);
-
-  const currentFocus = buildCurrentFocus(nodes, template);
-
-  const customRequirements = normalizeCustomRequirements(
-    input.customRequirements,
-  );
-
-  const inputSource =
-    input.inputSource ||
-    (input.generationMode === ROADMAP_GENERATION_MODES.RESUME
-      ? "resume"
-      : input.manualSkills?.length
-        ? "manual"
-        : "standard");
-
-  return {
-    userId,
-
-    templateId: template.id,
-
-    templateVersion: getRoadmapTemplateVersion(template.id),
-
-    knowledgeVersion: ROADMAP_KNOWLEDGE_VERSION,
-
-    title: template.title,
-
-    role: normalizeString(input.role) || template.title,
-
-    description: template.description,
-
-    target: normalizeTarget(input.target),
-
-    profile: {
-      level: input.level,
-
-      availableHoursPerDay: input.availableHoursPerDay,
-
-      currentSkills: normalizeStringArray(input.manualSkills),
-    },
-
-    generationMode: input.generationMode,
-
-    inputContext: {
-      source: inputSource,
-
-      resumeId: resume?.id || input.resumeId || null,
-
-      resumeVersion: resume?.version || input.resumeVersion || null,
-
-      manualSkills: normalizeStringArray(input.manualSkills),
-
-      projectPreferences: customRequirements.projectPreferences,
-
-      customRequirements,
-    },
-
-    status:
-      progress.remaining === 0
-        ? ROADMAP_STATUS.COMPLETED
-        : ROADMAP_STATUS.ACTIVE,
-
-    nodes,
-
-    progress,
-
-    currentFocus,
-
-    adaptationSummary: normalizeString(adaptationSummary),
-  };
-}
-
-// ============================================================
-// STANDARD GENERATION
-// ============================================================
-
-async function generateStandardRoadmap({ userId, input, template }) {
-  /**
-   * Standard roadmap:
-   *
-   * canonical knowledge only
-   * no Resume Service
-   * no LLM
-   */
-  const adaptedNodes = template.nodes.map((node) => ({
-    nodeId: node.id,
-
-    status: NODE_STATUS.NOT_STARTED,
-  }));
-
-  return buildRoadmapPayload({
-    userId,
-
-    input,
-
-    template,
-
-    adaptedNodes,
-
-    adaptationSummary: "Generated from the canonical roadmap template.",
-  });
-}
-
-// ============================================================
-// GENERATE ROADMAP
-// ============================================================
-
-async function generateRoadmap(userId, input) {
-  if (!userId) {
-    const error = new Error("userId is required");
-
-    error.statusCode = 400;
+      if (existing) return existing;
+    }
 
     throw error;
   }
+}
 
-  validateGenerationInput(input);
+function getReadyPhaseIds(canonicalRoadmap) {
+  return new Set(
+    canonicalRoadmap.phases
+      .filter((phase) => phase.generationStatus === "ready")
+      .map((phase) => phase.id),
+  );
+}
 
-  const template = loadRoadmap(input.templateId);
+function assertPrerequisitesReady(phase, canonicalRoadmap) {
+  const readyPhaseIds = getReadyPhaseIds(canonicalRoadmap);
 
-  const templateVersion = getRoadmapTemplateVersion(template.id);
+  const missing = (phase.prerequisites || []).filter(
+    (prerequisiteId) => !readyPhaseIds.has(prerequisiteId),
+  );
 
-  if (!Number.isInteger(templateVersion) || templateVersion < 1) {
-    const error = new Error(
-      `Roadmap template "${template.id}" has no valid registered version.`,
+  if (missing.length > 0) {
+    throw createError(
+      `Generate prerequisite phases first: ${missing.join(", ")}.`,
+      "PHASE_PREREQUISITES_INCOMPLETE",
+      409,
+    );
+  }
+}
+
+function synchronizeGeneratedPhaseProgress(userRoadmap, phase) {
+  if (!userRoadmap.phaseProgress) {
+    userRoadmap.phaseProgress = [];
+  }
+
+  let phaseProgress = userRoadmap.phaseProgress.find(
+    (item) => item.phaseId === phase.id,
+  );
+
+  if (!phaseProgress) {
+    userRoadmap.phaseProgress.push({
+      phaseId: phase.id,
+      status: ROADMAP_NODE_STATUS.NOT_STARTED,
+      startedAt: null,
+      completedAt: null,
+      topics: [],
+    });
+
+    phaseProgress = userRoadmap.phaseProgress.find(
+      (item) => item.phaseId === phase.id,
+    );
+  }
+
+  if (!phaseProgress.topics) {
+    phaseProgress.topics = [];
+  }
+
+  const existingTopicIds = new Set(
+    phaseProgress.topics.map((topic) => topic.topicId),
+  );
+
+  for (const topic of phase.topics || []) {
+    if (!existingTopicIds.has(topic.id)) {
+      phaseProgress.topics.push({
+        topicId: topic.id,
+        status: ROADMAP_NODE_STATUS.NOT_STARTED,
+        completedAt: null,
+        notes: "",
+      });
+    }
+  }
+}
+
+async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
+  const cacheKey = createCacheKey(catalogRoadmap.id, packageId);
+
+  let canonicalRoadmap = await Roadmap.findOne({ cacheKey });
+  let created = false;
+
+  if (canonicalRoadmap?.status === ROADMAP_STATUS.READY) {
+    return { canonicalRoadmap, reused: true };
+  }
+
+  if (canonicalRoadmap?.status === ROADMAP_STATUS.GENERATING) {
+    const startedAt = canonicalRoadmap.generationStartedAt?.getTime() || 0;
+    const stale =
+      Date.now() - startedAt > ROADMAP_GENERATION.GENERATION_LOCK_TTL_MS;
+
+    if (!stale) {
+      throw createError(
+        "This roadmap is already being generated. Please retry shortly.",
+        "ROADMAP_GENERATION_IN_PROGRESS",
+        409,
+      );
+    }
+
+    // Reclaim an expired generation lock atomically.
+    const reclaimed = await Roadmap.findOneAndUpdate(
+      {
+        _id: canonicalRoadmap._id,
+        status: ROADMAP_STATUS.GENERATING,
+        generationStartedAt: canonicalRoadmap.generationStartedAt,
+      },
+      {
+        $set: {
+          generationStartedAt: new Date(),
+          generationError: null,
+        },
+      },
+      { new: true },
     );
 
-    error.statusCode = 500;
-    error.code = "ROADMAP_TEMPLATE_VERSION_MISSING";
+    if (!reclaimed) {
+      throw createError(
+        "Another request is handling this roadmap. Please retry shortly.",
+        "ROADMAP_GENERATION_IN_PROGRESS",
+        409,
+      );
+    }
+
+    canonicalRoadmap = reclaimed;
+  } else if (!canonicalRoadmap) {
+    try {
+      canonicalRoadmap = await Roadmap.create({
+        roadmapId: new mongoose.Types.ObjectId().toString(),
+        catalogRoadmapId: catalogRoadmap.id,
+        packageId,
+        cacheKey,
+        schemaVersion: ROADMAP_SCHEMA_VERSION,
+        title: catalogRoadmap.title,
+        summary: catalogRoadmap.description,
+        package: {
+          id: packageId,
+          name: packageId,
+          description: `Generated roadmap package: ${packageId}`,
+        },
+        blueprint: null,
+        phases: [],
+        status: ROADMAP_STATUS.GENERATING,
+        totalPhases: 0,
+        completedGenerationPhases: 0,
+        generationStartedAt: new Date(),
+      });
+
+      created = true;
+    } catch (error) {
+      if (error.code === 11000) {
+        throw createError(
+          "This roadmap was created by another request. Please retry.",
+          "ROADMAP_GENERATION_IN_PROGRESS",
+          409,
+        );
+      }
+
+      throw error;
+    }
+  } else {
+    // Resume failed generation without discarding an existing blueprint
+    // or phases that have already been generated.
+    canonicalRoadmap.status = ROADMAP_STATUS.GENERATING;
+    canonicalRoadmap.generationError = null;
+    canonicalRoadmap.generationStartedAt = new Date();
+    await canonicalRoadmap.save();
+  }
+
+  try {
+    let blueprint = canonicalRoadmap.blueprint;
+
+    if (!blueprint) {
+      blueprint = await generateRoadmapBlueprint({
+        roadmap: catalogRoadmap,
+        packageType: packageId,
+        schemaVersion: ROADMAP_SCHEMA_VERSION,
+      });
+
+      canonicalRoadmap.blueprint = blueprint;
+      canonicalRoadmap.title = blueprint.title;
+      canonicalRoadmap.summary = blueprint.summary;
+      canonicalRoadmap.package = {
+        id: blueprint.packageId,
+        name: blueprint.packageId,
+        description: `Roadmap package: ${blueprint.packageId}`,
+      };
+
+      canonicalRoadmap.learningOutcomes = [];
+      canonicalRoadmap.phases = blueprint.phases.map((phase) => ({
+        id: phase.id,
+        order: phase.order,
+        title: phase.title,
+        purpose: phase.purpose,
+        prerequisites: phase.prerequisites || [],
+        learningOutcomes: phase.learningOutcomes || [],
+        topics: [],
+        projects: [],
+        completionCriteria: [],
+        generationStatus: "pending",
+        generatedAt: null,
+        generationError: null,
+      }));
+
+      canonicalRoadmap.totalPhases = blueprint.phases.length;
+      canonicalRoadmap.completedGenerationPhases = 0;
+      await canonicalRoadmap.save();
+    }
+
+    // Resume the earliest phase that has not been generated.
+    const firstPendingPhase = canonicalRoadmap.phases.find(
+      (phase) =>
+        phase.generationStatus === "pending" ||
+        phase.generationStatus === "failed",
+    );
+
+    if (!firstPendingPhase) {
+      canonicalRoadmap.status = ROADMAP_STATUS.READY;
+      canonicalRoadmap.generationError = null;
+      canonicalRoadmap.generatedAt = new Date();
+      await canonicalRoadmap.save();
+
+      return { canonicalRoadmap, reused: !created };
+    }
+
+    await generateCanonicalPhase({
+      canonicalRoadmap,
+      catalogRoadmap,
+      phaseId: firstPendingPhase.id,
+      packageId,
+    });
+
+    canonicalRoadmap = await Roadmap.findById(canonicalRoadmap._id);
+
+    // The roadmap becomes usable after its first phase is generated.
+    // Later phases are generated on demand.
+    const hasReadyPhase = canonicalRoadmap.phases.some(
+      (phase) => phase.generationStatus === "ready",
+    );
+
+    canonicalRoadmap.status = hasReadyPhase
+      ? ROADMAP_STATUS.READY
+      : ROADMAP_STATUS.FAILED;
+
+    canonicalRoadmap.generationError = hasReadyPhase
+      ? null
+      : "No phase has been generated successfully.";
+
+    if (hasReadyPhase) {
+      canonicalRoadmap.generatedAt = new Date();
+    }
+
+    await canonicalRoadmap.save();
+
+    if (!hasReadyPhase) {
+      throw createError(
+        "Initial roadmap phase could not be generated.",
+        "ROADMAP_GENERATION_FAILED",
+        500,
+      );
+    }
+
+    return { canonicalRoadmap, reused: !created };
+  } catch (error) {
+    canonicalRoadmap = await Roadmap.findById(canonicalRoadmap._id);
+
+    if (canonicalRoadmap) {
+      const hasReadyPhase = canonicalRoadmap.phases.some(
+        (phase) => phase.generationStatus === "ready",
+      );
+
+      canonicalRoadmap.status = hasReadyPhase
+        ? ROADMAP_STATUS.READY
+        : ROADMAP_STATUS.FAILED;
+
+      canonicalRoadmap.generationError = error.message;
+      await canonicalRoadmap.save();
+    }
 
     throw error;
   }
-
-  if (!template) {
-    const error = new Error(`Roadmap template not found: ${input.templateId}`);
-
-    error.statusCode = 404;
-
-    throw error;
-  }
-
-  // ----------------------------------------------------------
-  // RESUME CONTEXT
-  // ----------------------------------------------------------
-
-  let resume = null;
-
-  if (input.generationMode === ROADMAP_GENERATION_MODES.RESUME) {
-    resume = await resumeContextService.getResume({
-      userId,
-      resumeId: input.resumeId || null,
-    });
-  }
-
-  // ----------------------------------------------------------
-  // FINGERPRINT
-  // ----------------------------------------------------------
-
-  const fingerprint = createFingerprint({
-    userId,
-    input,
-    resume,
-    template,
-  });
-
-  // ----------------------------------------------------------
-  // DEDUPLICATION
-  // IMPORTANT:
-  // Check existing roadmap BEFORE any LLM call.
-  // ----------------------------------------------------------
-
-  const existingRoadmap = await Roadmap.findOne({
-    userId,
-    fingerprint,
-  }).sort({
-    updatedAt: -1,
-  });
-
-  if (existingRoadmap) {
-    return existingRoadmap;
-  }
-
-  // ----------------------------------------------------------
-  // STANDARD
-  // Canonical roadmap only.
-  // No Resume Service.
-  // No LLM.
-  // ----------------------------------------------------------
-
-  if (input.generationMode === ROADMAP_GENERATION_MODES.STANDARD) {
-    const payload = await generateStandardRoadmap({
-      userId,
-      input,
-      template,
-    });
-
-    payload.fingerprint = fingerprint;
-
-    return Roadmap.create(payload);
-  }
-
-  // ----------------------------------------------------------
-  // RESUME / CUSTOM
-  // LLM only when a genuinely new roadmap is required.
-  // ----------------------------------------------------------
-
-  const result = await personalizationService.personalize({
-    generationMode: input.generationMode,
-
-    templateId: template.id,
-
-    input,
-
-    resume,
-  });
-
-  const payload = buildRoadmapPayload({
-    userId,
-
-    input,
-
-    template,
-
-    adaptedNodes: result.nodes,
-
-    adaptationSummary: result.adaptationSummary,
-
-    resume,
-  });
-
-  payload.fingerprint = fingerprint;
-
-  return Roadmap.create(payload);
 }
 
-// ============================================================
-// GET ROADMAP
-// ============================================================
+async function generateCanonicalPhase({
+  canonicalRoadmap,
+  catalogRoadmap,
+  phaseId,
+  packageId,
+}) {
+  const phase = canonicalRoadmap.phases.find((item) => item.id === phaseId);
 
-async function getRoadmap(userId, roadmapId) {
-  if (!userId) {
-    const error = new Error("userId is required");
+  if (!phase) {
+    throw createError(
+      "Requested phase was not found.",
+      "ROADMAP_NOT_FOUND",
+      404,
+    );
+  }
 
-    error.statusCode = 400;
+  if (phase.generationStatus === "ready") {
+    return phase;
+  }
+
+  if (phase.generationStatus === "generating") {
+    throw createError(
+      "This phase is already being generated. Please retry shortly.",
+      "ROADMAP_GENERATION_IN_PROGRESS",
+      409,
+    );
+  }
+
+  assertPrerequisitesReady(phase, canonicalRoadmap);
+
+  phase.generationStatus = "generating";
+  phase.generationError = null;
+  await canonicalRoadmap.save();
+
+  try {
+    const completedPhases = canonicalRoadmap.phases
+      .filter((item) => item.generationStatus === "ready")
+      .map((item) => ({
+        id: item.id,
+        order: item.order,
+        title: item.title,
+        topics: item.topics,
+      }));
+
+    const generatedPhase = await generateAIPhase({
+      roadmap: catalogRoadmap,
+      packageType: packageId,
+      blueprint: canonicalRoadmap.blueprint,
+      phaseId,
+      completedPhases,
+    });
+
+    const latestRoadmap = await Roadmap.findById(canonicalRoadmap._id);
+
+    if (!latestRoadmap) {
+      throw createError(
+        "Canonical roadmap no longer exists.",
+        "ROADMAP_NOT_FOUND",
+        404,
+      );
+    }
+
+    const latestPhase = latestRoadmap.phases.find(
+      (item) => item.id === phaseId,
+    );
+
+    if (!latestPhase) {
+      throw createError(
+        "Requested phase no longer exists.",
+        "ROADMAP_NOT_FOUND",
+        404,
+      );
+    }
+
+    latestPhase.topics = generatedPhase.topics;
+    latestPhase.projects = generatedPhase.projects || [];
+    latestPhase.learningOutcomes = generatedPhase.learningOutcomes || [];
+    latestPhase.completionCriteria = generatedPhase.completionCriteria || [];
+    latestPhase.generationStatus = "ready";
+    latestPhase.generatedAt = new Date();
+    latestPhase.generationError = null;
+
+    latestRoadmap.completedGenerationPhases = latestRoadmap.phases.filter(
+      (item) => item.generationStatus === "ready",
+    ).length;
+
+    await latestRoadmap.save();
+
+    return latestPhase;
+  } catch (error) {
+    const latestRoadmap = await Roadmap.findById(canonicalRoadmap._id);
+
+    if (latestRoadmap) {
+      const failedPhase = latestRoadmap.phases.find(
+        (item) => item.id === phaseId,
+      );
+
+      if (failedPhase && failedPhase.generationStatus !== "ready") {
+        failedPhase.generationStatus = "failed";
+        failedPhase.generationError = error.message;
+      }
+
+      latestRoadmap.completedGenerationPhases = latestRoadmap.phases.filter(
+        (item) => item.generationStatus === "ready",
+      ).length;
+
+      await latestRoadmap.save();
+    }
 
     throw error;
   }
+}
 
-  const roadmap = await Roadmap.findOne({
-    _id: roadmapId,
+async function generateRoadmap({ userId, roadmapId, packageId }) {
+  if (!userId) {
+    throw createError("Authenticated user is required.", "UNAUTHORIZED", 401);
+  }
 
-    userId,
+  const validation = validateRoadmapRequest({ roadmapId, packageId });
+
+  if (!validation.valid) {
+    throw createError(validation.errors.join(" "), "INVALID_INPUT", 400);
+  }
+
+  if (!Object.values(ROADMAP_PACKAGE).includes(packageId)) {
+    throw createError("Unsupported roadmap package.", "INVALID_INPUT", 400);
+  }
+
+  const catalogRoadmap = getRoadmapById(roadmapId);
+
+  if (!catalogRoadmap) {
+    throw createError(
+      "The selected roadmap does not exist.",
+      "ROADMAP_NOT_FOUND",
+      404,
+    );
+  }
+
+  const { canonicalRoadmap, reused } = await getOrCreateCanonicalRoadmap(
+    catalogRoadmap,
+    packageId,
+  );
+
+  const userRoadmap = await createUserRoadmap(userId, canonicalRoadmap);
+
+  return {
+    roadmap: canonicalRoadmap,
+    userRoadmap,
+    reused,
+  };
+}
+
+async function generateRoadmapPhaseForUser({ userId, userRoadmapId, phaseId }) {
+  if (!userId) {
+    throw createError("Authenticated user is required.", "UNAUTHORIZED", 401);
+  }
+
+  if (!mongoose.isValidObjectId(userRoadmapId)) {
+    throw createError("Invalid user roadmap ID.", "INVALID_INPUT", 400);
+  }
+
+  if (typeof phaseId !== "string" || !phaseId.trim()) {
+    throw createError("phaseId is required.", "INVALID_INPUT", 400);
+  }
+
+  const userRoadmap = await UserRoadmap.findOne({
+    _id: userRoadmapId,
+    userId: String(userId),
   });
+
+  if (!userRoadmap) {
+    throw createError("Roadmap not found.", "ROADMAP_NOT_FOUND", 404);
+  }
+
+  const canonicalRoadmap = await Roadmap.findById(userRoadmap.roadmap);
+
+  if (!canonicalRoadmap) {
+    throw createError("Canonical roadmap not found.", "ROADMAP_NOT_FOUND", 404);
+  }
+
+  const catalogRoadmap = getRoadmapById(canonicalRoadmap.catalogRoadmapId);
+
+  if (!catalogRoadmap) {
+    throw createError("Catalog roadmap not found.", "ROADMAP_NOT_FOUND", 404);
+  }
+
+  const phase = canonicalRoadmap.phases.find((item) => item.id === phaseId);
+
+  if (!phase) {
+    throw createError("Phase not found.", "ROADMAP_NOT_FOUND", 404);
+  }
+
+  if (phase.generationStatus === "ready") {
+    synchronizeGeneratedPhaseProgress(userRoadmap, phase);
+    userRoadmap.lastAccessedAt = new Date();
+    await userRoadmap.save();
+
+    return { roadmap: canonicalRoadmap, userRoadmap, phase };
+  }
+
+  if (phase.generationStatus === "generating") {
+    throw createError(
+      "This phase is already being generated. Please retry shortly.",
+      "ROADMAP_GENERATION_IN_PROGRESS",
+      409,
+    );
+  }
+
+  await generateCanonicalPhase({
+    canonicalRoadmap,
+    catalogRoadmap,
+    phaseId,
+    packageId: canonicalRoadmap.packageId,
+  });
+
+  const refreshedRoadmap = await Roadmap.findById(canonicalRoadmap._id);
+  const generatedPhase = refreshedRoadmap.phases.find(
+    (item) => item.id === phaseId,
+  );
+
+  synchronizeGeneratedPhaseProgress(userRoadmap, generatedPhase);
+  userRoadmap.lastAccessedAt = new Date();
+  await userRoadmap.save();
+
+  return {
+    roadmap: refreshedRoadmap,
+    userRoadmap,
+    phase: generatedPhase,
+  };
+}
+
+async function getRoadmapForUser({ userId, userRoadmapId }) {
+  if (!userId) {
+    throw createError("Authenticated user is required.", "UNAUTHORIZED", 401);
+  }
+
+  if (!mongoose.isValidObjectId(userRoadmapId)) {
+    throw createError("Invalid user roadmap ID.", "INVALID_INPUT", 400);
+  }
+
+  const userRoadmap = await UserRoadmap.findOne({
+    _id: userRoadmapId,
+    userId: String(userId),
+  });
+
+  if (!userRoadmap) {
+    throw createError("Roadmap not found.", "ROADMAP_NOT_FOUND", 404);
+  }
+
+  const roadmap = await Roadmap.findById(userRoadmap.roadmap);
 
   if (!roadmap) {
-    const error = new Error("Roadmap not found");
-
-    error.statusCode = 404;
-
-    throw error;
+    throw createError("Canonical roadmap not found.", "ROADMAP_NOT_FOUND", 404);
   }
 
-  return roadmap;
+  // Synchronize progress metadata for phases generated since the user
+  // first opened this roadmap, without resetting existing progress.
+  for (const phase of roadmap.phases) {
+    if (phase.generationStatus === "ready") {
+      synchronizeGeneratedPhaseProgress(userRoadmap, phase);
+    }
+  }
+
+  userRoadmap.lastAccessedAt = new Date();
+  await userRoadmap.save();
+
+  return { roadmap, userRoadmap };
 }
 
-// ============================================================
-// LIST ROADMAPS
-// ============================================================
-
-async function getRoadmaps(
-  userId,
-  { status, generationMode, page = 1, limit = 20 } = {},
-) {
-  if (!userId) {
-    const error = new Error("userId is required");
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  const filter = {
-    userId,
-  };
-
-  if (status) {
-    filter.status = status;
-  }
-
-  if (generationMode) {
-    filter.generationMode = generationMode;
-  }
-
-  const safePage = Math.max(1, Number(page));
-
-  const safeLimit = Math.min(100, Math.max(1, Number(limit)));
-
-  const skip = (safePage - 1) * safeLimit;
-
-  const [roadmaps, total] = await Promise.all([
-    Roadmap.find(filter)
-      .sort({
-        updatedAt: -1,
-      })
-      .skip(skip)
-      .limit(safeLimit),
-
-    Roadmap.countDocuments(filter),
-  ]);
-
-  return {
-    roadmaps,
-
-    pagination: {
-      page: safePage,
-
-      limit: safeLimit,
-
-      total,
-
-      pages: Math.ceil(total / safeLimit),
-    },
-  };
-}
-
-// ============================================================
-// DELETE ROADMAP
-// ============================================================
-
-async function deleteRoadmap(userId, roadmapId) {
-  if (!userId) {
-    const error = new Error("userId is required");
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  const result = await Roadmap.deleteOne({
-    _id: roadmapId,
-
-    userId,
-  });
-
-  if (result.deletedCount === 0) {
-    const error = new Error("Roadmap not found");
-
-    error.statusCode = 404;
-
-    throw error;
-  }
-
-  return {
-    roadmapId,
-
-    deleted: true,
-  };
-}
-
-// ============================================================
-// EXPORT
-// ============================================================
-
-export {
-  generateRoadmap,
-  getRoadmap,
-  getRoadmaps,
-  deleteRoadmap,
-  createFingerprint,
-  calculateProgress,
-  buildCurrentFocus,
-};
+export { generateRoadmap, generateRoadmapPhaseForUser, getRoadmapForUser };
 
 export default {
   generateRoadmap,
-  getRoadmap,
-  getRoadmaps,
-  deleteRoadmap,
+  generateRoadmapPhaseForUser,
+  getRoadmapForUser,
 };

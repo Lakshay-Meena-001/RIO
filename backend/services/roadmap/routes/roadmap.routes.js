@@ -1,190 +1,44 @@
-import express from "express";
-
-// ============================================================
-// CONTROLLERS
-// ============================================================
+import { Router } from "express";
 
 import {
-  generateRoadmap,
-  getRoadmap,
-  getRoadmaps,
-  deleteRoadmap,
-  getProgress,
-  updateNodeStatus,
-  completeNode,
-  startNode,
-  resetNode,
-  skipNode,
+  listRoadmaps,
+  listRoadmapCategories,
+  getRoadmapCatalogEntry,
+  generateRoadmapController,
+  generateRoadmapPhaseController,
+  getUserRoadmapController,
 } from "../controllers/roadmap.controller.js";
 
-import {
-  getTemplates,
-  getTemplate,
-  getTemplatePhases,
-  getTemplateNode,
-  getNodeNextSteps,
-  getNodeDependencies,
-} from "../controllers/template.controller.js";
-
-import {
-  createDraft,
-  getLatestDraft,
-  getDraft,
-  updateDraft,
-  updateCurrentStep,
-  markGenerated,
-  deleteDraft,
-} from "../controllers/draft.controller.js";
-
-// ============================================================
-// ROUTER
-// ============================================================
-
-const router = express.Router();
-
-// ============================================================
-// TEMPLATE ROUTES
-// ============================================================
-
 /**
- * These routes expose the canonical
- * roadmap knowledge base.
- *
- * They do NOT generate a user roadmap.
- *
- * No LLM.
- * No user progress.
- * No user-specific state.
+ * Pass the existing RIO authentication middleware when creating the router.
+ * Public catalog routes do not require authentication.
  */
+export function createRoadmapRouter(authMiddleware) {
+  if (typeof authMiddleware !== "function") {
+    throw new Error(
+      "Roadmap router requires the existing RIO authentication middleware.",
+    );
+  }
 
-// List available roadmap templates
-router.get("/templates", getTemplates);
+  const router = Router();
 
-// Get complete template
-router.get("/templates/:templateId", getTemplate);
+  // Public catalog metadata; these routes never trigger AI generation.
+  router.get("/catalog", listRoadmaps);
+  router.get("/catalog/categories", listRoadmapCategories);
+  router.get("/catalog/:roadmapId", getRoadmapCatalogEntry);
 
-// Get template phases
-router.get("/templates/:templateId/phases", getTemplatePhases);
+  // Authenticated roadmap operations.
+  router.post("/generate", authMiddleware, generateRoadmapController);
 
-// Get a canonical node
-router.get("/templates/:templateId/nodes/:nodeId", getTemplateNode);
+  router.get("/user/:userRoadmapId", authMiddleware, getUserRoadmapController);
 
-// Get recommended next nodes
-router.get("/templates/:templateId/nodes/:nodeId/next", getNodeNextSteps);
+  router.post(
+    "/user/:userRoadmapId/phases/:phaseId/generate",
+    authMiddleware,
+    generateRoadmapPhaseController,
+  );
 
-// Get node dependencies
-router.get(
-  "/templates/:templateId/nodes/:nodeId/dependencies",
-  getNodeDependencies,
-);
+  return router;
+}
 
-// ============================================================
-// DRAFT ROUTES
-// ============================================================
-
-/**
- * Draft routes MUST come before
- * /:roadmapId routes.
- *
- * Otherwise future route changes can
- * accidentally create collisions.
- */
-
-// Create builder draft
-router.post("/drafts", createDraft);
-
-// Get latest unfinished builder draft
-router.get("/drafts/latest", getLatestDraft);
-
-// Get specific draft
-router.get("/drafts/:draftId", getDraft);
-
-// Update builder draft
-router.patch("/drafts/:draftId", updateDraft);
-
-// Update current builder step
-router.patch("/drafts/:draftId/step", updateCurrentStep);
-
-// Mark draft as generated
-router.post("/drafts/:draftId/generated", markGenerated);
-
-// Delete builder draft
-router.delete("/drafts/:draftId", deleteDraft);
-
-// ============================================================
-// ROADMAP COLLECTION
-// ============================================================
-
-/**
- * Generate a roadmap.
- *
- * Depending on generationMode:
- *
- * standard
- *   → canonical knowledge
- *
- * resume
- *   → canonical knowledge + resume adaptation
- *
- * custom
- *   → canonical knowledge + custom adaptation
- */
-router.post("/", generateRoadmap);
-
-// List user's generated roadmaps
-router.get("/", getRoadmaps);
-
-// ============================================================
-// ROADMAP ITEM
-// ============================================================
-
-/**
- * IMPORTANT:
- *
- * Specific nested routes are declared before
- * the generic roadmap item route.
- *
- * This makes the intended API structure
- * obvious and protects us from future
- * route additions.
- */
-
-// ------------------------------------------------------------
-// PROGRESS
-// ------------------------------------------------------------
-
-router.get("/:roadmapId/progress", getProgress);
-
-// ------------------------------------------------------------
-// NODE STATUS
-// ------------------------------------------------------------
-
-router.patch("/:roadmapId/nodes/:nodeId/status", updateNodeStatus);
-
-// ------------------------------------------------------------
-// NODE ACTIONS
-// ------------------------------------------------------------
-
-router.post("/:roadmapId/nodes/:nodeId/start", startNode);
-
-router.post("/:roadmapId/nodes/:nodeId/complete", completeNode);
-
-router.post("/:roadmapId/nodes/:nodeId/reset", resetNode);
-
-router.post("/:roadmapId/nodes/:nodeId/skip", skipNode);
-
-// ------------------------------------------------------------
-// ROADMAP ITSELF
-// ------------------------------------------------------------
-
-// Get roadmap
-router.get("/:roadmapId", getRoadmap);
-
-// Delete roadmap
-router.delete("/:roadmapId", deleteRoadmap);
-
-// ============================================================
-// EXPORT
-// ============================================================
-
-export default router;
+export default createRoadmapRouter;

@@ -1,34 +1,33 @@
 import "dotenv/config";
 
 import express from "express";
+import cors from "cors";
+import helmet from "helmet";
 
-import roadmapRoutes from "./routes/roadmap.routes.js";
+import connectDatabase from "./config/db.js";
+import createRoadmapRouter from "./routes/roadmap.routes.js";
 
-import connectDatabase, { disconnectDatabase } from "./config/db.js";
+// TODO: Replace this import with RIO's actual authentication middleware.
+// import authMiddleware from "./middlewares/authMiddleware.js";
 
-import errorHandler from "./middlewares/errorHandler.js";
-
-// ============================================================
-// APP CONFIG
-// ============================================================
-
-const PORT = Number(
-  process.env.PORT || process.env.ROADMAP_SERVICE_PORT || 5005,
-);
-
-const HOST = process.env.HOST || "0.0.0.0";
-
-// ============================================================
-// EXPRESS APP
-// ============================================================
+import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
 
 const app = express();
 
-// ============================================================
-// MIDDLEWARE
-// ============================================================
+const PORT = Number(process.env.PORT || 8004);
+const HOST = process.env.HOST || "0.0.0.0";
 
 app.disable("x-powered-by");
+app.use(helmet());
+
+app.use(
+  cors({
+    origin: process.env.CORS_ORIGIN
+      ? process.env.CORS_ORIGIN.split(",").map((origin) => origin.trim())
+      : false,
+    credentials: true,
+  }),
+);
 
 app.use(
   express.json({
@@ -36,150 +35,64 @@ app.use(
   }),
 );
 
-app.use(
-  express.urlencoded({
-    extended: true,
-    limit: process.env.JSON_BODY_LIMIT || "1mb",
-  }),
-);
-
-// ============================================================
-// HEALTH
-// ============================================================
-
 app.get("/health", (req, res) => {
-  return res.status(200).json({
+  res.status(200).json({
     success: true,
-    service: "roadmap-service",
+    service: "roadmap",
     status: "healthy",
-    timestamp: new Date().toISOString(),
   });
 });
 
-// ============================================================
-// ROUTES
-// ============================================================
+// Register after importing the verified authentication middleware.
+// app.use("/api/roadmaps", createRoadmapRouter(authMiddleware));
 
-app.use("/api/roadmaps", roadmapRoutes);
-
-// ============================================================
-// 404
-// ============================================================
-
-app.use((req, res) => {
-  return res.status(404).json({
-    success: false,
-    message: "Route not found",
-  });
-});
-
-// ============================================================
-// GLOBAL ERROR HANDLER
-// ============================================================
-
+app.use(notFoundHandler);
 app.use(errorHandler);
 
-// ============================================================
-// SERVER START
-// ============================================================
-
-let server = null;
-let shuttingDown = false;
+let server;
 
 async function startServer() {
   try {
-    // --------------------------------------------------------
-    // DATABASE
-    // --------------------------------------------------------
-
     await connectDatabase();
 
-    // --------------------------------------------------------
-    // HTTP SERVER
-    // --------------------------------------------------------
-
     server = app.listen(PORT, HOST, () => {
-      console.log(`[Roadmap Service] running on ${HOST}:${PORT}`);
-    });
-
-    // --------------------------------------------------------
-    // SERVER ERROR
-    // --------------------------------------------------------
-
-    server.on("error", (error) => {
-      console.error("[Roadmap Service] server error:", error);
-
-      process.exitCode = 1;
+      console.log(`Roadmap Service listening on ${HOST}:${PORT}`);
     });
   } catch (error) {
-    console.error("[Roadmap Service] startup failed:", error);
-
-    await disconnectDatabase();
-
-    process.exit(1);
+    console.error("Failed to start Roadmap Service:", error.message);
+    process.exitCode = 1;
   }
 }
 
-// ============================================================
-// GRACEFUL SHUTDOWN
-// ============================================================
-
 async function shutdown(signal) {
-  if (shuttingDown) {
-    return;
-  }
-
-  shuttingDown = true;
-
-  console.log(`[Roadmap Service] ${signal} received. Shutting down...`);
+  console.log(`${signal} received. Shutting down Roadmap Service...`);
 
   try {
-    // --------------------------------------------------------
-    // STOP HTTP SERVER
-    // --------------------------------------------------------
-
     if (server) {
-      await new Promise((resolve) => {
-        server.close(() => resolve());
+      await new Promise((resolve, reject) => {
+        server.close((error) => {
+          if (error) reject(error);
+          else resolve();
+        });
       });
     }
 
-    // --------------------------------------------------------
-    // CLOSE DATABASE
-    // --------------------------------------------------------
+    const mongoose = await import("mongoose");
 
-    await disconnectDatabase();
-
-    console.log("[Roadmap Service] shutdown complete");
+    if (mongoose.default.connection.readyState !== 0) {
+      await mongoose.default.connection.close();
+    }
 
     process.exit(0);
   } catch (error) {
-    console.error("[Roadmap Service] shutdown failed:", error);
-
+    console.error("Shutdown failed:", error.message);
     process.exit(1);
   }
 }
 
-// ============================================================
-// SIGNALS
-// ============================================================
-
-process.once("SIGINT", () => {
-  shutdown("SIGINT");
-});
-
-process.once("SIGTERM", () => {
-  shutdown("SIGTERM");
-});
-
-// ============================================================
-// START
-// ============================================================
+process.once("SIGINT", () => shutdown("SIGINT"));
+process.once("SIGTERM", () => shutdown("SIGTERM"));
 
 startServer();
-
-// ============================================================
-// EXPORT APP
-// ============================================================
 
 export default app;

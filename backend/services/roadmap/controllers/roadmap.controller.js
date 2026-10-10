@@ -1,304 +1,180 @@
-import roadmapService from "../services/roadmap.service.js";
-import progressService from "../services/progress.service.js";
+import {
+  generateRoadmap,
+  generateRoadmapPhaseForUser,
+  getRoadmapForUser,
+} from "../services/roadmap.service.js";
 
-import roadmapValidator from "../validators/roadmap.validator.js";
+import {
+  getAllRoadmaps,
+  getRoadmapsByCategory,
+  getRoadmapById,
+  getRoadmapCategories,
+  searchRoadmaps,
+} from "../services/roadmapCatalog.service.js";
 
-// ============================================================
-// HELPERS
-// ============================================================
+function sendError(res, error) {
+  const statusCode =
+    error.statusCode ||
+    {
+      UNAUTHORIZED: 401,
+      ROADMAP_NOT_FOUND: 404,
+      PHASE_PREREQUISITES_INCOMPLETE: 409,
+      ROADMAP_GENERATION_IN_PROGRESS: 409,
+      INVALID_INPUT: 400,
+      INVALID_AI_RESPONSE: 502,
+      ROADMAP_GENERATION_FAILED: 502,
+    }[error.code] ||
+    500;
 
-function getUserId(req) {
-  return (
-    req.user?.id ||
-    req.user?._id ||
-    req.auth?.userId ||
-    req.headers["x-user-id"] ||
-    null
-  );
-}
-
-function requireUserId(req) {
-  const userId = getUserId(req);
-
-  if (!userId) {
-    const error = new Error("Authentication required");
-
-    error.statusCode = 401;
-
-    throw error;
-  }
-
-  return userId;
-}
-
-function sendSuccess(res, data, statusCode = 200) {
   return res.status(statusCode).json({
-    success: true,
-    data,
+    success: false,
+    message:
+      statusCode >= 500 && statusCode !== 502
+        ? "An unexpected roadmap service error occurred."
+        : error.message,
+    code: error.code || "INTERNAL_SERVER_ERROR",
   });
 }
 
-// ============================================================
-// GENERATE ROADMAP
-// ============================================================
+function getAuthenticatedUserId(req) {
+  const userId = req.user?.id || req.user?._id || req.user?.uid;
 
-async function generateRoadmap(req, res, next) {
-  try {
-    const userId = requireUserId(req);
-
-    const input = roadmapValidator.validateGenerate(req.body);
-
-    const roadmap = await roadmapService.generateRoadmap(userId, input);
-
-    return sendSuccess(res, roadmap, 201);
-  } catch (error) {
-    return next(error);
+  if (!userId) {
+    const error = new Error("Authentication is required.");
+    error.code = "UNAUTHORIZED";
+    error.statusCode = 401;
+    throw error;
   }
+
+  return String(userId);
 }
 
-// ============================================================
-// GET SINGLE ROADMAP
-// ============================================================
-
-async function getRoadmap(req, res, next) {
+export async function listRoadmaps(req, res) {
   try {
-    const userId = requireUserId(req);
+    const { category, search } = req.query;
+    let roadmaps;
 
-    const { roadmapId } = roadmapValidator.validateRoadmapId(req.params);
-
-    const roadmap = await roadmapService.getRoadmap(userId, roadmapId);
-
-    return sendSuccess(res, roadmap);
-  } catch (error) {
-    return next(error);
-  }
-}
-
-// ============================================================
-// GET ROADMAPS
-// ============================================================
-
-async function getRoadmaps(req, res, next) {
-  try {
-    const userId = requireUserId(req);
-
-    const query = roadmapValidator.validateList(req.query);
-
-    const result = await roadmapService.getRoadmaps(userId, query);
-
-    return sendSuccess(res, result);
-  } catch (error) {
-    return next(error);
-  }
-}
-
-// ============================================================
-// DELETE ROADMAP
-// ============================================================
-
-async function deleteRoadmap(req, res, next) {
-  try {
-    const userId = requireUserId(req);
-
-    const { roadmapId } = roadmapValidator.validateRoadmapId(req.params);
-
-    const result = await roadmapService.deleteRoadmap(userId, roadmapId);
-
-    return sendSuccess(res, result);
-  } catch (error) {
-    return next(error);
-  }
-}
-
-// ============================================================
-// GET PROGRESS
-// ============================================================
-
-async function getProgress(req, res, next) {
-  try {
-    const userId = requireUserId(req);
-
-    const { roadmapId } = roadmapValidator.validateRoadmapId(req.params);
-
-    const progress = await progressService.getProgress(userId, roadmapId);
-
-    return sendSuccess(res, progress);
-  } catch (error) {
-    return next(error);
-  }
-}
-
-// ============================================================
-// UPDATE NODE STATUS
-// ============================================================
-
-async function updateNodeStatus(req, res, next) {
-  try {
-    const userId = requireUserId(req);
-
-    const { roadmapId } = roadmapValidator.validateRoadmapId(req.params);
-
-    const nodeId = req.params.nodeId;
-
-    if (!nodeId) {
-      const error = new Error("nodeId is required");
-
-      error.statusCode = 400;
-
-      throw error;
+    if (typeof search === "string" && search.trim()) {
+      roadmaps = searchRoadmaps(search.trim());
+    } else if (typeof category === "string" && category.trim()) {
+      roadmaps = getRoadmapsByCategory(category.trim());
+    } else {
+      roadmaps = getAllRoadmaps();
     }
 
-    const { status } = roadmapValidator.validateUpdateNodeStatus(req.body);
+    return res.status(200).json({
+      success: true,
+      roadmaps,
+      total: roadmaps.length,
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
 
-    const roadmap = await progressService.updateNodeStatus(
+export async function listRoadmapCategories(req, res) {
+  try {
+    return res.status(200).json({
+      success: true,
+      categories: getRoadmapCategories(),
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function getRoadmapCatalogEntry(req, res) {
+  try {
+    const roadmap = getRoadmapById(req.params.roadmapId);
+
+    if (!roadmap) {
+      return res.status(404).json({
+        success: false,
+        message: "Roadmap catalog entry not found.",
+        code: "ROADMAP_NOT_FOUND",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      roadmap,
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function generateRoadmapController(req, res) {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const { roadmapId, packageId } = req.body || {};
+
+    const result = await generateRoadmap({
       userId,
       roadmapId,
-      nodeId,
-      status,
-    );
+      packageId,
+    });
 
-    return sendSuccess(res, roadmap);
+    return res.status(200).json({
+      success: true,
+      message: result.reused
+        ? "Existing roadmap opened successfully."
+        : "Roadmap generated successfully.",
+      data: {
+        roadmap: result.roadmap,
+        userRoadmap: result.userRoadmap,
+        reused: result.reused,
+      },
+    });
   } catch (error) {
-    return next(error);
+    return sendError(res, error);
   }
 }
 
-// ============================================================
-// START NODE
-// ============================================================
-
-async function startNode(req, res, next) {
+export async function generateRoadmapPhaseController(req, res) {
   try {
-    const userId = requireUserId(req);
+    const userId = getAuthenticatedUserId(req);
+    const { userRoadmapId, phaseId } = req.params;
 
-    const { roadmapId } = roadmapValidator.validateRoadmapId(req.params);
-
-    const nodeId = req.params.nodeId;
-
-    if (!nodeId) {
-      const error = new Error("nodeId is required");
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    const roadmap = await progressService.startNode(userId, roadmapId, nodeId);
-
-    return sendSuccess(res, roadmap);
-  } catch (error) {
-    return next(error);
-  }
-}
-
-// ============================================================
-// COMPLETE NODE
-// ============================================================
-
-async function completeNode(req, res, next) {
-  try {
-    const userId = requireUserId(req);
-
-    const { roadmapId } = roadmapValidator.validateRoadmapId(req.params);
-
-    const nodeId = req.params.nodeId;
-
-    if (!nodeId) {
-      const error = new Error("nodeId is required");
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    const roadmap = await progressService.completeNode(
+    const result = await generateRoadmapPhaseForUser({
       userId,
-      roadmapId,
-      nodeId,
-    );
+      userRoadmapId,
+      phaseId,
+    });
 
-    return sendSuccess(res, roadmap);
+    return res.status(200).json({
+      success: true,
+      message: "Roadmap phase is ready.",
+      data: result,
+    });
   } catch (error) {
-    return next(error);
+    return sendError(res, error);
   }
 }
 
-// ============================================================
-// RESET NODE
-// ============================================================
-
-async function resetNode(req, res, next) {
+export async function getUserRoadmapController(req, res) {
   try {
-    const userId = requireUserId(req);
+    const userId = getAuthenticatedUserId(req);
 
-    const { roadmapId } = roadmapValidator.validateRoadmapId(req.params);
-
-    const nodeId = req.params.nodeId;
-
-    if (!nodeId) {
-      const error = new Error("nodeId is required");
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    const roadmap = await progressService.resetNode(userId, roadmapId, nodeId);
-
-    return sendSuccess(res, roadmap);
-  } catch (error) {
-    return next(error);
-  }
-}
-
-// ============================================================
-// SKIP NODE
-// ============================================================
-
-async function skipNode(req, res, next) {
-  try {
-    const userId = requireUserId(req);
-
-    const { roadmapId } = roadmapValidator.validateRoadmapId(req.params);
-
-    const nodeId = req.params.nodeId;
-
-    if (!nodeId) {
-      const error = new Error("nodeId is required");
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    const { reason } = roadmapValidator.validateSkipNode(req.body);
-
-    const roadmap = await progressService.skipNode(
+    const result = await getRoadmapForUser({
       userId,
-      roadmapId,
-      nodeId,
-      reason,
-    );
+      userRoadmapId: req.params.userRoadmapId,
+    });
 
-    return sendSuccess(res, roadmap);
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
   } catch (error) {
-    return next(error);
+    return sendError(res, error);
   }
 }
 
-// ============================================================
-// EXPORTS
-// ============================================================
-
-export {
-  generateRoadmap,
-  getRoadmap,
-  getRoadmaps,
-  deleteRoadmap,
-  getProgress,
-  updateNodeStatus,
-  completeNode,
-  startNode,
-  resetNode,
-  skipNode,
+export default {
+  listRoadmaps,
+  listRoadmapCategories,
+  getRoadmapCatalogEntry,
+  generateRoadmapController,
+  generateRoadmapPhaseController,
+  getUserRoadmapController,
 };
