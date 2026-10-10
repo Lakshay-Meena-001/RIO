@@ -220,6 +220,16 @@ const phaseSchema = new Schema(
       type: String,
       default: null,
     },
+
+    // Persist the phase-level lock used by atomic generation claims.
+    generationStartedAt: {
+      type: Date,
+      default: null,
+    },
+    generationToken: {
+      type: String,
+      default: null,
+    },
   },
   { _id: false },
 );
@@ -458,7 +468,11 @@ const roadmapSchema = new Schema(
     },
     generationStartedAt: {
       type: Date,
-      default: Date.now,
+      default: null,
+    },
+    generationToken: {
+      type: String,
+      default: null,
     },
     generatedAt: {
       type: Date,

@@ -10,9 +10,10 @@ import {
 
 const VALID_NODE_STATUSES = new Set(Object.values(ROADMAP_NODE_STATUS));
 
-function createError(message, code = "INVALID_INPUT") {
+function createError(message, code = "INVALID_INPUT", statusCode = 400) {
   const error = new Error(message);
   error.code = code;
+  error.statusCode = statusCode;
   return error;
 }
 
@@ -24,30 +25,37 @@ function validateObjectId(id, fieldName = "roadmapId") {
 
 function getProgressPercentage(userRoadmap) {
   const phases = userRoadmap.phaseProgress || [];
-
   const allTopics = phases.flatMap((phase) => phase.topics || []);
 
-  // Prefer topic-level progress when topics exist.
   if (allTopics.length > 0) {
-    const completedTopics = allTopics.filter(
-      (topic) => topic.status === ROADMAP_NODE_STATUS.COMPLETED,
+    const resolvedTopics = allTopics.filter(
+      (topic) =>
+        topic.status === ROADMAP_NODE_STATUS.COMPLETED ||
+        topic.status === ROADMAP_NODE_STATUS.SKIPPED,
     ).length;
 
-    return Math.round((completedTopics / allTopics.length) * 100);
+    return Math.round((resolvedTopics / allTopics.length) * 100);
   }
 
   if (phases.length === 0) {
     return 0;
   }
 
-  const completedPhases = phases.filter(
-    (phase) => phase.status === ROADMAP_NODE_STATUS.COMPLETED,
+  const resolvedPhases = phases.filter(
+    (phase) =>
+      phase.status === ROADMAP_NODE_STATUS.COMPLETED ||
+      phase.status === ROADMAP_NODE_STATUS.SKIPPED,
   ).length;
 
-  return Math.round((completedPhases / phases.length) * 100);
+  return Math.round((resolvedPhases / phases.length) * 100);
 }
 
 function synchronizePhaseStatus(phase) {
+  // Preserve an explicitly skipped phase during synchronization.
+  if (phase.status === ROADMAP_NODE_STATUS.SKIPPED) {
+    return;
+  }
+
   const topics = phase.topics || [];
 
   if (topics.length === 0) {
@@ -72,6 +80,7 @@ function synchronizePhaseStatus(phase) {
 
   if (allUnstarted) {
     phase.status = ROADMAP_NODE_STATUS.NOT_STARTED;
+    phase.startedAt = null;
     return;
   }
 
@@ -82,6 +91,8 @@ function synchronizePhaseStatus(phase) {
 function synchronizeRoadmapStatus(userRoadmap) {
   const phases = userRoadmap.phaseProgress || [];
 
+  // Skipped phases count toward progress, but not toward
+  // the roadmap's fully-completed status.
   if (
     phases.length > 0 &&
     phases.every((phase) => phase.status === ROADMAP_NODE_STATUS.COMPLETED)
@@ -99,7 +110,7 @@ function synchronizeRoadmapStatus(userRoadmap) {
 
 async function loadUserRoadmap(userId, userRoadmapId) {
   if (!userId) {
-    throw createError("Authenticated user is required.", "UNAUTHORIZED");
+    throw createError("Authenticated user is required.", "UNAUTHORIZED", 401);
   }
 
   validateObjectId(userRoadmapId, "userRoadmapId");
@@ -110,7 +121,7 @@ async function loadUserRoadmap(userId, userRoadmapId) {
   });
 
   if (!userRoadmap) {
-    throw createError("User roadmap not found.", "ROADMAP_NOT_FOUND");
+    throw createError("User roadmap not found.", "ROADMAP_NOT_FOUND", 404);
   }
 
   return userRoadmap;
@@ -122,18 +133,17 @@ async function syncProgressStructure(userRoadmap) {
   );
 
   if (!canonicalRoadmap) {
-    throw createError("Canonical roadmap not found.", "ROADMAP_NOT_FOUND");
+    throw createError("Canonical roadmap not found.", "ROADMAP_NOT_FOUND", 404);
   }
 
   if (canonicalRoadmap.status !== "ready") {
     throw createError(
       "Roadmap generation is not complete yet.",
       "ROADMAP_NOT_READY",
+      409,
     );
   }
 
-  // Only phases whose content has actually been generated
-  // should be available for user progress tracking.
   const readyPhases = canonicalRoadmap.phases.filter(
     (phase) => phase.generationStatus === "ready",
   );
@@ -186,6 +196,7 @@ async function getProgress(userId, userRoadmapId) {
   await syncProgressStructure(userRoadmap);
 
   userRoadmap.lastAccessedAt = new Date();
+
   await userRoadmap.save();
 
   return userRoadmap;
@@ -212,33 +223,38 @@ async function updateTopicStatus({
   );
 
   if (!phase) {
-    throw createError("Phase not found.", "PHASE_NOT_FOUND");
+    throw createError("Phase not found.", "PHASE_NOT_FOUND", 404);
   }
 
   const topic = phase.topics.find((item) => item.topicId === topicId);
 
   if (!topic) {
-    throw createError("Topic not found.", "TOPIC_NOT_FOUND");
+    throw createError("Topic not found.", "TOPIC_NOT_FOUND", 404);
   }
+
+  const now = new Date();
 
   topic.status = status;
 
-  if (status === ROADMAP_NODE_STATUS.COMPLETED) {
-    topic.completedAt = topic.completedAt || new Date();
-  } else {
-    topic.completedAt = null;
-  }
+  topic.completedAt =
+    status === ROADMAP_NODE_STATUS.COMPLETED ? topic.completedAt || now : null;
 
   if (typeof notes === "string") {
     topic.notes = notes;
   }
 
-  phase.startedAt = phase.startedAt || new Date();
+  // Editing a topic means the phase is no longer skipped.
+  if (phase.status === ROADMAP_NODE_STATUS.SKIPPED) {
+    phase.status = ROADMAP_NODE_STATUS.NOT_STARTED;
+    phase.completedAt = null;
+  }
+
+  phase.startedAt = phase.startedAt || now;
 
   synchronizePhaseStatus(phase);
   synchronizeRoadmapStatus(userRoadmap);
 
-  userRoadmap.lastAccessedAt = new Date();
+  userRoadmap.lastAccessedAt = now;
 
   await userRoadmap.save();
 
@@ -262,14 +278,13 @@ async function updatePhaseStatus({ userId, userRoadmapId, phaseId, status }) {
     throw createError(
       "Phase not found or not generated yet.",
       "PHASE_NOT_FOUND",
+      404,
     );
   }
 
   const now = new Date();
 
   if (status === ROADMAP_NODE_STATUS.COMPLETED) {
-    // A phase can be completed only when all its topics
-    // have been completed.
     const allTopicsCompleted =
       phase.topics.length > 0 &&
       phase.topics.every(
@@ -280,26 +295,30 @@ async function updatePhaseStatus({ userId, userRoadmapId, phaseId, status }) {
       throw createError(
         "Complete all topics before completing this phase.",
         "PHASE_TOPICS_INCOMPLETE",
+        409,
       );
     }
 
+    phase.status = ROADMAP_NODE_STATUS.COMPLETED;
     phase.completedAt = phase.completedAt || now;
-  } else {
+    phase.startedAt = phase.startedAt || now;
+  } else if (status === ROADMAP_NODE_STATUS.SKIPPED) {
+    phase.status = ROADMAP_NODE_STATUS.SKIPPED;
+    phase.completedAt = null;
+  } else if (status === ROADMAP_NODE_STATUS.NOT_STARTED) {
+    phase.status = ROADMAP_NODE_STATUS.NOT_STARTED;
+    phase.startedAt = null;
     phase.completedAt = null;
 
-    if (status === ROADMAP_NODE_STATUS.NOT_STARTED) {
-      phase.startedAt = null;
-
-      for (const topic of phase.topics) {
-        topic.status = ROADMAP_NODE_STATUS.NOT_STARTED;
-        topic.completedAt = null;
-      }
-    } else if (status === ROADMAP_NODE_STATUS.IN_PROGRESS) {
-      phase.startedAt = phase.startedAt || now;
+    for (const topic of phase.topics) {
+      topic.status = ROADMAP_NODE_STATUS.NOT_STARTED;
+      topic.completedAt = null;
     }
+  } else if (status === ROADMAP_NODE_STATUS.IN_PROGRESS) {
+    phase.status = ROADMAP_NODE_STATUS.IN_PROGRESS;
+    phase.startedAt = phase.startedAt || now;
+    phase.completedAt = null;
   }
-
-  phase.status = status;
 
   synchronizeRoadmapStatus(userRoadmap);
 

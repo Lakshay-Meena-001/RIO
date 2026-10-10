@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import Roadmap from "../models/roadmap.model.js";
 import UserRoadmap from "../models/userRoadmap.model.js";
@@ -167,6 +167,26 @@ function synchronizeGeneratedPhaseProgress(userRoadmap, phase) {
   }
 }
 
+async function updateCompletedGenerationCount(roadmapId) {
+  await Roadmap.updateOne({ _id: roadmapId }, [
+    {
+      $set: {
+        completedGenerationPhases: {
+          $size: {
+            $filter: {
+              input: { $ifNull: ["$phases", []] },
+              as: "phase",
+              cond: {
+                $eq: ["$$phase.generationStatus", "ready"],
+              },
+            },
+          },
+        },
+      },
+    },
+  ]);
+}
+
 async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
   const cacheKey = createCacheKey(catalogRoadmap.id, packageId);
 
@@ -177,8 +197,38 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
     return { canonicalRoadmap, reused: true };
   }
 
+  // An explicit generate request can retry a failed roadmap.
+  // Only one request can claim the retry.
+  if (canonicalRoadmap?.status === ROADMAP_STATUS.FAILED) {
+    const retried = await Roadmap.findOneAndUpdate(
+      {
+        _id: canonicalRoadmap._id,
+        status: ROADMAP_STATUS.FAILED,
+      },
+      {
+        $set: {
+          status: ROADMAP_STATUS.GENERATING,
+          generationStartedAt: new Date(),
+          generationError: null,
+        },
+      },
+      { new: true },
+    );
+
+    if (!retried) {
+      throw createError(
+        "Another request is handling this roadmap. Please retry shortly.",
+        "ROADMAP_GENERATION_IN_PROGRESS",
+        409,
+      );
+    }
+
+    canonicalRoadmap = retried;
+  }
+
   if (canonicalRoadmap?.status === ROADMAP_STATUS.GENERATING) {
     const startedAt = canonicalRoadmap.generationStartedAt?.getTime() || 0;
+
     const stale =
       Date.now() - startedAt > ROADMAP_GENERATION.GENERATION_LOCK_TTL_MS;
 
@@ -190,7 +240,6 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
       );
     }
 
-    // Reclaim an expired generation lock atomically.
     const reclaimed = await Roadmap.findOneAndUpdate(
       {
         _id: canonicalRoadmap._id,
@@ -250,13 +299,6 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
 
       throw error;
     }
-  } else {
-    // Resume failed generation without discarding an existing blueprint
-    // or phases that have already been generated.
-    canonicalRoadmap.status = ROADMAP_STATUS.GENERATING;
-    canonicalRoadmap.generationError = null;
-    canonicalRoadmap.generationStartedAt = new Date();
-    await canonicalRoadmap.save();
   }
 
   try {
@@ -272,6 +314,7 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
       canonicalRoadmap.blueprint = blueprint;
       canonicalRoadmap.title = blueprint.title;
       canonicalRoadmap.summary = blueprint.summary;
+
       canonicalRoadmap.package = {
         id: blueprint.packageId,
         name: blueprint.packageId,
@@ -279,6 +322,7 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
       };
 
       canonicalRoadmap.learningOutcomes = [];
+
       canonicalRoadmap.phases = blueprint.phases.map((phase) => ({
         id: phase.id,
         order: phase.order,
@@ -292,57 +336,98 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
         generationStatus: "pending",
         generatedAt: null,
         generationError: null,
+        generationStartedAt: null,
+        generationToken: null,
       }));
 
       canonicalRoadmap.totalPhases = blueprint.phases.length;
       canonicalRoadmap.completedGenerationPhases = 0;
+
       await canonicalRoadmap.save();
     }
 
-    // Resume the earliest phase that has not been generated.
-    const firstPendingPhase = canonicalRoadmap.phases.find(
-      (phase) =>
+    const nowMs = Date.now();
+    const staleBeforeMs = nowMs - ROADMAP_GENERATION.GENERATION_LOCK_TTL_MS;
+
+    // Find the earliest pending, failed, or stale phase.
+    const firstUnresolvedPhase = canonicalRoadmap.phases.find((phase) => {
+      if (
         phase.generationStatus === "pending" ||
-        phase.generationStatus === "failed",
-    );
+        phase.generationStatus === "failed"
+      ) {
+        return true;
+      }
 
-    if (!firstPendingPhase) {
-      canonicalRoadmap.status = ROADMAP_STATUS.READY;
-      canonicalRoadmap.generationError = null;
-      canonicalRoadmap.generatedAt = new Date();
-      await canonicalRoadmap.save();
+      if (phase.generationStatus !== "generating") {
+        return false;
+      }
 
-      return { canonicalRoadmap, reused: !created };
+      const phaseStartedAt = phase.generationStartedAt?.getTime() || 0;
+
+      return phaseStartedAt < staleBeforeMs;
+    });
+
+    if (!firstUnresolvedPhase) {
+      const hasActivePhaseGeneration = canonicalRoadmap.phases.some(
+        (phase) => phase.generationStatus === "generating",
+      );
+
+      const allPhasesReady =
+        canonicalRoadmap.phases.length > 0 &&
+        canonicalRoadmap.phases.every(
+          (phase) => phase.generationStatus === "ready",
+        );
+
+      if (hasActivePhaseGeneration) {
+        throw createError(
+          "A roadmap phase is already being generated. Please retry shortly.",
+          "ROADMAP_GENERATION_IN_PROGRESS",
+          409,
+        );
+      }
+
+      if (allPhasesReady) {
+        canonicalRoadmap.status = ROADMAP_STATUS.READY;
+        canonicalRoadmap.generationError = null;
+        canonicalRoadmap.generatedAt =
+          canonicalRoadmap.generatedAt || new Date();
+
+        await canonicalRoadmap.save();
+        await updateCompletedGenerationCount(canonicalRoadmap._id);
+
+        return {
+          canonicalRoadmap: await Roadmap.findById(canonicalRoadmap._id),
+          reused: true,
+        };
+      }
+
+      throw createError(
+        "No unresolved phase is available for generation.",
+        "ROADMAP_GENERATION_FAILED",
+        500,
+      );
     }
 
     await generateCanonicalPhase({
       canonicalRoadmap,
       catalogRoadmap,
-      phaseId: firstPendingPhase.id,
+      phaseId: firstUnresolvedPhase.id,
       packageId,
     });
 
     canonicalRoadmap = await Roadmap.findById(canonicalRoadmap._id);
 
-    // The roadmap becomes usable after its first phase is generated.
-    // Later phases are generated on demand.
+    if (!canonicalRoadmap) {
+      throw createError(
+        "Canonical roadmap no longer exists.",
+        "ROADMAP_NOT_FOUND",
+        404,
+      );
+    }
+
     const hasReadyPhase = canonicalRoadmap.phases.some(
       (phase) => phase.generationStatus === "ready",
     );
-
-    canonicalRoadmap.status = hasReadyPhase
-      ? ROADMAP_STATUS.READY
-      : ROADMAP_STATUS.FAILED;
-
-    canonicalRoadmap.generationError = hasReadyPhase
-      ? null
-      : "No phase has been generated successfully.";
-
-    if (hasReadyPhase) {
-      canonicalRoadmap.generatedAt = new Date();
-    }
-
-    await canonicalRoadmap.save();
 
     if (!hasReadyPhase) {
       throw createError(
@@ -352,48 +437,114 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
       );
     }
 
-    return { canonicalRoadmap, reused: !created };
-  } catch (error) {
+    canonicalRoadmap.status = ROADMAP_STATUS.READY;
+    canonicalRoadmap.generationError = null;
+    canonicalRoadmap.generatedAt = new Date();
+
+    await canonicalRoadmap.save();
+
+    await updateCompletedGenerationCount(canonicalRoadmap._id);
+
     canonicalRoadmap = await Roadmap.findById(canonicalRoadmap._id);
 
-    if (canonicalRoadmap) {
-      const hasReadyPhase = canonicalRoadmap.phases.some(
+    return { canonicalRoadmap, reused: !created };
+  } catch (error) {
+    // Do not turn a competing request into a generation failure.
+    if (error.code === "ROADMAP_GENERATION_IN_PROGRESS") {
+      throw error;
+    }
+
+    const latestRoadmap = await Roadmap.findById(canonicalRoadmap._id);
+
+    if (latestRoadmap) {
+      const hasReadyPhase = latestRoadmap.phases.some(
         (phase) => phase.generationStatus === "ready",
       );
 
-      canonicalRoadmap.status = hasReadyPhase
+      latestRoadmap.status = hasReadyPhase
         ? ROADMAP_STATUS.READY
         : ROADMAP_STATUS.FAILED;
 
-      canonicalRoadmap.generationError = error.message;
-      await canonicalRoadmap.save();
+      latestRoadmap.generationError = error.message;
+
+      await latestRoadmap.save();
     }
 
     throw error;
   }
 }
-
 async function generateCanonicalPhase({
   canonicalRoadmap,
   catalogRoadmap,
   phaseId,
   packageId,
 }) {
+  const roadmapId = canonicalRoadmap._id;
+  const now = new Date();
+
+  const staleBefore = new Date(
+    now.getTime() - ROADMAP_GENERATION.GENERATION_LOCK_TTL_MS,
+  );
+
+  const generationToken = randomUUID();
+
   const phase = canonicalRoadmap.phases.find((item) => item.id === phaseId);
 
   if (!phase) {
-    throw createError(
-      "Requested phase was not found.",
-      "ROADMAP_NOT_FOUND",
-      404,
-    );
+    throw createError("Phase not found.", "PHASE_NOT_FOUND", 404);
   }
 
   if (phase.generationStatus === "ready") {
     return phase;
   }
 
-  if (phase.generationStatus === "generating") {
+  assertPrerequisitesReady(phase, canonicalRoadmap);
+
+  // Atomically claim a pending/failed phase or reclaim a stale lock.
+  const claimedRoadmap = await Roadmap.findOneAndUpdate(
+    {
+      _id: roadmapId,
+      phases: {
+        $elemMatch: {
+          id: phaseId,
+          $or: [
+            {
+              generationStatus: {
+                $in: ["pending", "failed"],
+              },
+            },
+            {
+              generationStatus: "generating",
+              generationStartedAt: { $lt: staleBefore },
+            },
+            {
+              generationStatus: "generating",
+              generationStartedAt: null,
+            },
+          ],
+        },
+      },
+    },
+    {
+      $set: {
+        "phases.$.generationStatus": "generating",
+        "phases.$.generationStartedAt": now,
+        "phases.$.generationToken": generationToken,
+        "phases.$.generationError": null,
+      },
+    },
+    { new: true },
+  );
+
+  if (!claimedRoadmap) {
+    const latest = await Roadmap.findById(roadmapId);
+
+    const latestPhase = latest?.phases.find((item) => item.id === phaseId);
+
+    if (latestPhase?.generationStatus === "ready") {
+      return latestPhase;
+    }
+
     throw createError(
       "This phase is already being generated. Please retry shortly.",
       "ROADMAP_GENERATION_IN_PROGRESS",
@@ -401,14 +552,8 @@ async function generateCanonicalPhase({
     );
   }
 
-  assertPrerequisitesReady(phase, canonicalRoadmap);
-
-  phase.generationStatus = "generating";
-  phase.generationError = null;
-  await canonicalRoadmap.save();
-
   try {
-    const completedPhases = canonicalRoadmap.phases
+    const completedPhases = claimedRoadmap.phases
       .filter((item) => item.generationStatus === "ready")
       .map((item) => ({
         id: item.id,
@@ -420,14 +565,52 @@ async function generateCanonicalPhase({
     const generatedPhase = await generateAIPhase({
       roadmap: catalogRoadmap,
       packageType: packageId,
-      blueprint: canonicalRoadmap.blueprint,
+      blueprint: claimedRoadmap.blueprint,
       phaseId,
       completedPhases,
     });
 
-    const latestRoadmap = await Roadmap.findById(canonicalRoadmap._id);
+    // Publish only if this request still owns the generation token.
+    const result = await Roadmap.updateOne(
+      {
+        _id: roadmapId,
+        phases: {
+          $elemMatch: {
+            id: phaseId,
+            generationStatus: "generating",
+            generationToken,
+          },
+        },
+      },
+      {
+        $set: {
+          "phases.$.topics": generatedPhase.topics,
+          "phases.$.projects": generatedPhase.projects || [],
+          "phases.$.learningOutcomes": generatedPhase.learningOutcomes || [],
+          "phases.$.completionCriteria":
+            generatedPhase.completionCriteria || [],
+          "phases.$.generationStatus": "ready",
+          "phases.$.generatedAt": new Date(),
+          "phases.$.generationError": null,
+          "phases.$.generationStartedAt": null,
+          "phases.$.generationToken": null,
+        },
+      },
+    );
 
-    if (!latestRoadmap) {
+    if (result.modifiedCount !== 1) {
+      throw createError(
+        "Phase generation ownership expired. Please retry.",
+        "ROADMAP_GENERATION_IN_PROGRESS",
+        409,
+      );
+    }
+
+    await updateCompletedGenerationCount(roadmapId);
+
+    const latest = await Roadmap.findById(roadmapId);
+
+    if (!latest) {
       throw createError(
         "Canonical roadmap no longer exists.",
         "ROADMAP_NOT_FOUND",
@@ -435,52 +618,31 @@ async function generateCanonicalPhase({
       );
     }
 
-    const latestPhase = latestRoadmap.phases.find(
-      (item) => item.id === phaseId,
+    return latest.phases.find((item) => item.id === phaseId);
+  } catch (error) {
+    // Never overwrite the state of a newer generation owner.
+    await Roadmap.updateOne(
+      {
+        _id: roadmapId,
+        phases: {
+          $elemMatch: {
+            id: phaseId,
+            generationStatus: "generating",
+            generationToken,
+          },
+        },
+      },
+      {
+        $set: {
+          "phases.$.generationStatus": "failed",
+          "phases.$.generationError": error.message,
+          "phases.$.generationStartedAt": null,
+          "phases.$.generationToken": null,
+        },
+      },
     );
 
-    if (!latestPhase) {
-      throw createError(
-        "Requested phase no longer exists.",
-        "ROADMAP_NOT_FOUND",
-        404,
-      );
-    }
-
-    latestPhase.topics = generatedPhase.topics;
-    latestPhase.projects = generatedPhase.projects || [];
-    latestPhase.learningOutcomes = generatedPhase.learningOutcomes || [];
-    latestPhase.completionCriteria = generatedPhase.completionCriteria || [];
-    latestPhase.generationStatus = "ready";
-    latestPhase.generatedAt = new Date();
-    latestPhase.generationError = null;
-
-    latestRoadmap.completedGenerationPhases = latestRoadmap.phases.filter(
-      (item) => item.generationStatus === "ready",
-    ).length;
-
-    await latestRoadmap.save();
-
-    return latestPhase;
-  } catch (error) {
-    const latestRoadmap = await Roadmap.findById(canonicalRoadmap._id);
-
-    if (latestRoadmap) {
-      const failedPhase = latestRoadmap.phases.find(
-        (item) => item.id === phaseId,
-      );
-
-      if (failedPhase && failedPhase.generationStatus !== "ready") {
-        failedPhase.generationStatus = "failed";
-        failedPhase.generationError = error.message;
-      }
-
-      latestRoadmap.completedGenerationPhases = latestRoadmap.phases.filter(
-        (item) => item.generationStatus === "ready",
-      ).length;
-
-      await latestRoadmap.save();
-    }
+    await updateCompletedGenerationCount(roadmapId);
 
     throw error;
   }
@@ -491,7 +653,10 @@ async function generateRoadmap({ userId, roadmapId, packageId }) {
     throw createError("Authenticated user is required.", "UNAUTHORIZED", 401);
   }
 
-  const validation = validateRoadmapRequest({ roadmapId, packageId });
+  const validation = validateRoadmapRequest({
+    roadmapId,
+    packageId,
+  });
 
   if (!validation.valid) {
     throw createError(validation.errors.join(" "), "INVALID_INPUT", 400);
@@ -562,23 +727,22 @@ async function generateRoadmapPhaseForUser({ userId, userRoadmapId, phaseId }) {
   const phase = canonicalRoadmap.phases.find((item) => item.id === phaseId);
 
   if (!phase) {
-    throw createError("Phase not found.", "ROADMAP_NOT_FOUND", 404);
+    throw createError("Phase not found.", "PHASE_NOT_FOUND", 404);
   }
 
+  // Reopening an already-generated phase must not invoke the LLM.
   if (phase.generationStatus === "ready") {
     synchronizeGeneratedPhaseProgress(userRoadmap, phase);
+
     userRoadmap.lastAccessedAt = new Date();
+
     await userRoadmap.save();
 
-    return { roadmap: canonicalRoadmap, userRoadmap, phase };
-  }
-
-  if (phase.generationStatus === "generating") {
-    throw createError(
-      "This phase is already being generated. Please retry shortly.",
-      "ROADMAP_GENERATION_IN_PROGRESS",
-      409,
-    );
+    return {
+      roadmap: canonicalRoadmap,
+      userRoadmap,
+      phase,
+    };
   }
 
   await generateCanonicalPhase({
@@ -589,12 +753,31 @@ async function generateRoadmapPhaseForUser({ userId, userRoadmapId, phaseId }) {
   });
 
   const refreshedRoadmap = await Roadmap.findById(canonicalRoadmap._id);
+
+  if (!refreshedRoadmap) {
+    throw createError(
+      "Canonical roadmap no longer exists.",
+      "ROADMAP_NOT_FOUND",
+      404,
+    );
+  }
+
   const generatedPhase = refreshedRoadmap.phases.find(
     (item) => item.id === phaseId,
   );
 
+  if (!generatedPhase || generatedPhase.generationStatus !== "ready") {
+    throw createError(
+      "Phase generation did not complete.",
+      "ROADMAP_GENERATION_FAILED",
+      500,
+    );
+  }
+
   synchronizeGeneratedPhaseProgress(userRoadmap, generatedPhase);
+
   userRoadmap.lastAccessedAt = new Date();
+
   await userRoadmap.save();
 
   return {
@@ -628,8 +811,7 @@ async function getRoadmapForUser({ userId, userRoadmapId }) {
     throw createError("Canonical roadmap not found.", "ROADMAP_NOT_FOUND", 404);
   }
 
-  // Synchronize progress metadata for phases generated since the user
-  // first opened this roadmap, without resetting existing progress.
+  // Add newly generated topics without resetting saved user progress.
   for (const phase of roadmap.phases) {
     if (phase.generationStatus === "ready") {
       synchronizeGeneratedPhaseProgress(userRoadmap, phase);
@@ -637,6 +819,7 @@ async function getRoadmapForUser({ userId, userRoadmapId }) {
   }
 
   userRoadmap.lastAccessedAt = new Date();
+
   await userRoadmap.save();
 
   return { roadmap, userRoadmap };
