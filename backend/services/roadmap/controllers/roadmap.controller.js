@@ -1,4 +1,10 @@
 import {
+  getProgress,
+  updateTopicStatus,
+  updatePhaseStatus,
+} from "../services/roadmapProgress.service.js";
+
+import {
   generateRoadmap,
   generateRoadmapPhaseForUser,
   getRoadmapForUser,
@@ -170,6 +176,69 @@ export async function getUserRoadmapController(req, res) {
   }
 }
 
+export async function getRoadmapProgressController(req, res) {
+  try {
+    const userId = getAuthenticatedUserId(req);
+
+    const result = await getProgress(userId, req.params.userRoadmapId);
+
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function updateRoadmapPhaseStatusController(req, res) {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const { userRoadmapId, phaseId } = req.params;
+    const { status } = req.body || {};
+
+    const result = await updatePhaseStatus({
+      userId,
+      userRoadmapId,
+      phaseId,
+      status,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Phase progress updated successfully.",
+      data: result,
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function updateRoadmapTopicStatusController(req, res) {
+  try {
+    const userId = getAuthenticatedUserId(req);
+    const { userRoadmapId, phaseId, topicId } = req.params;
+    const { status, notes } = req.body || {};
+
+    const result = await updateTopicStatus({
+      userId,
+      userRoadmapId,
+      phaseId,
+      topicId,
+      status,
+      notes,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Topic progress updated successfully.",
+      data: result,
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
 export default {
   listRoadmaps,
   listRoadmapCategories,
@@ -177,4 +246,7 @@ export default {
   generateRoadmapController,
   generateRoadmapPhaseController,
   getUserRoadmapController,
+  getRoadmapProgressController,
+  updateRoadmapPhaseStatusController,
+  updateRoadmapTopicStatusController,
 };

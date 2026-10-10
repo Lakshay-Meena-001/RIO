@@ -1,15 +1,12 @@
 import "dotenv/config";
 
+import crypto from "node:crypto";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 
 import connectDatabase from "./config/db.js";
 import createRoadmapRouter from "./routes/roadmap.routes.js";
-
-// TODO: Replace this import with RIO's actual authentication middleware.
-// import authMiddleware from "./middlewares/authMiddleware.js";
-
 import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
 
 const app = express();
@@ -43,8 +40,52 @@ app.get("/health", (req, res) => {
   });
 });
 
-// Register after importing the verified authentication middleware.
-// app.use("/api/roadmaps", createRoadmapRouter(authMiddleware));
+// Verify that the request came through the trusted API Gateway.
+function gatewayAuthMiddleware(req, res, next) {
+  const configuredSecret = process.env.ROADMAP_INTERNAL_SECRET;
+  const suppliedSecret = req.get("x-internal-service-secret");
+  const userId = req.get("x-user-id");
+
+  if (
+    !configuredSecret ||
+    typeof suppliedSecret !== "string" ||
+    !suppliedSecret
+  ) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized service request",
+    });
+  }
+
+  const expected = Buffer.from(configuredSecret, "utf8");
+  const supplied = Buffer.from(suppliedSecret, "utf8");
+
+  if (
+    expected.length !== supplied.length ||
+    !crypto.timingSafeEqual(expected, supplied)
+  ) {
+    return res.status(401).json({
+      success: false,
+      message: "Unauthorized service request",
+    });
+  }
+
+  if (typeof userId !== "string" || !userId.trim()) {
+    return res.status(401).json({
+      success: false,
+      message: "Authenticated user identity is missing",
+    });
+  }
+
+  // Controllers expect req.user.id.
+  req.user = { id: userId.trim() };
+
+  return next();
+}
+
+// Public catalog reads are defined in the router.
+// Protected endpoints use the verified Gateway identity.
+app.use("/api/roadmaps", createRoadmapRouter(gatewayAuthMiddleware));
 
 app.use(notFoundHandler);
 app.use(errorHandler);
@@ -53,6 +94,10 @@ let server;
 
 async function startServer() {
   try {
+    if (!process.env.ROADMAP_INTERNAL_SECRET) {
+      throw new Error("ROADMAP_INTERNAL_SECRET must be configured");
+    }
+
     await connectDatabase();
 
     server = app.listen(PORT, HOST, () => {

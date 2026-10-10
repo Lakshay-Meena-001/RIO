@@ -13,8 +13,7 @@ dotenv.config();
 const app = express();
 
 const PORT = process.env.PORT || 3000;
-const FRONTEND_URL =
-  process.env.FRONTEND_URL || "http://localhost:5173";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL;
 const RESUME_SERVICE_URL = process.env.RESUME_SERVICE_URL;
@@ -35,13 +34,7 @@ app.use(
 );
 
 // HTTP request logging for development and debugging.
-app.use(
-  morgan(
-    process.env.NODE_ENV === "production"
-      ? "combined"
-      : "dev",
-  ),
-);
+app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
 
 app.disable("x-powered-by");
 
@@ -72,17 +65,10 @@ app.get("/health", (req, res) => {
 });
 
 // Auth service.
-app.use(
-  "/api/auth",
-  proxy(AUTH_SERVICE_URL),
-);
+app.use("/api/auth", proxy(AUTH_SERVICE_URL));
 
 // Resume service.
-app.use(
-  "/api/resumes",
-  isAuth,
-  proxyWithHeaders(RESUME_SERVICE_URL, true)
-);
+app.use("/api/resumes", isAuth, proxyWithHeaders(RESUME_SERVICE_URL, true));
 
 // Interview service.
 // preservePath = true because Interview service
@@ -96,15 +82,13 @@ app.use(
 app.use(
   "/api/roadmaps",
   isAuth,
-  proxyWithHeaders(ROADMAP_SERVICE_URL, true),
+  proxyWithHeaders(ROADMAP_SERVICE_URL, true, {
+    forwardInternalSecret: true,
+  }),
 );
 
 // Current authenticated user.
-app.get(
-  "/api/me",
-  isAuth,
-  getCurrentUser,
-);
+app.get("/api/me", isAuth, getCurrentUser);
 
 // Unknown gateway routes.
 app.use((req, res) => {

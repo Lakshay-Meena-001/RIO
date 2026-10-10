@@ -7,12 +7,11 @@ import {
   generateRoadmapController,
   generateRoadmapPhaseController,
   getUserRoadmapController,
+  getRoadmapProgressController,
+  updateRoadmapPhaseStatusController,
+  updateRoadmapTopicStatusController,
 } from "../controllers/roadmap.controller.js";
 
-/**
- * Pass the existing RIO authentication middleware when creating the router.
- * Public catalog routes do not require authentication.
- */
 export function createRoadmapRouter(authMiddleware) {
   if (typeof authMiddleware !== "function") {
     throw new Error(
@@ -22,7 +21,7 @@ export function createRoadmapRouter(authMiddleware) {
 
   const router = Router();
 
-  // Public catalog metadata; these routes never trigger AI generation.
+  // Public catalog routes. These do not trigger AI generation.
   router.get("/catalog", listRoadmaps);
   router.get("/catalog/categories", listRoadmapCategories);
   router.get("/catalog/:roadmapId", getRoadmapCatalogEntry);
@@ -32,10 +31,32 @@ export function createRoadmapRouter(authMiddleware) {
 
   router.get("/user/:userRoadmapId", authMiddleware, getUserRoadmapController);
 
+  // Generate a phase progressively.
   router.post(
     "/user/:userRoadmapId/phases/:phaseId/generate",
     authMiddleware,
     generateRoadmapPhaseController,
+  );
+
+  // Read the user's progress.
+  router.get(
+    "/user/:userRoadmapId/progress",
+    authMiddleware,
+    getRoadmapProgressController,
+  );
+
+  // Update a phase's status.
+  router.patch(
+    "/user/:userRoadmapId/phases/:phaseId/status",
+    authMiddleware,
+    updateRoadmapPhaseStatusController,
+  );
+
+  // Update a topic's status and optional notes.
+  router.patch(
+    "/user/:userRoadmapId/phases/:phaseId/topics/:topicId/status",
+    authMiddleware,
+    updateRoadmapTopicStatusController,
   );
 
   return router;

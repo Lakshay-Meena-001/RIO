@@ -132,11 +132,17 @@ async function syncProgressStructure(userRoadmap) {
     );
   }
 
-  const existingPhaseProgress = new Map(
-    userRoadmap.phaseProgress.map((phase) => [phase.phaseId, phase]),
+  // Only phases whose content has actually been generated
+  // should be available for user progress tracking.
+  const readyPhases = canonicalRoadmap.phases.filter(
+    (phase) => phase.generationStatus === "ready",
   );
 
-  const nextPhaseProgress = canonicalRoadmap.phases.map((phase) => {
+  const existingPhaseProgress = new Map(
+    (userRoadmap.phaseProgress || []).map((phase) => [phase.phaseId, phase]),
+  );
+
+  const nextPhaseProgress = readyPhases.map((phase) => {
     const existingPhase = existingPhaseProgress.get(phase.id);
 
     const existingTopicProgress = new Map(
@@ -253,21 +259,31 @@ async function updatePhaseStatus({ userId, userRoadmapId, phaseId, status }) {
   );
 
   if (!phase) {
-    throw createError("Phase not found.", "PHASE_NOT_FOUND");
+    throw createError(
+      "Phase not found or not generated yet.",
+      "PHASE_NOT_FOUND",
+    );
   }
 
   const now = new Date();
 
-  phase.status = status;
-
   if (status === ROADMAP_NODE_STATUS.COMPLETED) {
-    phase.completedAt = now;
+    // A phase can be completed only when all its topics
+    // have been completed.
+    const allTopicsCompleted =
+      phase.topics.length > 0 &&
+      phase.topics.every(
+        (topic) => topic.status === ROADMAP_NODE_STATUS.COMPLETED,
+      );
 
-    // Completing a phase completes all its topics.
-    for (const topic of phase.topics) {
-      topic.status = ROADMAP_NODE_STATUS.COMPLETED;
-      topic.completedAt = topic.completedAt || now;
+    if (!allTopicsCompleted) {
+      throw createError(
+        "Complete all topics before completing this phase.",
+        "PHASE_TOPICS_INCOMPLETE",
+      );
     }
+
+    phase.completedAt = phase.completedAt || now;
   } else {
     phase.completedAt = null;
 
@@ -282,6 +298,8 @@ async function updatePhaseStatus({ userId, userRoadmapId, phaseId, status }) {
       phase.startedAt = phase.startedAt || now;
     }
   }
+
+  phase.status = status;
 
   synchronizeRoadmapStatus(userRoadmap);
 
