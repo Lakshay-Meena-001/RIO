@@ -7,6 +7,7 @@ import {
   generateRoadmapController,
   generateRoadmapPhaseController,
   getUserRoadmapController,
+  deleteUserRoadmapController,
   getRoadmapProgressController,
   updateRoadmapPhaseStatusController,
   updateRoadmapTopicStatusController,
@@ -30,6 +31,12 @@ export function createRoadmapRouter(authMiddleware) {
   router.post("/generate", authMiddleware, generateRoadmapController);
 
   router.get("/user/:userRoadmapId", authMiddleware, getUserRoadmapController);
+
+  router.delete(
+    "/user/:userRoadmapId",
+    authMiddleware,
+    deleteUserRoadmapController,
+  );
 
   // Generate a phase progressively.
   router.post(

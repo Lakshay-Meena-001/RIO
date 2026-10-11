@@ -8,6 +8,7 @@ import {
   generateRoadmap,
   generateRoadmapPhaseForUser,
   getRoadmapForUser,
+  deleteRoadmapForUser,
 } from "../services/roadmap.service.js";
 
 import {
@@ -176,6 +177,25 @@ export async function getUserRoadmapController(req, res) {
   }
 }
 
+export async function deleteUserRoadmapController(req, res) {
+  try {
+    const userId = getAuthenticatedUserId(req);
+
+    const result = await deleteRoadmapForUser({
+      userId,
+      userRoadmapId: req.params.userRoadmapId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Personal roadmap removed successfully.",
+      data: result,
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
 export async function getRoadmapProgressController(req, res) {
   try {
     const userId = getAuthenticatedUserId(req);
@@ -249,4 +269,5 @@ export default {
   getRoadmapProgressController,
   updateRoadmapPhaseStatusController,
   updateRoadmapTopicStatusController,
+  deleteUserRoadmapController,
 };

@@ -825,10 +825,37 @@ async function getRoadmapForUser({ userId, userRoadmapId }) {
   return { roadmap, userRoadmap };
 }
 
+async function deleteRoadmapForUser({ userId, userRoadmapId }) {
+  if (!userId) {
+    throw createError("Authenticated user is required.", "UNAUTHORIZED", 401);
+  }
+
+  if (!mongoose.isValidObjectId(userRoadmapId)) {
+    throw createError("Invalid user roadmap ID.", "INVALID_INPUT", 400);
+  }
+
+  // Delete only the authenticated user's personal roadmap.
+  // Never delete the shared canonical Roadmap document.
+  const deletedRoadmap = await UserRoadmap.findOneAndDelete({
+    _id: userRoadmapId,
+    userId: String(userId),
+  });
+
+  if (!deletedRoadmap) {
+    throw createError("Roadmap not found.", "ROADMAP_NOT_FOUND", 404);
+  }
+
+  return {
+    deleted: true,
+    userRoadmapId: deletedRoadmap._id,
+  };
+}
+
 export { generateRoadmap, generateRoadmapPhaseForUser, getRoadmapForUser };
 
 export default {
   generateRoadmap,
   generateRoadmapPhaseForUser,
   getRoadmapForUser,
+  deleteRoadmapForUser,
 };
