@@ -10,7 +10,6 @@ import {
   getRoadmapForUser,
   deleteRoadmapForUser,
   getUserRoadmaps,
-
 } from "../services/roadmap.service.js";
 
 import {
@@ -32,6 +31,7 @@ function sendError(res, error) {
       INVALID_INPUT: 400,
       INVALID_AI_RESPONSE: 502,
       ROADMAP_GENERATION_FAILED: 502,
+      ROADMAP_NOT_READY: 409,
     }[error.code] ||
     500;
 
@@ -155,6 +155,13 @@ export async function generateRoadmapController(req, res) {
       },
     });
   } catch (error) {
+    console.error("[Roadmap] Generate failed:", {
+      message: error.message,
+      code: error.code,
+      statusCode: error.statusCode,
+      stack: error.stack,
+    });
+
     return sendError(res, error);
   }
 }

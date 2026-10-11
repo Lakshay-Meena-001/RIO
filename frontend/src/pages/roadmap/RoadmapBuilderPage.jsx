@@ -373,7 +373,7 @@ export default function RoadmapBuilderPage({ user, setUser }) {
         <main
           className={`min-w-0 flex-1 transition-[margin-left] duration-300 ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
-          <div className="mx-auto w-full max-w-none px-3 pb-16 pt-[82px] sm:px-6 sm:pb-28 lg:px-8 lg:py-8 lg:pb-4">
+          <div className="mx-auto w-full max-w-none px-3 pb-22 pt-[82px] sm:px-6 sm:pb-16 lg:px-8 lg:py-8 lg:pb-4">
             <button
               type="button"
               onClick={() => navigate("/roadmap")}

@@ -177,6 +177,89 @@ ${packageType}
   return validateBlueprintPrerequisites(blueprint);
 }
 
+async function generateValidatedPhaseWithRetry({
+  client,
+  prompt,
+  roadmap,
+  packageType,
+  blueprintPhase,
+}) {
+  const maxAttempts = ROADMAP_GENERATION.MAX_RETRIES + 1;
+  let lastError;
+  let retryPrompt = prompt;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const raw = await client.generate(retryPrompt, {
+        systemPrompt: createSystemPrompt(),
+        maxTokens: PHASE_MAX_TOKENS,
+        responseFormat: "json_object",
+      });
+
+      let result;
+
+      try {
+        result = JSON.parse(raw);
+      } catch {
+        throw createValidationError(
+          `Invalid JSON returned for phase ${blueprintPhase.id}.`,
+        );
+      }
+
+      return validatePhaseEnvelope(
+        result,
+        roadmap,
+        packageType,
+        blueprintPhase,
+      );
+    } catch (error) {
+      lastError = error;
+
+      // Retry only invalid AI output. API/network failures are handled
+      // separately so their original error is not hidden.
+      if (error?.code !== "INVALID_AI_RESPONSE") {
+        console.error("[Roadmap AI] LLM request failed:", {
+          phaseId: blueprintPhase.id,
+          message: error?.message,
+          code: error?.code,
+          status: error?.status,
+          causeMessage: error?.cause?.message,
+          causeCode: error?.cause?.code,
+          causeStatus: error?.cause?.status,
+        });
+
+        throw error;
+      }
+
+      if (attempt < maxAttempts) {
+        console.warn(
+          `[Roadmap AI] Phase ${blueprintPhase.id} returned invalid output. ` +
+            `Retry ${attempt}/${maxAttempts - 1}: ${error.message}`,
+        );
+
+        retryPrompt = `${prompt}
+
+PREVIOUS ATTEMPT FAILED VALIDATION.
+Error: ${error.message}
+
+Regenerate the entire phase JSON. Fix the validation error,
+follow the required schema exactly, and return valid JSON only.`;
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+    }
+  }
+
+  const validationError = createValidationError(
+    `Phase ${blueprintPhase.id} failed validation after ` +
+      `${maxAttempts} attempts. Last error: ${lastError?.message}`,
+    "PHASE_GENERATION_VALIDATION_FAILED",
+  );
+
+  validationError.cause = lastError;
+  throw validationError;
+}
+
 export async function generateRoadmapPhase({
   roadmap,
   packageType,
@@ -277,6 +360,13 @@ RULES:
 - Generate at most ${ROADMAP_GENERATION.MAX_TOPICS_PER_PHASE} topics.
 - Include no more than ${ROADMAP_GENERATION.MAX_RESOURCES_PER_TOPIC} resources per topic.
 - Avoid unnecessary duplication with completed phases.
+- Every topic.type must be exactly one of:
+  "core", "optional", "advanced", "project", "specialization".
+- Every topic option.type must be exactly one of:
+  "alternative", "complementary", "specialization".
+- Every topic option must include a unique non-empty id and a non-empty title.
+- Do not use any other values for topic.type or option.type.
+- Keep the JSON complete. Never stop midway through an object or array.
 - Return valid JSON only.
 
 Catalog roadmap:
@@ -285,33 +375,40 @@ ${JSON.stringify(roadmap)}
 Selected package:
 ${packageType}
 
-Complete blueprint:
-${JSON.stringify(blueprint)}
+Blueprint outline:
+${JSON.stringify({
+  roadmapId: blueprint.roadmapId,
+  packageId: blueprint.packageId,
+  phases: blueprint.phases.map((phase) => ({
+    id: phase.id,
+    order: phase.order,
+    title: phase.title,
+    purpose: phase.purpose,
+    prerequisites: phase.prerequisites,
+    topicsOutline: phase.topicsOutline,
+  })),
+})}
 
 Requested phase:
 ${JSON.stringify(blueprintPhase)}
 
-Previously generated phases:
-${JSON.stringify(completedPhases)}
+Previously completed phases:
+${JSON.stringify(
+  completedPhases.map((phase) => ({
+    id: phase.id,
+    title: phase.title,
+    topics: phase.topics?.map((topic) => topic.title),
+  })),
+)}
 `.trim();
 
-  const raw = await client.generate(prompt, {
-    systemPrompt: createSystemPrompt(),
-    maxTokens: PHASE_MAX_TOKENS,
-    responseFormat: "json_object",
+  return generateValidatedPhaseWithRetry({
+    client,
+    prompt,
+    roadmap,
+    packageType,
+    blueprintPhase,
   });
-
-  let result;
-
-  try {
-    result = JSON.parse(raw);
-  } catch {
-    throw createValidationError(
-      `The LLM returned invalid JSON during phase ${phaseId} generation.`,
-    );
-  }
-
-  return validatePhaseEnvelope(result, roadmap, packageType, blueprintPhase);
 }
 
 export default {

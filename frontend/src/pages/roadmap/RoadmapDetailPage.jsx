@@ -57,75 +57,53 @@ export default function RoadmapDetailPage({
   const [generatingPhaseId, setGeneratingPhaseId] = useState(null);
 
   const loadRoadmap = useCallback(async () => {
-    if (!roadmapId) {
-      throw new Error("Roadmap ID is missing.");
+    setLoading(true);
+    setError("");
+
+    try {
+      if (!roadmapId) {
+        throw new Error("Roadmap ID is missing.");
+      }
+
+      const response = await getUserRoadmap(roadmapId);
+      const result = response?.data ?? response;
+      const payload = result?.data ?? result;
+
+      if (!payload?.roadmap || !payload?.userRoadmap) {
+        throw new Error("The roadmap response is incomplete.");
+      }
+
+      setCanonical(payload.roadmap);
+      setUserRoadmap(payload.userRoadmap);
+      return true;
+    } catch (err) {
+      setCanonical(null);
+      setUserRoadmap(null);
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "We couldn't load this roadmap.",
+      );
+      return false;
+    } finally {
+      setLoading(false);
     }
-
-    const result = unwrap(await getUserRoadmap(roadmapId));
-    const payload = result?.data ?? result;
-
-    const canonicalRoadmap = payload?.roadmap;
-    const personalRoadmap = payload?.userRoadmap;
-
-    if (!canonicalRoadmap || !personalRoadmap) {
-      throw new Error("The roadmap response is incomplete.");
-    }
-
-    setCanonical(canonicalRoadmap);
-    setUserRoadmap(personalRoadmap);
-
-    return { canonicalRoadmap, personalRoadmap };
   }, [roadmapId]);
 
   useEffect(() => {
     let cancelled = false;
 
-    const fetchRoadmap = async () => {
-      setLoading(true);
-      setError("");
-
-      try {
-        if (!roadmapId) {
-          throw new Error("Roadmap ID is missing.");
-        }
-
-        const result = unwrap(await getUserRoadmap(roadmapId));
-        const payload = result?.data ?? result;
-
-        const canonicalRoadmap = payload?.roadmap;
-        const personalRoadmap = payload?.userRoadmap;
-
-        if (!canonicalRoadmap || !personalRoadmap) {
-          throw new Error("The roadmap response is incomplete.");
-        }
-
-        if (cancelled) return;
-
-        setCanonical(canonicalRoadmap);
-        setUserRoadmap(personalRoadmap);
-      } catch (err) {
-        if (cancelled) return;
-
-        setCanonical(null);
-        setUserRoadmap(null);
-        setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "We couldn't load this roadmap.",
-        );
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+    const timer = setTimeout(() => {
+      if (!cancelled) {
+        void loadRoadmap();
       }
-    };
-
-    void fetchRoadmap();
+    }, 0);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
-  }, [roadmapId]);
+  }, [loadRoadmap]);
 
   const phaseProgress = useMemo(
     () =>

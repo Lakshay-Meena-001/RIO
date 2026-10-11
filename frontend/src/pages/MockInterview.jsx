@@ -443,7 +443,7 @@ const MockInterview = ({ user, setUser }) => {
               sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
             }`}
           >
-            <div className="mx-auto w-full max-w-[1480px] px-5 pb-32 pt-[88px] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10">
+            <div className="mx-auto w-full max-w-[1480px] px-5 pb-22 pt-[88px] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10">
               {/* Editorial header */}
               <motion.section
                 initial={{ opacity: 0, y: 10 }}

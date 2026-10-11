@@ -11,6 +11,7 @@ import {
   updateRoadmapPhaseStatus as updateRoadmapPhaseStatusApi,
   updateRoadmapTopicStatus as updateRoadmapTopicStatusApi,
   deleteUserRoadmap as deleteUserRoadmapApi,
+  getUserRoadmaps as getUserRoadmapsApi,
 } from "../../api/roadmap.api";
 
 // Supported backend statuses.
@@ -458,26 +459,32 @@ const useRoadmap = () => {
   // 8. HISTORY
   // --------------------------------------------------
 
-  const fetchHistory = useCallback(async () => {
-    setHistoryLoading(true);
-    clearError();
+  const fetchHistory = useCallback(
+    async (params = {}) => {
+      setHistoryLoading(true);
+      clearError();
 
-    try {
-      // Intentionally no API request here.
-      // The reviewed backend does not currently expose an endpoint
-      // to list the authenticated user's roadmaps.
-      throw new Error(
-        "Roadmap history requires a user-roadmap listing endpoint on the backend.",
-      );
-    } catch (error) {
-      setHistory([]);
-      setError(getErrorMessage(error, "Failed to load roadmap history."));
-      setErrorType("history");
-      throw error;
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [clearError]);
+      try {
+        const response = await getUserRoadmapsApi(params);
+        const result = getPayload(response);
+        const payload = result.data ?? result;
+
+        const items = Array.isArray(payload)
+          ? payload
+          : (payload.roadmaps ?? payload.items ?? []);
+
+        setHistory(items);
+        return items;
+      } catch (error) {
+        setError(getErrorMessage(error, "Failed to load roadmap history."));
+        setErrorType("history");
+        throw error;
+      } finally {
+        setHistoryLoading(false);
+      }
+    },
+    [clearError],
+  );
 
   // --------------------------------------------------
   // 9. DELETE ROADMAP

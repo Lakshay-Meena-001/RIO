@@ -108,6 +108,24 @@ function getReadyPhaseIds(canonicalRoadmap) {
   );
 }
 
+function assertCanonicalRoadmapComplete(roadmap) {
+  const complete =
+    roadmap?.status === ROADMAP_STATUS.READY &&
+    Array.isArray(roadmap.phases) &&
+    roadmap.phases.length > 0 &&
+    roadmap.phases.every(
+      (phase) => phase.generationStatus === "ready"
+    );
+
+  if (!complete) {
+    throw createError(
+      "Roadmap is not fully generated yet. Please retry.",
+      "ROADMAP_NOT_READY",
+      409
+    );
+  }
+}
+
 function assertPrerequisitesReady(phase, canonicalRoadmap) {
   const readyPhaseIds = getReadyPhaseIds(canonicalRoadmap);
 
@@ -168,43 +186,50 @@ function synchronizeGeneratedPhaseProgress(userRoadmap, phase) {
 }
 
 async function updateCompletedGenerationCount(roadmapId) {
-  await Roadmap.updateOne({ _id: roadmapId }, [
-    {
-      $set: {
-        completedGenerationPhases: {
-          $size: {
-            $filter: {
-              input: { $ifNull: ["$phases", []] },
-              as: "phase",
-              cond: {
-                $eq: ["$$phase.generationStatus", "ready"],
-              },
-            },
-          },
-        },
-      },
-    },
-  ]);
+  const roadmap = await Roadmap.findById(roadmapId).select("phases");
+
+  if (!roadmap) {
+    throw createError(
+      "Canonical roadmap no longer exists.",
+      "ROADMAP_NOT_FOUND",
+      404,
+    );
+  }
+
+  const completedGenerationPhases = (roadmap.phases || []).filter(
+    (phase) => phase.generationStatus === "ready",
+  ).length;
+
+  await Roadmap.updateOne(
+    { _id: roadmapId },
+    { $set: { completedGenerationPhases } },
+  );
 }
 
 async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
   const cacheKey = createCacheKey(catalogRoadmap.id, packageId);
-
   let canonicalRoadmap = await Roadmap.findOne({ cacheKey });
   let created = false;
 
   if (canonicalRoadmap?.status === ROADMAP_STATUS.READY) {
-    return { canonicalRoadmap, reused: true };
+    const complete =
+      canonicalRoadmap.phases?.length > 0 &&
+      canonicalRoadmap.phases.every(
+        (phase) => phase.generationStatus === "ready",
+      );
+
+    if (complete) return { canonicalRoadmap, reused: true };
+
+    // Never reuse a document marked READY when some phases are incomplete.
+    canonicalRoadmap.status = ROADMAP_STATUS.FAILED;
+    canonicalRoadmap.generationError =
+      "Previously published roadmap was incomplete.";
+    await canonicalRoadmap.save();
   }
 
-  // An explicit generate request can retry a failed roadmap.
-  // Only one request can claim the retry.
   if (canonicalRoadmap?.status === ROADMAP_STATUS.FAILED) {
     const retried = await Roadmap.findOneAndUpdate(
-      {
-        _id: canonicalRoadmap._id,
-        status: ROADMAP_STATUS.FAILED,
-      },
+      { _id: canonicalRoadmap._id, status: ROADMAP_STATUS.FAILED },
       {
         $set: {
           status: ROADMAP_STATUS.GENERATING,
@@ -212,7 +237,7 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
           generationError: null,
         },
       },
-      { new: true },
+      { returnDocument: "after" },
     );
 
     if (!retried) {
@@ -222,13 +247,9 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
         409,
       );
     }
-
     canonicalRoadmap = retried;
-  }
-
-  if (canonicalRoadmap?.status === ROADMAP_STATUS.GENERATING) {
+  } else if (canonicalRoadmap?.status === ROADMAP_STATUS.GENERATING) {
     const startedAt = canonicalRoadmap.generationStartedAt?.getTime() || 0;
-
     const stale =
       Date.now() - startedAt > ROADMAP_GENERATION.GENERATION_LOCK_TTL_MS;
 
@@ -246,13 +267,8 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
         status: ROADMAP_STATUS.GENERATING,
         generationStartedAt: canonicalRoadmap.generationStartedAt,
       },
-      {
-        $set: {
-          generationStartedAt: new Date(),
-          generationError: null,
-        },
-      },
-      { new: true },
+      { $set: { generationStartedAt: new Date(), generationError: null } },
+      { returnDocument: "after" },
     );
 
     if (!reclaimed) {
@@ -262,7 +278,6 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
         409,
       );
     }
-
     canonicalRoadmap = reclaimed;
   } else if (!canonicalRoadmap) {
     try {
@@ -286,7 +301,6 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
         completedGenerationPhases: 0,
         generationStartedAt: new Date(),
       });
-
       created = true;
     } catch (error) {
       if (error.code === 11000) {
@@ -296,7 +310,6 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
           409,
         );
       }
-
       throw error;
     }
   }
@@ -314,15 +327,12 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
       canonicalRoadmap.blueprint = blueprint;
       canonicalRoadmap.title = blueprint.title;
       canonicalRoadmap.summary = blueprint.summary;
-
       canonicalRoadmap.package = {
         id: blueprint.packageId,
         name: blueprint.packageId,
         description: `Roadmap package: ${blueprint.packageId}`,
       };
-
       canonicalRoadmap.learningOutcomes = [];
-
       canonicalRoadmap.phases = blueprint.phases.map((phase) => ({
         id: phase.id,
         order: phase.order,
@@ -339,137 +349,104 @@ async function getOrCreateCanonicalRoadmap(catalogRoadmap, packageId) {
         generationStartedAt: null,
         generationToken: null,
       }));
-
       canonicalRoadmap.totalPhases = blueprint.phases.length;
       canonicalRoadmap.completedGenerationPhases = 0;
-
       await canonicalRoadmap.save();
     }
 
-    const nowMs = Date.now();
-    const staleBeforeMs = nowMs - ROADMAP_GENERATION.GENERATION_LOCK_TTL_MS;
-
-    // Find the earliest pending, failed, or stale phase.
-    const firstUnresolvedPhase = canonicalRoadmap.phases.find((phase) => {
-      if (
-        phase.generationStatus === "pending" ||
-        phase.generationStatus === "failed"
-      ) {
-        return true;
-      }
-
-      if (phase.generationStatus !== "generating") {
-        return false;
-      }
-
-      const phaseStartedAt = phase.generationStartedAt?.getTime() || 0;
-
-      return phaseStartedAt < staleBeforeMs;
-    });
-
-    if (!firstUnresolvedPhase) {
-      const hasActivePhaseGeneration = canonicalRoadmap.phases.some(
-        (phase) => phase.generationStatus === "generating",
+    if (
+      !Array.isArray(canonicalRoadmap.phases) ||
+      canonicalRoadmap.phases.length === 0
+    ) {
+      throw createError(
+        "Roadmap blueprint contains no phases.",
+        "ROADMAP_GENERATION_FAILED",
+        502,
       );
+    }
 
-      const allPhasesReady =
-        canonicalRoadmap.phases.length > 0 &&
-        canonicalRoadmap.phases.every(
+    // Generate every unresolved phase sequentially. The roadmap stays GENERATING
+    // and is not returned as reusable until every phase has validated and saved.
+    while (true) {
+      canonicalRoadmap = await Roadmap.findById(canonicalRoadmap._id);
+      if (!canonicalRoadmap) {
+        throw createError(
+          "Canonical roadmap no longer exists.",
+          "ROADMAP_NOT_FOUND",
+          404,
+        );
+      }
+
+      const staleBefore =
+        Date.now() - ROADMAP_GENERATION.GENERATION_LOCK_TTL_MS;
+      const nextPhase = canonicalRoadmap.phases.find((phase) => {
+        if (
+          phase.generationStatus === "pending" ||
+          phase.generationStatus === "failed"
+        )
+          return true;
+        if (phase.generationStatus !== "generating") return false;
+        return (phase.generationStartedAt?.getTime() || 0) < staleBefore;
+      });
+
+      if (!nextPhase) {
+        const allReady = canonicalRoadmap.phases.every(
           (phase) => phase.generationStatus === "ready",
         );
-
-      if (hasActivePhaseGeneration) {
-        throw createError(
-          "A roadmap phase is already being generated. Please retry shortly.",
-          "ROADMAP_GENERATION_IN_PROGRESS",
-          409,
-        );
+        if (!allReady) {
+          throw createError(
+            "A roadmap phase is still being generated. Please retry shortly.",
+            "ROADMAP_GENERATION_IN_PROGRESS",
+            409,
+          );
+        }
+        break;
       }
 
-      if (allPhasesReady) {
-        canonicalRoadmap.status = ROADMAP_STATUS.READY;
-        canonicalRoadmap.generationError = null;
-        canonicalRoadmap.generatedAt =
-          canonicalRoadmap.generatedAt || new Date();
-
-        await canonicalRoadmap.save();
-        await updateCompletedGenerationCount(canonicalRoadmap._id);
-
-        return {
-          canonicalRoadmap: await Roadmap.findById(canonicalRoadmap._id),
-          reused: true,
-        };
-      }
-
-      throw createError(
-        "No unresolved phase is available for generation.",
-        "ROADMAP_GENERATION_FAILED",
-        500,
-      );
+      await generateCanonicalPhase({
+        canonicalRoadmap,
+        catalogRoadmap,
+        phaseId: nextPhase.id,
+        packageId,
+      });
     }
-
-    await generateCanonicalPhase({
-      canonicalRoadmap,
-      catalogRoadmap,
-      phaseId: firstUnresolvedPhase.id,
-      packageId,
-    });
 
     canonicalRoadmap = await Roadmap.findById(canonicalRoadmap._id);
-
-    if (!canonicalRoadmap) {
-      throw createError(
-        "Canonical roadmap no longer exists.",
-        "ROADMAP_NOT_FOUND",
-        404,
+    const allReady =
+      canonicalRoadmap?.phases?.length > 0 &&
+      canonicalRoadmap.phases.every(
+        (phase) => phase.generationStatus === "ready",
       );
-    }
 
-    const hasReadyPhase = canonicalRoadmap.phases.some(
-      (phase) => phase.generationStatus === "ready",
-    );
-
-    if (!hasReadyPhase) {
+    if (!allReady) {
       throw createError(
-        "Initial roadmap phase could not be generated.",
+        "Roadmap generation is incomplete.",
         "ROADMAP_GENERATION_FAILED",
-        500,
+        502,
       );
     }
 
     canonicalRoadmap.status = ROADMAP_STATUS.READY;
     canonicalRoadmap.generationError = null;
     canonicalRoadmap.generatedAt = new Date();
-
+    canonicalRoadmap.completedGenerationPhases = canonicalRoadmap.phases.length;
     await canonicalRoadmap.save();
-
     await updateCompletedGenerationCount(canonicalRoadmap._id);
 
-    canonicalRoadmap = await Roadmap.findById(canonicalRoadmap._id);
-
-    return { canonicalRoadmap, reused: !created };
+    return {
+      canonicalRoadmap: await Roadmap.findById(canonicalRoadmap._id),
+      reused: !created,
+    };
   } catch (error) {
-    // Do not turn a competing request into a generation failure.
-    if (error.code === "ROADMAP_GENERATION_IN_PROGRESS") {
-      throw error;
-    }
+    if (error.code === "ROADMAP_GENERATION_IN_PROGRESS") throw error;
 
     const latestRoadmap = await Roadmap.findById(canonicalRoadmap._id);
-
     if (latestRoadmap) {
-      const hasReadyPhase = latestRoadmap.phases.some(
-        (phase) => phase.generationStatus === "ready",
-      );
-
-      latestRoadmap.status = hasReadyPhase
-        ? ROADMAP_STATUS.READY
-        : ROADMAP_STATUS.FAILED;
-
+      // A partially generated document is NEVER marked READY.
+      latestRoadmap.status = ROADMAP_STATUS.FAILED;
       latestRoadmap.generationError = error.message;
-
       await latestRoadmap.save();
     }
-
     throw error;
   }
 }
@@ -718,6 +695,8 @@ async function generateRoadmapPhaseForUser({ userId, userRoadmapId, phaseId }) {
     throw createError("Canonical roadmap not found.", "ROADMAP_NOT_FOUND", 404);
   }
 
+  assertCanonicalRoadmapComplete(canonicalRoadmap);
+
   const catalogRoadmap = getRoadmapById(canonicalRoadmap.catalogRoadmapId);
 
   if (!catalogRoadmap) {
@@ -810,6 +789,8 @@ async function getRoadmapForUser({ userId, userRoadmapId }) {
   if (!roadmap) {
     throw createError("Canonical roadmap not found.", "ROADMAP_NOT_FOUND", 404);
   }
+
+  assertCanonicalRoadmapComplete(roadmap);
 
   // Add newly generated topics without resetting saved user progress.
   for (const phase of roadmap.phases) {
