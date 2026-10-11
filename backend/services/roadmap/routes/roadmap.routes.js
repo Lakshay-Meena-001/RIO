@@ -7,6 +7,7 @@ import {
   generateRoadmapController,
   generateRoadmapPhaseController,
   getUserRoadmapController,
+  listUserRoadmapsController,
   deleteUserRoadmapController,
   getRoadmapProgressController,
   updateRoadmapPhaseStatusController,
@@ -29,6 +30,8 @@ export function createRoadmapRouter(authMiddleware) {
 
   // Authenticated roadmap operations.
   router.post("/generate", authMiddleware, generateRoadmapController);
+
+  router.get("/user", authMiddleware, listUserRoadmapsController);
 
   router.get("/user/:userRoadmapId", authMiddleware, getUserRoadmapController);
 

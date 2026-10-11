@@ -97,8 +97,11 @@ export const getRoadmapCatalogEntry = async (roadmapId) => {
  *   packageId: "comprehensive"
  * }
  */
+
 export const generateRoadmap = async ({ roadmapId, packageId }) => {
-  const id = encodeId(roadmapId, "roadmapId");
+  if (typeof roadmapId !== "string" || !roadmapId.trim()) {
+    throw new Error("roadmapId is required.");
+  }
 
   const allowedPackages = ["foundation", "standard", "comprehensive"];
 
@@ -109,7 +112,7 @@ export const generateRoadmap = async ({ roadmapId, packageId }) => {
   }
 
   const response = await api.post("/api/roadmaps/generate", {
-    roadmapId: id,
+    roadmapId: roadmapId.trim(),
     packageId,
   });
 
@@ -130,6 +133,14 @@ export const generateRoadmap = async ({ roadmapId, packageId }) => {
  */
 export const getUserRoadmap = async (userRoadmapId) => {
   const response = await api.get(USER_ROADMAP(userRoadmapId));
+
+  return response.data;
+};
+
+export const getUserRoadmaps = async ({ page = 1, limit = 20 } = {}) => {
+  const response = await api.get("/api/roadmaps/user", {
+    params: { page, limit },
+  });
 
   return response.data;
 };
@@ -208,6 +219,21 @@ export const updateRoadmapTopicStatus = async (
       ...(typeof notes === "string" ? { notes } : {}),
     },
   );
+
+  return response.data;
+};
+
+// ==================================================
+// DELETE PERSONAL ROADMAP
+// ==================================================
+
+/**
+ * DELETE /api/roadmaps/user/:userRoadmapId
+ *
+ * Deletes only the authenticated user's roadmap.
+ */
+export const deleteUserRoadmap = async (userRoadmapId) => {
+  const response = await api.delete(USER_ROADMAP(userRoadmapId));
 
   return response.data;
 };

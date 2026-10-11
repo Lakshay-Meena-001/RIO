@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 
 import { useNavigate } from "react-router-dom";
 
-import { getRoadmaps } from "../../api/roadmap.api.js";
+import { getUserRoadmaps } from "../../api/roadmap.api.js";
 
 import Sidebar from "../../components/SideBar";
 
@@ -58,27 +58,59 @@ const RoadmapDashboardPage = ({
 
   const fetchRoadmaps = useCallback(async () => {
     setLoading(true);
-
     setError("");
 
     try {
-      const response = await getRoadmaps({ page: 1, limit: 20 });
-
+      const response = await getUserRoadmaps({ page: 1, limit: 20 });
       const payload = response?.data ?? response;
+      const list = Array.isArray(payload?.roadmaps)
+        ? payload.roadmaps
+        : Array.isArray(payload?.data?.roadmaps)
+          ? payload.data.roadmaps
+          : [];
 
-      const list = Array.isArray(payload)
-        ? payload
-        : Array.isArray(payload?.roadmaps)
-          ? payload.roadmaps
-          : Array.isArray(payload?.items)
-            ? payload.items
-            : Array.isArray(payload?.results)
-              ? payload.results
-              : Array.isArray(payload?.data?.roadmaps)
-                ? payload.data.roadmaps
-                : [];
+      const normalizedRoadmaps = list.map((item) => {
+        const catalogRoadmap =
+          item?.roadmap && typeof item.roadmap === "object"
+            ? item.roadmap
+            : item?.catalogRoadmap || {};
+        const phaseProgress = Array.isArray(item?.phaseProgress)
+          ? item.phaseProgress
+          : Object.values(item?.phaseProgress || {});
+        const completedSteps = phaseProgress.filter(
+          (phase) =>
+            phase?.status === "completed" || Boolean(phase?.completedAt),
+        ).length;
+        const totalSteps =
+          Number(catalogRoadmap?.totalPhases) || phaseProgress.length;
+        const calculatedProgress = totalSteps
+          ? Math.round((completedSteps / totalSteps) * 100)
+          : 0;
 
-      setRoadmaps(list);
+        return {
+          ...item,
+          _id: item?._id || item?.userRoadmapId || item?.id,
+          title: catalogRoadmap?.title || item?.title || "Untitled roadmap",
+          description:
+            catalogRoadmap?.summary ||
+            catalogRoadmap?.description ||
+            item?.description ||
+            "Follow your learning path phase by phase.",
+          category:
+            catalogRoadmap?.category ||
+            catalogRoadmap?.domain ||
+            item?.category,
+          totalSteps,
+          completedSteps,
+          progressPercentage: Number(
+            item?.progressPercentage ?? calculatedProgress,
+          ),
+          updatedAt: item?.lastAccessedAt || item?.updatedAt || item?.createdAt,
+          phaseProgress,
+        };
+      });
+
+      setRoadmaps(normalizedRoadmaps);
     } catch (err) {
       setError(
         err?.response?.data?.message ||
@@ -110,19 +142,10 @@ const RoadmapDashboardPage = ({
     const completed = roadmaps.filter(
       (item) => item.status === "completed",
     ).length;
-
     const inProgress = roadmaps.filter((item) =>
-      ["in-progress", "in_progress", "active"].includes(item.status),
+      ["in_progress", "in-progress", "active"].includes(item.status),
     ).length;
-
-    const progressValues = roadmaps.map((item) => {
-      const total = Number(item.totalSteps) || Number(item.steps?.length) || 0;
-
-      const done = Number(item.completedSteps) || 0;
-
-      return total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
-    });
-
+    const progressValues = roadmaps.map((item) => progressOf(item));
     const average = progressValues.length
       ? Math.round(
           progressValues.reduce((sum, value) => sum + value, 0) /
@@ -133,19 +156,20 @@ const RoadmapDashboardPage = ({
     return { total: roadmaps.length, completed, inProgress, average };
   }, [roadmaps]);
 
-  const progressOf = (roadmap) => {
-    const total =
-      Number(roadmap?.totalSteps) || Number(roadmap?.steps?.length) || 0;
+  function progressOf(roadmap) {
+    const value = Number(roadmap?.progressPercentage);
+    if (Number.isFinite(value))
+      return Math.min(100, Math.max(0, Math.round(value)));
 
+    const total = Number(roadmap?.totalSteps) || 0;
     const done = Number(roadmap?.completedSteps) || 0;
-
     return total > 0
       ? Math.min(100, Math.max(0, Math.round((done / total) * 100)))
       : 0;
-  };
+  }
 
   const titleOf = (roadmap) =>
-    roadmap?.title || roadmap?.name || roadmap?.role || "Untitled roadmap";
+    roadmap?.title || roadmap?.name || "Untitled roadmap";
 
   const dateOf = (value) => {
     if (!value) return "Recently updated";
@@ -437,19 +461,14 @@ const RoadmapDashboardPage = ({
 
                       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/[0.08] pt-4 text-[11px] text-[#71747C]">
                         <span>
-                          {currentRoadmap.role ||
-                            currentRoadmap.category ||
-                            "Learning path"}
+                          {currentRoadmap.category || "Learning path"}
                         </span>
 
                         <span className="text-white/20">•</span>
 
                         <span>
                           {Number(currentRoadmap.completedSteps) || 0} of{" "}
-                          {Number(currentRoadmap.totalSteps) ||
-                            Number(currentRoadmap.steps?.length) ||
-                            0}{" "}
-                          steps
+                          {Number(currentRoadmap.totalSteps) || 0} phases
                         </span>
 
                         <span className="text-white/20">•</span>
@@ -716,9 +735,7 @@ const RoadmapDashboardPage = ({
                                   </h3>
 
                                   <span className="text-[9px] font-medium uppercase tracking-[0.13em] text-[#666870]">
-                                    {roadmap.category ||
-                                      roadmap.role ||
-                                      "Roadmap"}
+                                    {roadmap.category || "Roadmap"}
                                   </span>
                                 </div>
 
@@ -733,18 +750,15 @@ const RoadmapDashboardPage = ({
 
                                   <span>
                                     {Number(roadmap.completedSteps) || 0}/
-                                    {Number(roadmap.totalSteps) ||
-                                      Number(roadmap.steps?.length) ||
-                                      0}{" "}
-                                    steps
+                                    {Number(roadmap.totalSteps) || 0} phases
                                   </span>
 
                                   <span className="text-white/15">•</span>
 
                                   <span className="capitalize">
-                                    {(
-                                      roadmap.status || "not started"
-                                    ).replaceAll("-", " ")}
+                                    {(roadmap.status || "not_started")
+                                      .replaceAll("_", " ")
+                                      .replaceAll("-", " ")}
                                   </span>
                                 </div>
                               </div>

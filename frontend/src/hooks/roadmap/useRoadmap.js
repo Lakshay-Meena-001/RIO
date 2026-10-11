@@ -10,6 +10,7 @@ import {
   getRoadmapProgress as getRoadmapProgressApi,
   updateRoadmapPhaseStatus as updateRoadmapPhaseStatusApi,
   updateRoadmapTopicStatus as updateRoadmapTopicStatusApi,
+  deleteUserRoadmap as deleteUserRoadmapApi,
 } from "../../api/roadmap.api";
 
 // Supported backend statuses.
@@ -26,16 +27,17 @@ const getErrorMessage = (error, fallback) =>
 // API helpers return Axios response.data.
 // Some endpoints return { success, data }, while catalogue
 // endpoints return { success, roadmaps } or { success, roadmap }.
-const unwrapResponse = (response) => response?.data ?? response ?? null;
 
 const getPayload = (response) => {
-  const payload = unwrapResponse(response);
-
-  if (payload?.success === false) {
-    throw new Error(payload.message || "The request failed.");
+  if (!response) {
+    throw new Error("The server returned an empty response.");
   }
 
-  return payload;
+  if (response.success === false) {
+    throw new Error(response.message || "The request failed.");
+  }
+
+  return response;
 };
 
 const getWorkspace = (payload) => {
@@ -490,11 +492,27 @@ const useRoadmap = () => {
       clearError();
 
       try {
-        // Intentionally no API request here.
-        // The reviewed backend does not currently expose a DELETE route.
-        throw new Error(
-          "Roadmap deletion requires a DELETE endpoint on the backend.",
+        const response = await deleteUserRoadmapApi(id);
+        const result = getPayload(response);
+
+        // Remove the deleted roadmap from local history.
+        setHistory((currentHistory) =>
+          currentHistory.filter((item) => {
+            const itemId = item.userRoadmap?._id || item._id || item.id;
+
+            return !sameId(itemId, id);
+          }),
         );
+
+        // Clear the workspace only if it is the deleted roadmap.
+        setRoadmap((current) => {
+          const currentId =
+            current?.userRoadmap?._id || current?.userRoadmap?.id;
+
+          return sameId(currentId, id) ? null : current;
+        });
+
+        return result;
       } catch (error) {
         setError(getErrorMessage(error, "Failed to delete roadmap."));
         setErrorType("delete");

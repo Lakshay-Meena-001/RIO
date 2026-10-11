@@ -9,6 +9,8 @@ import {
   generateRoadmapPhaseForUser,
   getRoadmapForUser,
   deleteRoadmapForUser,
+  getUserRoadmaps,
+
 } from "../services/roadmap.service.js";
 
 import {
@@ -105,6 +107,25 @@ export async function getRoadmapCatalogEntry(req, res) {
     return res.status(200).json({
       success: true,
       roadmap,
+    });
+  } catch (error) {
+    return sendError(res, error);
+  }
+}
+
+export async function listUserRoadmapsController(req, res) {
+  try {
+    const userId = getAuthenticatedUserId(req);
+
+    const result = await getUserRoadmaps({
+      userId,
+      page: req.query.page,
+      limit: req.query.limit,
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: result,
     });
   } catch (error) {
     return sendError(res, error);
@@ -270,4 +291,5 @@ export default {
   updateRoadmapPhaseStatusController,
   updateRoadmapTopicStatusController,
   deleteUserRoadmapController,
+  listUserRoadmapsController,
 };

@@ -16,18 +16,34 @@ import {
 } from "react-icons/fi";
 
 import {
-  deleteRoadmap,
-  getRoadmap,
-  getRoadmaps,
-  getRoadmapTemplate,
-} from "../../api/roadmap.api";
+  deleteUserRoadmap,
+  getUserRoadmap,
+  getUserRoadmaps,
+} from "../../api/roadmap.api.js";
 
 const unwrap = (response) => response?.data ?? response ?? null;
 
-const getId = (item) => String(item?._id || item?.id || "");
+const getId = (item) =>
+  String(item?._id || item?.id || item?.userRoadmapId || "");
 
 const getProgress = (item) =>
-  Math.max(0, Math.min(100, Number(item?.progress?.percentage) || 0));
+  Math.max(
+    0,
+    Math.min(
+      100,
+      Number(item?.progressPercentage ?? item?.progress?.percentage) || 0,
+    ),
+  );
+
+const normalizeHistoryItem = (item) => ({
+  ...item,
+  title: item?.roadmap?.title || item?.title || "Learning roadmap",
+  role:
+    item?.roadmap?.catalogRoadmapId || item?.catalogRoadmapId || "Career path",
+  templateId: item?.packageId || item?.roadmap?.packageId || "standard",
+  progressPercentage: Number(item?.progressPercentage) || 0,
+  status: item?.status || "active",
+});
 
 const formatDate = (value) => {
   if (!value) return "Date unavailable";
@@ -349,7 +365,7 @@ export default function RoadmapHistoryPage() {
     setError("");
 
     try {
-      const payload = unwrap(await getRoadmaps({ page: 1, limit: 100 }));
+      const payload = unwrap(await getUserRoadmaps({ page: 1, limit: 100 }));
 
       const list = Array.isArray(payload)
         ? payload
@@ -359,20 +375,24 @@ export default function RoadmapHistoryPage() {
           payload?.data?.items ||
           [];
 
-      setRoadmaps(list);
+      const normalizedList = list.map(normalizeHistoryItem);
+      setRoadmaps(normalizedList);
 
       const requestedId = searchParams.get("roadmap");
 
       setSelectedId((current) => {
-        if (requestedId && list.some((item) => getId(item) === requestedId)) {
+        if (
+          requestedId &&
+          normalizedList.some((item) => getId(item) === requestedId)
+        ) {
           return requestedId;
         }
 
-        if (current && list.some((item) => getId(item) === current)) {
+        if (current && normalizedList.some((item) => getId(item) === current)) {
           return current;
         }
 
-        return getId(list[0]) || null;
+        return getId(normalizedList[0]) || null;
       });
     } catch (err) {
       setError(
@@ -389,121 +409,115 @@ export default function RoadmapHistoryPage() {
     let cancelled = false;
 
     const fetchHistory = async () => {
-      try {
-        const payload = unwrap(await getRoadmaps({ page: 1, limit: 100 }));
-
-        if (cancelled) return;
-
-        const list = Array.isArray(payload)
-          ? payload
-          : payload?.roadmaps ||
-            payload?.items ||
-            payload?.data?.roadmaps ||
-            payload?.data?.items ||
-            [];
-
-        setRoadmaps(list);
-
-        const requestedId = searchParams.get("roadmap");
-
-        setSelectedId((current) => {
-          if (requestedId && list.some((item) => getId(item) === requestedId)) {
-            return requestedId;
-          }
-
-          if (current && list.some((item) => getId(item) === current)) {
-            return current;
-          }
-
-          return getId(list[0]) || null;
-        });
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err?.response?.data?.message ||
-              err?.message ||
-              "Unable to load your roadmap history.",
-          );
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      await loadHistory();
     };
 
-    fetchHistory();
+    if (!cancelled) {
+      void fetchHistory();
+    }
 
     return () => {
       cancelled = true;
     };
-  }, [searchParams]);
+  }, [loadHistory]);
 
   useEffect(() => {
     let cancelled = false;
-
     const loadSelected = async () => {
       if (!selectedId) {
         setRoadmap(null);
         setTemplate(null);
-        setLoading(false);
         return;
       }
-
-      setLoading(true);
-
       try {
-        const full = unwrap(await getRoadmap(selectedId));
-
+        const response = unwrap(await getUserRoadmap(selectedId));
+        const payload = response?.data ?? response;
         if (cancelled) return;
-
-        if (!full) {
-          throw new Error("The roadmap response was empty.");
-        }
-
-        setRoadmap(full);
-        setTemplate(null);
-
-        if (full.templateId) {
-          try {
-            const templateResponse = unwrap(
-              await getRoadmapTemplate(full.templateId),
+        const canonical = payload?.roadmap;
+        const personal = payload?.userRoadmap;
+        if (!canonical || !personal)
+          throw new Error("The roadmap response is incomplete.");
+        const phaseProgress = Array.isArray(personal.phaseProgress)
+          ? personal.phaseProgress
+          : [];
+        const topics = (canonical.phases || [])
+          .filter((phase) => phase.generationStatus === "ready")
+          .flatMap((phase) => {
+            const savedPhase = phaseProgress.find(
+              (item) => item.phaseId === phase.id,
             );
-
-            if (cancelled) return;
-
-            setTemplate(templateResponse?.template || templateResponse);
-          } catch {
-            if (cancelled) return;
-            setTemplate(null);
-          }
-        }
-
-        if (!cancelled) {
-          setError("");
-        }
+            return (phase.topics || []).map((topic) => ({
+              ...topic,
+              nodeId: topic.id,
+              status:
+                savedPhase?.topics?.find((item) => item.topicId === topic.id)
+                  ?.status || "not_started",
+              phaseId: phase.id,
+            }));
+          });
+        const total = topics.length;
+        const completed = topics.filter(
+          (topic) => topic.status === "completed",
+        ).length;
+        const skipped = topics.filter(
+          (topic) => topic.status === "skipped",
+        ).length;
+        const inProgress = topics.filter(
+          (topic) => topic.status === "in_progress",
+        ).length;
+        const focus =
+          topics.find((topic) => topic.status === "in_progress") ||
+          topics.find((topic) => topic.status === "not_started");
+        setRoadmap({
+          ...personal,
+          ...canonical,
+          _id: personal._id,
+          title: canonical.title,
+          nodes: topics.map((topic) => ({
+            ...topic,
+            nodeId: topic.id,
+            status: topic.status === "in_progress" ? "learning" : topic.status,
+          })),
+          progress: {
+            total,
+            completed,
+            skipped,
+            learning: inProgress,
+            percentage: total
+              ? Math.round(((completed + skipped) / total) * 100)
+              : 0,
+          },
+          currentFocus: focus
+            ? {
+                nodeId: focus.id,
+                title: focus.title,
+                reason: focus.description,
+              }
+            : null,
+          profile: { availableHoursPerDay: 2 },
+        });
+        setTemplate({
+          nodes: topics,
+          metadata: { phases: canonical.phases || [] },
+        });
+        setError("");
       } catch (err) {
         if (cancelled) return;
-
         setError(
           err?.response?.data?.message ||
             err?.message ||
             "Unable to open this roadmap.",
         );
-
         setRoadmap(null);
         setTemplate(null);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
       }
     };
-
     void loadSelected();
-
     return () => {
       cancelled = true;
     };
   }, [selectedId]);
+
   const selectRoadmap = (id) => {
     setSelectedId(id);
 
@@ -528,7 +542,7 @@ export default function RoadmapHistoryPage() {
     setError("");
 
     try {
-      await deleteRoadmap(deletedId);
+      await deleteUserRoadmap(deletedId);
 
       const remaining = roadmaps.filter((item) => getId(item) !== deletedId);
 

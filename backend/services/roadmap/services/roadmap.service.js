@@ -851,11 +851,51 @@ async function deleteRoadmapForUser({ userId, userRoadmapId }) {
   };
 }
 
-export { generateRoadmap, generateRoadmapPhaseForUser, getRoadmapForUser };
+async function getUserRoadmaps({ userId, page = 1, limit = 20 }) {
+  if (!userId) {
+    throw createError("Authenticated user is required.", "UNAUTHORIZED", 401);
+  }
+
+  const currentPage = Math.max(1, Number(page) || 1);
+  const pageSize = Math.min(100, Math.max(1, Number(limit) || 20));
+  const filter = { userId: String(userId) };
+
+  const [roadmaps, total] = await Promise.all([
+    UserRoadmap.find(filter)
+      .populate({
+        path: "roadmap",
+        select:
+          "title summary catalogRoadmapId packageId status totalPhases completedGenerationPhases",
+      })
+      .sort({ lastAccessedAt: -1, createdAt: -1 })
+      .skip((currentPage - 1) * pageSize)
+      .limit(pageSize)
+      .lean(),
+
+    UserRoadmap.countDocuments(filter),
+  ]);
+
+  return {
+    roadmaps,
+    total,
+    page: currentPage,
+    limit: pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+export {
+  generateRoadmap,
+  generateRoadmapPhaseForUser,
+  getRoadmapForUser,
+  deleteRoadmapForUser,
+  getUserRoadmaps,
+};
 
 export default {
   generateRoadmap,
   generateRoadmapPhaseForUser,
   getRoadmapForUser,
   deleteRoadmapForUser,
+  getUserRoadmaps,
 };

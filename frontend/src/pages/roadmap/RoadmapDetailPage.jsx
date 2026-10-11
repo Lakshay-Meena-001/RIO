@@ -3,44 +3,33 @@ import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   FiArrowLeft,
-  FiArrowRight,
   FiBookOpen,
   FiCheck,
   FiChevronDown,
   FiLayers,
-  FiMenu,
   FiPlay,
   FiRefreshCw,
   FiX,
 } from "react-icons/fi";
-
-import Sidebar from "../../components/SideBar";
 import {
-  getRoadmap,
-  getRoadmapTemplate,
-  updateNodeStatus,
+  getUserRoadmap,
+  generateRoadmapPhase,
+  updateRoadmapPhaseStatus,
+  updateRoadmapTopicStatus,
 } from "../../api/roadmap.api.js";
 
 const STATUS = {
   NOT_STARTED: "not_started",
-  LEARNING: "learning",
+  IN_PROGRESS: "in_progress",
   COMPLETED: "completed",
   SKIPPED: "skipped",
 };
-
 const cx = (...values) => values.filter(Boolean).join(" ");
-const unwrap = (response) => response?.data ?? null;
+const unwrap = (response) => response?.data ?? response ?? null;
 const titleCase = (value = "") =>
   String(value)
     .replace(/[-_]/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
-const formatTarget = (target) => {
-  if (!target || target.compensation == null) return "Not set";
-  const amount = Number(target.compensation);
-  const label = amount >= 100 ? "1 Cr+" : `${amount} LPA`;
-  return `${target.currency || "INR"} ${label}`;
-};
-
 const Surface = ({ children, className = "" }) => (
   <section
     className={cx(
@@ -53,100 +42,77 @@ const Surface = ({ children, className = "" }) => (
 );
 
 export default function RoadmapDetailPage({
-  user,
-  setUser,
   roadmapId: roadmapIdOverride,
   embedded = false,
 }) {
   const { roadmapId: routeRoadmapId } = useParams();
   const roadmapId = roadmapIdOverride || routeRoadmapId;
   const navigate = useNavigate();
-  const [roadmap, setRoadmap] = useState(null);
-  const [template, setTemplate] = useState(null);
+  const [canonical, setCanonical] = useState(null);
+  const [userRoadmap, setUserRoadmap] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [savingNodeId, setSavingNodeId] = useState(null);
   const [error, setError] = useState("");
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [expandedNodeId, setExpandedNodeId] = useState(null);
+  const [expandedTopicId, setExpandedTopicId] = useState(null);
+  const [savingId, setSavingId] = useState(null);
+  const [generatingPhaseId, setGeneratingPhaseId] = useState(null);
 
   const loadRoadmap = useCallback(async () => {
-    try {
-      const response = await getRoadmap(roadmapId);
-      const result = unwrap(response);
-      if (!result) throw new Error("The roadmap response was empty.");
-      setRoadmap(result);
-
-      if (result.templateId) {
-        try {
-          const templateResponse = await getRoadmapTemplate(result.templateId);
-          setTemplate(unwrap(templateResponse));
-        } catch {
-          // The roadmap can still be displayed with its saved node states.
-          setTemplate(null);
-        }
-      }
-    } catch (err) {
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "We couldn't load this roadmap.",
-      );
-      setRoadmap(null);
-    } finally {
-      setLoading(false);
+    if (!roadmapId) {
+      throw new Error("Roadmap ID is missing.");
     }
+
+    const result = unwrap(await getUserRoadmap(roadmapId));
+    const payload = result?.data ?? result;
+
+    const canonicalRoadmap = payload?.roadmap;
+    const personalRoadmap = payload?.userRoadmap;
+
+    if (!canonicalRoadmap || !personalRoadmap) {
+      throw new Error("The roadmap response is incomplete.");
+    }
+
+    setCanonical(canonicalRoadmap);
+    setUserRoadmap(personalRoadmap);
+
+    return { canonicalRoadmap, personalRoadmap };
   }, [roadmapId]);
 
   useEffect(() => {
     let cancelled = false;
 
     const fetchRoadmap = async () => {
-      if (!roadmapId) {
-        setError("Roadmap ID is missing.");
-        setLoading(false);
-        return;
-      }
-
       setLoading(true);
       setError("");
 
       try {
-        const response = await getRoadmap(roadmapId);
-        const result = unwrap(response);
+        if (!roadmapId) {
+          throw new Error("Roadmap ID is missing.");
+        }
 
-        if (!result) {
-          throw new Error("The roadmap response was empty.");
+        const result = unwrap(await getUserRoadmap(roadmapId));
+        const payload = result?.data ?? result;
+
+        const canonicalRoadmap = payload?.roadmap;
+        const personalRoadmap = payload?.userRoadmap;
+
+        if (!canonicalRoadmap || !personalRoadmap) {
+          throw new Error("The roadmap response is incomplete.");
         }
 
         if (cancelled) return;
-        setRoadmap(result);
 
-        if (result.templateId) {
-          try {
-            const templateResponse = await getRoadmapTemplate(
-              result.templateId,
-            );
-
-            if (cancelled) return;
-            setTemplate(unwrap(templateResponse));
-          } catch {
-            if (cancelled) return;
-            setTemplate(null);
-          }
-        } else {
-          setTemplate(null);
-        }
+        setCanonical(canonicalRoadmap);
+        setUserRoadmap(personalRoadmap);
       } catch (err) {
         if (cancelled) return;
 
+        setCanonical(null);
+        setUserRoadmap(null);
         setError(
           err?.response?.data?.message ||
             err?.message ||
             "We couldn't load this roadmap.",
         );
-
-        setRoadmap(null);
       } finally {
         if (!cancelled) {
           setLoading(false);
@@ -154,147 +120,149 @@ export default function RoadmapDetailPage({
       }
     };
 
-    fetchRoadmap();
+    void fetchRoadmap();
 
     return () => {
       cancelled = true;
     };
   }, [roadmapId]);
 
-  const knowledgeNodes = useMemo(() => {
-    const nodes = Array.isArray(template?.nodes) ? template.nodes : [];
-    const stateById = new Map(
-      (roadmap?.nodes || []).map((node) => [node.nodeId, node]),
-    );
-    return nodes
-      .map((node, index) => ({
-        ...node,
-        order: index + 1,
-        status: stateById.get(node.id)?.status || STATUS.NOT_STARTED,
-        state: stateById.get(node.id) || null,
-      }))
-      .filter((node) => stateById.has(node.id));
-  }, [template, roadmap]);
-
-  const phases = useMemo(() => {
-    const sourcePhases = Array.isArray(template?.metadata?.phases)
-      ? template.metadata.phases
-      : [];
-    const phaseById = new Map(sourcePhases.map((phase) => [phase.id, phase]));
-    const groups = new Map();
-
-    knowledgeNodes.forEach((node) => {
-      const phaseId = node.metadata?.phase || "learning-path";
-      if (!groups.has(phaseId)) groups.set(phaseId, []);
-      groups.get(phaseId).push(node);
-    });
-
-    return [...groups.entries()]
-      .map(([phaseId, nodes], index) => {
-        const phase = phaseById.get(phaseId);
+  const phaseProgress = useMemo(
+    () =>
+      new Map(
+        (userRoadmap?.phaseProgress || []).map((phase) => [
+          phase.phaseId,
+          phase,
+        ]),
+      ),
+    [userRoadmap],
+  );
+  const phases = useMemo(
+    () =>
+      (canonical?.phases || []).map((phase, index) => {
+        const saved = phaseProgress.get(phase.id);
+        const topics = (phase.topics || []).map((topic, topicIndex) => {
+          const topicState = (saved?.topics || []).find(
+            (item) => item.topicId === topic.id,
+          );
+          return {
+            ...topic,
+            order: topicIndex + 1,
+            status: topicState?.status || STATUS.NOT_STARTED,
+            notes: topicState?.notes || "",
+          };
+        });
         return {
-          id: phaseId,
-          order: phase?.order || index + 1,
-          title: phase?.title || titleCase(phaseId),
-          description:
-            phase?.description ||
-            phase?.goal ||
-            "Work through these topics in sequence.",
-          nodes,
+          ...phase,
+          order: phase.order ?? index + 1,
+          topics,
+          savedStatus: saved?.status || STATUS.NOT_STARTED,
         };
-      })
-      .sort((a, b) => a.order - b.order);
-  }, [template, knowledgeNodes]);
-
+      }),
+    [canonical, phaseProgress],
+  );
+  const allTopics = useMemo(
+    () => phases.flatMap((phase) => phase.topics),
+    [phases],
+  );
   const stats = useMemo(() => {
-    const nodes = roadmap?.nodes || [];
-    const total = nodes.length;
-    const completed = nodes.filter(
-      (node) => node.status === STATUS.COMPLETED,
+    const completed = allTopics.filter(
+      (topic) => topic.status === STATUS.COMPLETED,
     ).length;
-    const skipped = nodes.filter(
-      (node) => node.status === STATUS.SKIPPED,
+    const skipped = allTopics.filter(
+      (topic) => topic.status === STATUS.SKIPPED,
     ).length;
-    const learning = nodes.filter(
-      (node) => node.status === STATUS.LEARNING,
+    const inProgress = allTopics.filter(
+      (topic) => topic.status === STATUS.IN_PROGRESS,
     ).length;
-    const percentage = total
-      ? Math.round(((completed + skipped) / total) * 100)
-      : 0;
     return {
-      total,
+      total: allTopics.length,
       completed,
       skipped,
-      learning,
-      remaining: Math.max(0, total - completed - skipped),
-      percentage,
+      inProgress,
+      percentage: allTopics.length
+        ? Math.round(((completed + skipped) / allTopics.length) * 100)
+        : 0,
     };
-  }, [roadmap]);
+  }, [allTopics]);
+  const currentTopic =
+    allTopics.find((topic) => topic.status === STATUS.IN_PROGRESS) ||
+    allTopics.find((topic) => topic.status === STATUS.NOT_STARTED) ||
+    null;
 
-  const currentNode = useMemo(() => {
-    const learning = knowledgeNodes.find(
-      (node) => node.status === STATUS.LEARNING,
-    );
-    return (
-      learning ||
-      knowledgeNodes.find((node) => node.status === STATUS.NOT_STARTED) ||
-      null
-    );
-  }, [knowledgeNodes]);
-
-  const changeStatus = useCallback(
-    async (nodeId, status) => {
-      if (!roadmapId || !nodeId || savingNodeId) return;
-      const previousRoadmap = roadmap;
-      setSavingNodeId(nodeId);
-      setError("");
-      setRoadmap((current) => ({
-        ...current,
-        nodes: (current?.nodes || []).map((node) =>
-          node.nodeId === nodeId
-            ? { ...node, status, updatedAt: new Date().toISOString() }
-            : node,
-        ),
-      }));
-      try {
-        const response = await updateNodeStatus(roadmapId, nodeId, status);
-        const updated = unwrap(response);
-        if (updated) setRoadmap(updated);
-      } catch (err) {
-        setRoadmap(previousRoadmap);
-        setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Couldn't save progress. Please try again.",
-        );
-      } finally {
-        setSavingNodeId(null);
-      }
-    },
-    [roadmapId, roadmap, savingNodeId],
-  );
-
-  const continueLearning = () => {
-    if (!currentNode) return;
-    setExpandedNodeId(currentNode.id);
-    document
-      .getElementById(`roadmap-node-${currentNode.id}`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    if (currentNode.status === STATUS.NOT_STARTED)
-      changeStatus(currentNode.id, STATUS.LEARNING);
+  const refreshFromResult = (response) => {
+    const payload = unwrap(response)?.data ?? unwrap(response);
+    if (payload?.roadmap) setCanonical(payload.roadmap);
+    if (payload?.userRoadmap) setUserRoadmap(payload.userRoadmap);
   };
 
-  const firstName = user?.name?.split(" ")?.[0] || "there";
+  const changeTopicStatus = async (phaseId, topicId, status) => {
+    if (!roadmapId || savingId) return;
+    setSavingId(topicId);
+    setError("");
+    try {
+      refreshFromResult(
+        await updateRoadmapTopicStatus(roadmapId, phaseId, topicId, status),
+      );
+      await loadRoadmap();
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Couldn't save progress. Please try again.",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
 
-  if (loading) {
+  const changePhaseStatus = async (phaseId, status) => {
+    if (!roadmapId || savingId) return;
+    setSavingId(phaseId);
+    setError("");
+    try {
+      refreshFromResult(
+        await updateRoadmapPhaseStatus(roadmapId, phaseId, status),
+      );
+      await loadRoadmap();
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Couldn't save phase progress.",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const generatePhase = async (phaseId) => {
+    if (!roadmapId || generatingPhaseId) return;
+    setGeneratingPhaseId(phaseId);
+    setError("");
+    try {
+      refreshFromResult(await generateRoadmapPhase(roadmapId, phaseId));
+      await loadRoadmap();
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Couldn't generate this phase. Please try again.",
+      );
+    } finally {
+      setGeneratingPhaseId(null);
+    }
+  };
+
+  if (loading)
     return (
       <div
         className={cx(
-          "min-h-screen text-white",
-          embedded ? "bg-transparent" : "bg-[#17191C] ",
+          "min-h-[60vh] text-white",
+          embedded ? "bg-transparent" : "min-h-screen bg-[#17191C]",
         )}
       >
-        <div className="mx-auto max-w-5xl space-y-5 px-5 py-24">
+        <div className="mx-auto max-w-5xl space-y-5 px-5 py-16">
           <div className="h-4 w-32 animate-pulse rounded bg-white/[0.08]" />
           <div className="h-10 w-2/3 animate-pulse rounded bg-white/[0.08]" />
           <div className="h-28 animate-pulse rounded-2xl bg-white/[0.05]" />
@@ -302,29 +270,19 @@ export default function RoadmapDetailPage({
         </div>
       </div>
     );
-  }
-
-  if (!roadmap) {
+  if (!canonical || !userRoadmap)
     return (
-      <main
-        className={cx(
-          "flex min-h-screen items-center justify-center px-5 text-white",
-          embedded ? "bg-transparent" : "bg-[#17191C]",
-        )}
-      >
-        <Surface className="w-full max-w-lg p-7 text-center sm:p-9">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
-            <FiLayers size={20} />
-          </div>
+      <main className="flex min-h-[60vh] items-center justify-center px-5 text-white">
+        <Surface className="w-full max-w-lg p-7 text-center">
+          <FiLayers className="mx-auto" size={22} />
           <h1 className="mt-4 text-xl font-semibold">Roadmap unavailable</h1>
           <p className="mt-2 text-sm leading-6 text-[#92949B]">
-            {error ||
-              "This roadmap may have been deleted or is no longer available."}
+            {error || "This roadmap may have been deleted."}
           </p>
           <div className="mt-6 flex justify-center gap-2">
             <button
               onClick={() => navigate("/roadmap/history")}
-              className="rounded-xl border border-white/10 px-4 py-3 text-sm text-white/75"
+              className="rounded-xl border border-white/10 px-4 py-3 text-sm"
             >
               View history
             </button>
@@ -338,14 +296,6 @@ export default function RoadmapDetailPage({
         </Surface>
       </main>
     );
-  }
-
-  const overallStatus =
-    roadmap.status === "completed"
-      ? "Completed"
-      : roadmap.status === "archived"
-        ? "Archived"
-        : "In progress";
 
   return (
     <div
@@ -354,271 +304,254 @@ export default function RoadmapDetailPage({
         embedded ? "min-h-0 bg-transparent" : "min-h-screen bg-[#17191C]",
       )}
     >
-      {!embedded && (
-        <div
-          className="pointer-events-none fixed inset-0"
-          style={{
-            background:
-              "radial-gradient(ellipse 70% 55% at 88% 4%, rgba(255,255,255,0.065) 0%, transparent 72%), linear-gradient(135deg,#191b1e 0%,#17191c 50%,#141619 100%)",
-          }}
-        />
-      )}
-
-      {!embedded && (
-        <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-2xl border border-white/[0.1] bg-[#17191C]/85 px-3 backdrop-blur-xl md:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055]"
-            aria-label="Open navigation"
-          >
-            <FiMenu size={18} />
-          </button>
-          <span
-            className="text-[16px] tracking-tight"
-            style={{ fontFamily: '"Zen Dots", sans-serif' }}
-          >
-            RIO
-          </span>
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] text-xs font-semibold">
-            {firstName.charAt(0).toUpperCase()}
-          </div>
-        </header>
-      )}
-
       <div
         className={cx(
-          "relative z-10 flex",
-          embedded ? "min-h-0 w-full" : "min-h-screen",
+          "mx-auto w-full",
+          embedded
+            ? "max-w-none px-0 py-0"
+            : "max-w-[1600px] px-4 pb-12 pt-10 sm:px-6 lg:px-8",
         )}
       >
         {!embedded && (
-          <Sidebar
-            mobileOpen={mobileOpen}
-            setMobileOpen={setMobileOpen}
-            user={user}
-            setUser={setUser}
-            sidebarOpen={sidebarOpen}
-            setSidebarOpen={setSidebarOpen}
-          />
-        )}
-
-        <main
-          className={cx(
-            "min-w-0 flex-1",
-            !embedded && "transition-[margin-left] duration-300",
-            !embedded && (sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"),
-          )}
-        >
-          <div
-            className={cx(
-              "mx-auto w-full",
-              embedded
-                ? "max-w-none px-0 py-0"
-                : "max-w-[1600px] px-4 pb-12 pt-[88px] sm:px-6 lg:px-8 lg:pt-10",
-            )}
+          <button
+            onClick={() => navigate("/roadmap/history")}
+            className="mb-7 inline-flex items-center gap-2 text-xs font-medium text-[#92949B] hover:text-white"
           >
-            <div className="grid grid-cols-1 gap-7">
-              <div className="min-w-0">
-                {!embedded && (
-                  <button
-                    type="button"
-                    onClick={() => navigate("/roadmap/history")}
-                    className="mb-7 inline-flex items-center gap-2 text-xs font-medium text-[#92949B] transition hover:text-white"
-                  >
-                    <FiArrowLeft size={14} /> Back to history
-                  </button>
-                )}
-
-                <motion.section
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35 }}
-                >
-                  <div className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8F9198]">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/80" />{" "}
-                    Your learning roadmap
-                  </div>
-                  <h1 className="max-w-4xl text-[34px] font-semibold leading-[1.02] tracking-[-0.05em] sm:text-[44px] lg:text-[52px]">
-                    {roadmap.title || roadmap.role || "Your roadmap"}
-                  </h1>
-                  {roadmap.description && (
-                    <p className="mt-4 max-w-3xl text-sm leading-7 text-[#92949B] sm:text-[15px]">
-                      {roadmap.description}
-                    </p>
-                  )}
-                  <div className="mt-6 flex flex-wrap gap-2">
-                    <Meta
-                      label="Role"
-                      value={roadmap.role || "Learning path"}
-                    />
-                    <Meta
-                      label="Target package"
-                      value={formatTarget(roadmap.target)}
-                    />
-                    <Meta
-                      label="Level"
-                      value={titleCase(roadmap.profile?.level || "beginner")}
-                    />
-                    <Meta
-                      label="Daily time"
-                      value={`${roadmap.profile?.availableHoursPerDay || 2} hours`}
-                    />
-                    <Meta label="Status" value={overallStatus} />
-                  </div>
-                </motion.section>
-
-                {error && (
-                  <div
-                    role="alert"
-                    className="mt-6 flex items-start gap-3 rounded-xl border border-red-300/20 bg-red-300/[0.06] p-4 text-sm text-red-100/85"
-                  >
-                    <FiX className="mt-0.5 shrink-0" /> <span>{error}</span>
-                    <button
-                      type="button"
-                      onClick={() => setError("")}
-                      className="ml-auto text-xs underline"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                )}
-
-                <Surface className="mt-8 p-5 sm:p-6">
-                  <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="max-w-xl">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71747C]">
-                        Your next move
-                      </p>
-                      <h2 className="mt-2 text-xl font-semibold tracking-tight">
-                        {currentNode?.title || "You've reached the end"}
-                      </h2>
-                      <p className="mt-2 text-sm leading-6 text-[#92949B]">
-                        {currentNode?.whyItMatters ||
-                          currentNode?.description ||
-                          "All roadmap topics are complete. Review your progress or explore your next learning path."}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={continueLearning}
-                      disabled={!currentNode}
-                      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {currentNode?.status === STATUS.LEARNING
-                        ? "Continue learning"
-                        : "Start learning"}
-                      <FiArrowRight size={14} />
-                    </button>
-                  </div>
-                </Surface>
-
-                <section className="mt-10">
-                  <div className="mb-5 flex items-end justify-between gap-4">
-                    <div>
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71747C]">
-                        The learning path
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">
-                        Phases & topics
-                      </h2>
-                      <p className="mt-2 max-w-2xl text-sm leading-6 text-[#858994]">
-                        Follow the path in order. Open a topic to review its
-                        details and update your progress.
-                      </p>
-                    </div>
-                    <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-[10px] text-[#92949B]">
-                      {stats.total} topics
-                    </span>
-                  </div>
-
-                  {phases.length ? (
-                    <div className="space-y-4">
-                      {phases.map((phase, phaseIndex) => {
-                        const phaseCompleted = phase.nodes.filter((node) =>
-                          [STATUS.COMPLETED, STATUS.SKIPPED].includes(
-                            node.status,
-                          ),
-                        ).length;
-                        return (
-                          <Surface key={phase.id} className="overflow-hidden">
-                            <div className="border-b border-white/[0.07] p-4 sm:p-5">
-                              <div className="flex items-start gap-3">
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/75">
-                                  {String(phaseIndex + 1).padStart(2, "0")}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <h3 className="text-sm font-semibold sm:text-base">
-                                      {phase.title}
-                                    </h3>
-                                    <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[9px] text-[#858994]">
-                                      {phaseCompleted}/{phase.nodes.length} done
-                                    </span>
-                                  </div>
-                                  <p className="mt-1.5 text-xs leading-5 text-[#858994]">
-                                    {phase.description}
-                                  </p>
-                                </div>
-                              </div>
-                              <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/[0.07]">
-                                <div
-                                  className="h-full rounded-full bg-white/70 transition-all"
-                                  style={{
-                                    width: `${phase.nodes.length ? (phaseCompleted / phase.nodes.length) * 100 : 0}%`,
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            <div className="divide-y divide-white/[0.06]">
-                              {phase.nodes.map((node) => (
-                                <NodeCard
-                                  key={node.id}
-                                  node={node}
-                                  expanded={expandedNodeId === node.id}
-                                  onExpand={() =>
-                                    setExpandedNodeId((current) =>
-                                      current === node.id ? null : node.id,
-                                    )
-                                  }
-                                  onStatus={changeStatus}
-                                  saving={savingNodeId === node.id}
-                                />
-                              ))}
-                            </div>
-                          </Surface>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <Surface className="p-6">
+            <FiArrowLeft size={14} /> Back to history
+          </button>
+        )}
+        <motion.section
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8F9198]">
+            <span className="h-1.5 w-1.5 rounded-full bg-white/80" /> Your
+            learning roadmap
+          </div>
+          <h1 className="max-w-4xl text-[32px] font-semibold leading-[1.06] tracking-[-0.05em] sm:text-[44px]">
+            {canonical.title || "Your roadmap"}
+          </h1>
+          {canonical.summary && (
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-[#92949B] sm:text-[15px]">
+              {canonical.summary}
+            </p>
+          )}
+          <div className="mt-6 flex flex-wrap gap-2">
+            <Meta
+              label="Package"
+              value={titleCase(
+                userRoadmap.packageId || canonical.packageId || "standard",
+              )}
+            />
+            <Meta
+              label="Status"
+              value={titleCase(userRoadmap.status || "active")}
+            />
+            <Meta
+              label="Generated phases"
+              value={`${phases.filter((phase) => phase.generationStatus === "ready").length}/${phases.length}`}
+            />
+            <Meta label="Progress" value={`${stats.percentage}%`} />
+          </div>
+        </motion.section>
+        {error && (
+          <div
+            role="alert"
+            className="mt-6 flex items-start gap-3 rounded-xl border border-red-300/20 bg-red-300/[0.06] p-4 text-sm text-red-100/85"
+          >
+            <FiX className="mt-0.5 shrink-0" />
+            <span>{error}</span>
+            <button
+              onClick={() => setError("")}
+              className="ml-auto text-xs underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        <Surface className="mt-8 p-5 sm:p-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="max-w-xl">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71747C]">
+                Your next move
+              </p>
+              <h2 className="mt-2 text-xl font-semibold tracking-tight">
+                {currentTopic?.title || "Your learning path is ready"}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-[#92949B]">
+                {currentTopic?.description ||
+                  "Generate a phase to reveal its topics, resources and practice tasks."}
+              </p>
+            </div>
+            <button
+              disabled={!currentTopic}
+              onClick={() => {
+                setExpandedTopicId(currentTopic.id);
+                document
+                  .getElementById(`roadmap-topic-${currentTopic.id}`)
+                  ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                if (currentTopic.status === STATUS.NOT_STARTED) {
+                  const phase = phases.find((item) =>
+                    item.topics.some((topic) => topic.id === currentTopic.id),
+                  );
+                  if (phase)
+                    void changeTopicStatus(
+                      phase.id,
+                      currentTopic.id,
+                      STATUS.IN_PROGRESS,
+                    );
+                }
+              }}
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] disabled:opacity-50"
+            >
+              {currentTopic?.status === STATUS.IN_PROGRESS
+                ? "Continue learning"
+                : "Start learning"}
+              <FiPlay size={13} />
+            </button>
+          </div>
+        </Surface>
+        <section className="mt-10">
+          <div className="mb-5 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71747C]">
+                The learning path
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">
+                Phases & topics
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#858994]">
+                Generate phases progressively, then track each topic as you
+                learn.
+              </p>
+            </div>
+            <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.035] px-3 py-1.5 text-[10px] text-[#92949B]">
+              {stats.total} topics
+            </span>
+          </div>
+          {phases.length ? (
+            <div className="space-y-4">
+              {phases.map((phase, index) => {
+                const ready = phase.generationStatus === "ready";
+                const phaseDone = phase.topics.filter((topic) =>
+                  [STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.status),
+                ).length;
+                return (
+                  <Surface key={phase.id} className="overflow-hidden">
+                    <div className="border-b border-white/[0.07] p-4 sm:p-5">
                       <div className="flex items-start gap-3">
-                        <FiBookOpen className="mt-0.5 text-[#92949B]" />
-                        <div>
-                          <h3 className="text-sm font-semibold">
-                            Topic details aren't available
-                          </h3>
-                          <p className="mt-1 text-xs leading-5 text-[#858994]">
-                            Your saved roadmap and progress are available, but
-                            RIO couldn't load the canonical topic list. Try
-                            refreshing the page.
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/75">
+                          {String(index + 1).padStart(2, "0")}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="text-sm font-semibold sm:text-base">
+                              {phase.title}
+                            </h3>
+                            <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[9px] text-[#858994]">
+                              {ready
+                                ? `${phaseDone}/${phase.topics.length} done`
+                                : titleCase(
+                                    phase.generationStatus || "pending",
+                                  )}
+                            </span>
+                          </div>
+                          <p className="mt-1.5 text-xs leading-5 text-[#858994]">
+                            {phase.purpose ||
+                              phase.description ||
+                              "Work through this phase in sequence."}
                           </p>
-                          <button
-                            type="button"
-                            onClick={loadRoadmap}
-                            className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-white"
-                          >
-                            <FiRefreshCw size={13} /> Refresh roadmap
-                          </button>
                         </div>
                       </div>
-                    </Surface>
-                  )}
-                </section>
-              </div>
+                      {ready && (
+                        <div className="mt-4 h-1 overflow-hidden rounded-full bg-white/[0.07]">
+                          <div
+                            className="h-full rounded-full bg-white/70 transition-all"
+                            style={{
+                              width: `${phase.topics.length ? (phaseDone / phase.topics.length) * 100 : 0}%`,
+                            }}
+                          />
+                        </div>
+                      )}
+                      {!ready && (
+                        <button
+                          type="button"
+                          disabled={Boolean(generatingPhaseId)}
+                          onClick={() => void generatePhase(phase.id)}
+                          className="mt-4 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-xs font-semibold text-[#17191C] disabled:opacity-50"
+                        >
+                          <FiRefreshCw
+                            size={13}
+                            className={
+                              generatingPhaseId === phase.id
+                                ? "animate-spin"
+                                : ""
+                            }
+                          />
+                          {generatingPhaseId === phase.id
+                            ? "Generating phase…"
+                            : phase.generationStatus === "failed"
+                              ? "Retry phase generation"
+                              : "Generate phase topics"}
+                        </button>
+                      )}
+                    </div>
+                    {ready && (
+                      <div className="divide-y divide-white/[0.06]">
+                        {phase.topics.map((topic, topicIndex) => (
+                          <TopicCard
+                            key={topic.id}
+                            topic={{ ...topic, order: topicIndex + 1 }}
+                            expanded={expandedTopicId === topic.id}
+                            saving={savingId === topic.id}
+                            onExpand={() =>
+                              setExpandedTopicId((current) =>
+                                current === topic.id ? null : topic.id,
+                              )
+                            }
+                            onStatus={(status) =>
+                              void changeTopicStatus(phase.id, topic.id, status)
+                            }
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {ready && (
+                      <div className="flex flex-wrap gap-2 border-t border-white/[0.06] px-4 py-4 sm:px-5">
+                        <button
+                          disabled={Boolean(savingId)}
+                          onClick={() =>
+                            void changePhaseStatus(phase.id, STATUS.IN_PROGRESS)
+                          }
+                          className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/80 disabled:opacity-50"
+                        >
+                          Mark phase in progress
+                        </button>
+                        <button
+                          disabled={Boolean(savingId)}
+                          onClick={() =>
+                            void changePhaseStatus(phase.id, STATUS.COMPLETED)
+                          }
+                          className="rounded-xl bg-white px-3 py-2 text-[11px] font-semibold text-[#17191C] disabled:opacity-50"
+                        >
+                          Complete phase
+                        </button>
+                      </div>
+                    )}
+                  </Surface>
+                );
+              })}
             </div>
-          </div>
-        </main>
+          ) : (
+            <Surface className="p-6">
+              <FiBookOpen className="text-[#92949B]" />
+              <p className="mt-3 text-sm text-[#92949B]">
+                No phases are available for this roadmap yet.
+              </p>
+            </Surface>
+          )}
+        </section>
       </div>
     </div>
   );
@@ -636,47 +569,26 @@ function Meta({ label, value }) {
     </div>
   );
 }
-
-function ProgressRow({ icon, label, value }) {
-  return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2.5 text-[#858994]">
-        <span className="text-xs">{icon}</span>
-        <span className="text-xs">{label}</span>
-      </div>
-      <span className="text-xs font-semibold text-white/80">{value}</span>
-    </div>
-  );
-}
-
-function NodeCard({ node, expanded, onExpand, onStatus, saving }) {
-  const completed = node.status === STATUS.COMPLETED;
-  const learning = node.status === STATUS.LEARNING;
-  const skipped = node.status === STATUS.SKIPPED;
+function TopicCard({ topic, expanded, onExpand, onStatus, saving }) {
+  const completed = topic.status === STATUS.COMPLETED;
+  const inProgress = topic.status === STATUS.IN_PROGRESS;
+  const skipped = topic.status === STATUS.SKIPPED;
   const statusLabel = completed
     ? "Completed"
-    : learning
+    : inProgress
       ? "In progress"
       : skipped
         ? "Skipped"
         : "Not started";
-  const prerequisites = Array.isArray(node.prerequisites)
-    ? node.prerequisites
-    : [];
-  const enables = Array.isArray(node.enables) ? node.enables : [];
-  const alternatives = Array.isArray(node.alternatives)
-    ? node.alternatives
-    : [];
-
   return (
-    <article id={`roadmap-node-${node.id}`} className="scroll-mt-24">
+    <article id={`roadmap-topic-${topic.id}`} className="scroll-mt-24">
       <div className="flex items-start gap-3 p-4 sm:p-5">
         <div
           className={cx(
             "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-xs font-semibold",
             completed
               ? "border-white/15 bg-white text-[#17191C]"
-              : learning
+              : inProgress
                 ? "border-white/20 bg-white/[0.12] text-white"
                 : "border-white/[0.08] bg-white/[0.035] text-[#858994]",
           )}
@@ -684,7 +596,7 @@ function NodeCard({ node, expanded, onExpand, onStatus, saving }) {
           {completed ? (
             <FiCheck size={15} />
           ) : (
-            String(node.order).padStart(2, "0")
+            String(topic.order).padStart(2, "0")
           )}
         </div>
         <button
@@ -695,25 +607,14 @@ function NodeCard({ node, expanded, onExpand, onStatus, saving }) {
         >
           <div className="flex flex-wrap items-center gap-2">
             <h4 className="text-sm font-semibold leading-5 text-white/90">
-              {node.title || titleCase(node.id)}
+              {topic.title || titleCase(topic.id)}
             </h4>
-            <span
-              className={cx(
-                "rounded-full px-2 py-0.5 text-[9px] font-medium",
-                completed
-                  ? "bg-white/[0.08] text-white/65"
-                  : learning
-                    ? "bg-blue-300/10 text-blue-100/75"
-                    : skipped
-                      ? "bg-amber-300/10 text-amber-100/70"
-                      : "bg-white/[0.04] text-[#858994]",
-              )}
-            >
+            <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[9px] text-[#858994]">
               {statusLabel}
             </span>
           </div>
           <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-[#858994]">
-            {node.description || "Open this topic to review its details."}
+            {topic.description || "Open this topic to review its details."}
           </p>
         </button>
         <button
@@ -730,97 +631,84 @@ function NodeCard({ node, expanded, onExpand, onStatus, saving }) {
       </div>
       {expanded && (
         <div className="border-t border-white/[0.06] bg-black/[0.12] px-4 py-5 sm:px-5 sm:pl-[68px]">
-          {node.whyItMatters && (
-            <InfoBlock title="Why this matters">{node.whyItMatters}</InfoBlock>
+          {topic.importance && (
+            <InfoBlock title="Why this matters">{topic.importance}</InfoBlock>
           )}
-          {prerequisites.length > 0 && (
-            <InfoBlock title="Prerequisites">
-              <div className="flex flex-wrap gap-2">
-                {prerequisites.map((item) => (
-                  <span
-                    key={item}
-                    className="rounded-lg border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-[#92949B]"
-                  >
-                    {titleCase(item)}
-                  </span>
+          {Array.isArray(topic.subtopics) && topic.subtopics.length > 0 && (
+            <InfoBlock title="Subtopics">
+              <ul className="list-disc space-y-1 pl-4">
+                {topic.subtopics.map((item) => (
+                  <li key={item}>{item}</li>
                 ))}
-              </div>
+              </ul>
             </InfoBlock>
           )}
-          {enables.length > 0 && (
-            <InfoBlock title="Unlocks next">
-              <div className="flex flex-wrap gap-2">
-                {enables.map((item) => (
-                  <span
-                    key={item}
-                    className="rounded-lg border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-[#92949B]"
+          {Array.isArray(topic.practiceTasks) &&
+            topic.practiceTasks.length > 0 && (
+              <InfoBlock title="Practice tasks">
+                <ul className="list-disc space-y-1 pl-4">
+                  {topic.practiceTasks.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </InfoBlock>
+            )}
+          {Array.isArray(topic.resources) && topic.resources.length > 0 && (
+            <InfoBlock title="Resources">
+              <div className="space-y-2">
+                {topic.resources.map((resource) => (
+                  <a
+                    key={`${resource.title}-${resource.url}`}
+                    href={resource.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block text-white/80 underline decoration-white/20 underline-offset-4 hover:text-white"
                   >
-                    {titleCase(item)}
-                  </span>
-                ))}
-              </div>
-            </InfoBlock>
-          )}
-          {alternatives.length > 0 && (
-            <InfoBlock title="Related alternatives">
-              <div className="flex flex-wrap gap-2">
-                {alternatives.map((item) => (
-                  <span
-                    key={item}
-                    className="rounded-lg border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-[#92949B]"
-                  >
-                    {titleCase(item)}
-                  </span>
+                    {resource.title}
+                  </a>
                 ))}
               </div>
             </InfoBlock>
           )}
           <div className="mt-5 flex flex-wrap gap-2 border-t border-white/[0.07] pt-4">
-            {!completed && (
+            {!inProgress && !completed && (
               <button
-                type="button"
                 disabled={saving}
-                onClick={() => onStatus(node.id, STATUS.LEARNING)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs font-semibold text-white/80 hover:bg-white/[0.08] disabled:opacity-50"
+                onClick={() => onStatus(STATUS.IN_PROGRESS)}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs font-semibold text-white/80 disabled:opacity-50"
               >
                 <FiPlay size={13} /> Start learning
               </button>
             )}
             {!completed && (
               <button
-                type="button"
                 disabled={saving}
-                onClick={() => onStatus(node.id, STATUS.COMPLETED)}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-[#17191C] hover:bg-white/90 disabled:opacity-50"
+                onClick={() => onStatus(STATUS.COMPLETED)}
+                className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-[#17191C] disabled:opacity-50"
               >
                 <FiCheck size={13} /> Mark complete
               </button>
             )}
             {completed && (
               <button
-                type="button"
                 disabled={saving}
-                onClick={() => onStatus(node.id, STATUS.NOT_STARTED)}
-                className="rounded-xl border border-white/10 px-3 py-2.5 text-xs font-semibold text-[#92949B] hover:bg-white/[0.05] disabled:opacity-50"
+                onClick={() => onStatus(STATUS.NOT_STARTED)}
+                className="rounded-xl border border-white/10 px-3 py-2.5 text-xs text-[#92949B] disabled:opacity-50"
               >
                 Reset progress
               </button>
             )}
             {!skipped && !completed && (
               <button
-                type="button"
                 disabled={saving}
-                onClick={() => onStatus(node.id, STATUS.SKIPPED)}
-                className="rounded-xl border border-white/[0.08] px-3 py-2.5 text-xs font-medium text-[#92949B] hover:bg-white/[0.05] disabled:opacity-50"
+                onClick={() => onStatus(STATUS.SKIPPED)}
+                className="rounded-xl border border-white/[0.08] px-3 py-2.5 text-xs text-[#92949B] disabled:opacity-50"
               >
                 Skip topic
               </button>
             )}
             {saving && (
-              <span className="inline-flex items-center gap-2 px-2 text-xs text-[#858994]">
-                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/15 border-t-white/70" />{" "}
-                Saving
-              </span>
+              <span className="px-2 text-xs text-[#858994]">Saving…</span>
             )}
           </div>
         </div>
@@ -828,7 +716,6 @@ function NodeCard({ node, expanded, onExpand, onStatus, saving }) {
     </article>
   );
 }
-
 function InfoBlock({ title, children }) {
   return (
     <div className="mb-4 last:mb-0">
