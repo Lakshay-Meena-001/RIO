@@ -26,15 +26,15 @@ export const logoutUser = async () => {
   }
 };
 
-// Deduct coins from the authenticated user's balance.
-export const deductCoins = async (data) => {
+/*
+ * Deduct an amount from the authenticated user's balance.
+ */
+export const deductBalance = async (data) => {
   try {
     const response = await api.post("/api/auth/user-coins", data);
-
     return response.data;
   } catch (error) {
-    console.error("Failed to use coins:", error);
-
+    console.error("Failed to deduct balance:", error);
     throw error;
   }
 };

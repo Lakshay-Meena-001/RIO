@@ -395,7 +395,7 @@ async function evaluateQuestion(interview, question) {
         : [],
 
       examples: Array.isArray(question.examples) ? question.examples : [],
-      
+
       starterCode: question.starterCode || "",
     },
 
@@ -438,7 +438,7 @@ function markQuestionSubmitted(question, evaluation) {
  * Already submitted questions remain preserved.
  *
  * No completion.
- * No coin deduction.
+ * No balance deduction.
  */
 async function abandonForServerError(
   interview,
@@ -448,14 +448,14 @@ async function abandonForServerError(
 ) {
   /*
    * Never abandon an interview after its payment has
-   * already been charged.
+   * already been deducted.
    *
    * The caller should recover/finalize such an interview
    * instead of converting it into a failed interview.
    */
   if (
-    interview.paymentStatus === "charged" ||
-    interview.paymentStatus === "charging"
+    interview.paymentStatus === "deducted" ||
+    interview.paymentStatus === "deducting"
   ) {
     throw new AppError(
       "Interview payment is already being processed. Finalization must continue.",
@@ -689,7 +689,7 @@ async function generateInterviewSummary(interview) {
 
 /*
  * =========================================================
- * DEDUCT INTERVIEW COINS THROUGH AUTH SERVICE
+ * DEDUCT INTERVIEW BALANCE THROUGH AUTH SERVICE
  * =========================================================
  *
  * Interview Service does not access the Auth User model
@@ -697,8 +697,8 @@ async function generateInterviewSummary(interview) {
  *
  * Auth Service owns:
  * - User
- * - coins
- * - coin deduction
+ * - balance
+ * - balance deduction
  */
 
 async function getUserBalance(userId) {
@@ -711,6 +711,7 @@ async function getUserBalance(userId) {
       headers: {
         "Content-Type": "application/json",
         "x-user-id": userId.toString(),
+        "x-internal-service-secret": process.env.AUTH_INTERNAL_SECRET,
       },
     });
   } catch (error) {
@@ -737,32 +738,33 @@ async function getUserBalance(userId) {
     );
   }
 
-  return Number(data?.coins) || 0;
+  return Number(data?.balance) || 0;
 }
 
-async function deductInterviewCoins(userId, interviewId) {
+async function deductInterviewBalance(userId, interviewId) {
   let response;
 
   try {
-    response = await fetch(`${AUTH_SERVICE_URL}/internal/user-coins`, {
+    response = await fetch(`${AUTH_SERVICE_URL}/internal/deduct-balance`, {
       method: "POST",
 
       headers: {
         "Content-Type": "application/json",
         "x-user-id": userId.toString(),
+        "x-internal-service-secret": process.env.AUTH_INTERNAL_SECRET,
       },
 
       body: JSON.stringify({
-        coin: INTERVIEW_COMPLETION_COST,
+        amount: INTERVIEW_COMPLETION_COST,
         action: "interview-completion",
         transactionId: `interview:${interviewId.toString()}:completion`,
       }),
     });
   } catch (error) {
-    console.error("Auth Service coin request failed:", error);
+    console.error("Auth Service balance request failed:", error);
 
     throw new AppError(
-      "Unable to charge interview coins right now. Please try again.",
+      "Unable to deduct interview balance right now. Please try again.",
       503,
     );
   }
@@ -779,11 +781,11 @@ async function deductInterviewCoins(userId, interviewId) {
    * Auth Service returned a business error.
    *
    * Example:
-   * - insufficient coins
+   * - insufficient balance
    * - user not found
    */
   if (!response.ok) {
-    const message = data?.message || "Unable to charge interview coins.";
+    const message = data?.message || "Unable to deduct interview balance.";
 
     /*
      * Preserve expected 4xx business errors.
@@ -799,7 +801,7 @@ async function deductInterviewCoins(userId, interviewId) {
   }
 
   if (!data?.success) {
-    throw new AppError("Unable to charge interview coins.", 502);
+    throw new AppError("Unable to deduct interview balance.", 502);
   }
 
   return data;
@@ -807,18 +809,18 @@ async function deductInterviewCoins(userId, interviewId) {
 
 /*
  * =========================================================
- * FINALIZE + CHARGE
+ * FINALIZE + DEDUCT BALANCE
  * =========================================================
  *
  * IMPORTANT:
  *
- * Interview Service requests the coin deduction from the
+ * Interview Service requests the balance deduction from the
  * Auth Service before marking the interview as completed.
  *
- * The Auth Service owns the user's coin balance and handles
+ * The Auth Service owns the user's account balance and handles
  * the deduction/idempotency for the interview transaction.
  */
-async function finalizeInterviewWithCharge(
+async function finalizeInterviewAndDeductBalance(
   userId,
   interviewId,
   report,
@@ -849,7 +851,7 @@ async function finalizeInterviewWithCharge(
    * If another request already completed the interview,
    * return the existing report.
    *
-   * Do NOT charge again here.
+   * Do NOT deduct again here.
    * ---------------------------------------------------------
    */
   if (interview.status === "completed" && interview.finalizedAt) {
@@ -961,16 +963,16 @@ async function finalizeInterviewWithCharge(
    * Payment lifecycle.
    * ---------------------------------------------------------
    *
-   * If this interview was already charged during a previous
+   * If this interview was already deducted during a previous
    * attempt, NEVER call Auth Service again.
    *
    * This makes finalization retry-safe.
    * ---------------------------------------------------------
    */
-  if (interview.paymentStatus !== "charged") {
+  if (interview.paymentStatus !== "deducted") {
     /*
      * Reuse the existing transaction ID when the interview
-     * is already in "charging" state.
+     * is already in "deducting" state.
      *
      * This guarantees that retries belong to the same
      * payment transaction.
@@ -979,7 +981,7 @@ async function finalizeInterviewWithCharge(
       interview.paymentTransactionId ||
       `interview:${interviewId.toString()}:completion`;
 
-    interview.paymentStatus = "charging";
+    interview.paymentStatus = "deducting";
     interview.paymentTransactionId = paymentTransactionId;
 
     interview = await saveFinalizationDocument(
@@ -990,30 +992,30 @@ async function finalizeInterviewWithCharge(
     );
 
     /*
-     * Auth Service owns the actual coin deduction and
+     * Auth Service owns the actual balance deduction and
      * transaction idempotency.
      */
     try {
-      await deductInterviewCoins(userId, interviewId);
+      await deductInterviewBalance(userId, interviewId);
 
       /*
-       * Coins successfully deducted.
+       * balance successfully deducted.
        */
-      interview.paymentStatus = "charged";
+      interview.paymentStatus = "deducted";
     } catch (error) {
       /*
        * A 4xx response represents a business-level payment
-       * failure such as insufficient coins.
+       * failure such as insufficient balance.
        *
        * No successful deduction happened, so the interview
-       * must NOT remain stuck in "charging".
+       * must NOT remain stuck in "deducting".
        */
       if (
         error instanceof AppError &&
         error.statusCode >= 400 &&
         error.statusCode < 500
       ) {
-        interview.paymentStatus = "not-charged";
+        interview.paymentStatus = "not-deducted";
 
         interview.paymentTransactionId = null;
 
@@ -1030,7 +1032,7 @@ async function finalizeInterviewWithCharge(
           },
           {
             $set: {
-              paymentStatus: "not-charged",
+              paymentStatus: "not-deducted",
               paymentTransactionId: null,
               finalizationKey: null,
               finalizationStartedAt: null,
@@ -1062,9 +1064,9 @@ async function finalizeInterviewWithCharge(
     }
 
     /*
-     * Coins successfully deducted.
+     * balance successfully deducted.
      */
-    interview.paymentStatus = "charged";
+    interview.paymentStatus = "deducted";
   }
 
   /*
@@ -1075,7 +1077,7 @@ async function finalizeInterviewWithCharge(
    * another payment operation.
    * ---------------------------------------------------------
    */
-  if (interview.paymentStatus === "charged") {
+  if (interview.paymentStatus === "deducted") {
     interview.paymentTransactionId =
       interview.paymentTransactionId ||
       `interview:${interviewId.toString()}:completion`;
@@ -1246,7 +1248,7 @@ export const startInterview = async (userId, interviewData) => {
 
   if (balance < INTERVIEW_COMPLETION_COST) {
     throw new AppError(
-      `Not enough balance. You need at least ${INTERVIEW_COMPLETION_COST} coins to start the interview.`,
+      `Not enough balance. You need at least ${INTERVIEW_COMPLETION_COST} balance to start the interview.`,
       400,
     );
   }
@@ -1366,7 +1368,7 @@ export const startInterview = async (userId, interviewData) => {
      * Mark the interview as failed so we don't leave
      * an orphaned "created" interview in the database.
      *
-     * No coins are charged during interview start.
+     * No balance is deducted during interview start.
      */
     try {
       interview.status = "failed";
@@ -1399,7 +1401,7 @@ export const replaceActiveInterview = async (userId) => {
     // Never delete an interview whose payment lifecycle
     // has already started or completed.
     paymentStatus: {
-      $nin: ["charging", "charged"],
+      $nin: ["deducting", "deducted"],
     },
   });
 
@@ -1746,7 +1748,7 @@ export const jumpToQuestion = async (userId, interviewId, index) => {
  * Draft saving:
  * - does NOT submit the question
  * - does NOT call LLM
- * - does NOT charge coins
+ * - does NOT deduct balance
  * - only updates question.answer
  */
 export const saveDraftAnswer = async (
@@ -2183,7 +2185,7 @@ export const submitInterview = async (
      *
      * It must NOT:
      * - generate a report
-     * - charge interview coins
+     * - deduct interview balance
      * - become a completed interview
      * - appear as completed history
      */
@@ -2257,7 +2259,7 @@ export const submitInterview = async (
 
     /*
      * -----------------------------------------------------
-     * Finalize interview + charge coins.
+     * Finalize interview + deduct balance.
      * -----------------------------------------------------
      *
      * The deadline may have been reached while answer
@@ -2275,7 +2277,7 @@ export const submitInterview = async (
       ? "time-limit"
       : "completed";
 
-    const finalizedInterview = await finalizeInterviewWithCharge(
+    const finalizedInterview = await finalizeInterviewAndDeductBalance(
       userId,
       interviewId,
       report,
@@ -2313,7 +2315,7 @@ export const submitInterview = async (
      * Business errors
      * -----------------------------------------------------
      *
-     * Insufficient coins, invalid state, etc. should not
+     * Insufficient balance, invalid state, etc. should not
      * automatically turn the interview into server-error.
      */
     if (
@@ -2343,15 +2345,15 @@ export const submitInterview = async (
 
       /*
        * -------------------------------------------------------
-       * Payment is already charged.
+       * Payment is already deducted.
        *
        * NEVER abandon the interview.
        *
        * A later retry must finish the interview without
-       * charging the user again.
+       * deducting the user again.
        * -------------------------------------------------------
        */
-      if (currentInterview?.paymentStatus === "charged") {
+      if (currentInterview?.paymentStatus === "deducted") {
         throw new AppError(
           "Your interview payment was processed, but finalization is still pending. Please retry.",
           503,
@@ -2367,10 +2369,10 @@ export const submitInterview = async (
        * The same payment transaction can safely be retried.
        * -------------------------------------------------------
        */
-      if (currentInterview?.paymentStatus === "charging") {
+      if (currentInterview?.paymentStatus === "deducting") {
         /*
          * Payment may have succeeded remotely.
-         * Keep paymentStatus = "charging" and the same
+         * Keep paymentStatus = "deducting" and the same
          * transaction ID, but release the interview lock so
          * the next retry can continue the same idempotent
          * payment transaction.
@@ -2419,7 +2421,7 @@ export const submitInterview = async (
        * No payment has been processed.
        *
        * A genuine server-side failure can safely abandon the
-       * interview without charging coins.
+       * interview without deducting balance.
        * -------------------------------------------------------
        */
       if (currentInterview && currentInterview.status === "in-progress") {
@@ -2469,7 +2471,7 @@ export const submitInterview = async (
     }
 
     throw new AppError(
-      "We couldn't complete your interview due to a server error. Your interview has been ended without charging coins.",
+      "We couldn't complete your interview due to a server error. Your interview has been ended without deducting balance.",
       502,
     );
   }
@@ -2485,7 +2487,7 @@ export const submitInterview = async (
  * - answered pending questions are evaluated
  * - unanswered questions remain Not Answered
  * - an interview with no evaluated answers is abandoned
- * - an interview with evaluated answers is finalized and charged
+ * - an interview with evaluated answers is finalized and deducted
  */
 
 async function expireInterviewIfNeeded(interview) {
@@ -2680,7 +2682,7 @@ async function expireInterviewIfNeeded(interview) {
      *
      * This interview must:
      * - NOT generate a report
-     * - NOT charge coins
+     * - NOT deduct balance
      * - NOT become completed
      * - NOT appear as completed history
      * -----------------------------------------------------
@@ -2757,10 +2759,10 @@ async function expireInterviewIfNeeded(interview) {
 
     /*
      * -----------------------------------------------------
-     * Finalize + charge exactly once.
+     * FINALIZE + DEDUCT BALANCE exactly once.
      * -----------------------------------------------------
      */
-    await finalizeInterviewWithCharge(
+    await finalizeInterviewAndDeductBalance(
       latestInterview.userId,
       latestInterview._id,
       report,
@@ -2785,12 +2787,12 @@ async function expireInterviewIfNeeded(interview) {
      *
      * Preserve whatever was already successfully evaluated.
      *
-     * Business errors such as insufficient coins are propagated
+     * Business errors such as insufficient balance is propagated
      * to the caller and are NOT converted into server-error
      * abandonment.
      *
      * Actual evaluation/server failures abandon the interview
-     * without charging coins.
+     * without deducting balance.
      */
     if (
       error instanceof AppError &&
@@ -2809,9 +2811,9 @@ async function expireInterviewIfNeeded(interview) {
          *
          * NEVER abandon the interview.
          * A later retry must finish finalization without
-         * charging the user again.
+         * deducting the user again.
          */
-        if (currentInterview.paymentStatus === "charging") {
+        if (currentInterview.paymentStatus === "deducting") {
           const recoveredInterview = await Interview.findOneAndUpdate(
             {
               _id: interview._id,
@@ -2912,7 +2914,7 @@ export const quitInterview = async (userId, interviewId) => {
       status: "in-progress",
       $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
       paymentStatus: {
-        $nin: ["charging", "charged"],
+        $nin: ["deducting", "deducted"],
       },
     },
     {
@@ -2943,8 +2945,8 @@ export const quitInterview = async (userId, interviewId) => {
 
   if (
     existingInterview.finalizationKey ||
-    existingInterview.paymentStatus === "charging" ||
-    existingInterview.paymentStatus === "charged"
+    existingInterview.paymentStatus === "deducting" ||
+    existingInterview.paymentStatus === "deducted"
   ) {
     throw new AppError(
       "Interview finalization is already in progress. Please wait for it to complete.",
@@ -2997,8 +2999,8 @@ export const deleteInterview = async (userId, interviewId) => {
 
   if (
     interview.status === "in-progress" ||
-    interview.paymentStatus === "charging" ||
-    interview.paymentStatus === "charged" ||
+    interview.paymentStatus === "deducting" ||
+    interview.paymentStatus === "deducted" ||
     interview.finalizationKey
   ) {
     throw new AppError(

@@ -134,8 +134,9 @@ actually occurred.
 Use resources that match the particular topic. Avoid overwhelming
 the learner with many redundant resources for the same concept.
 
-Where a reliable resource URL is not known, omit the URL rather than
-inventing one.
+Only include a URL when you know it is relevant to the resource.
+Never use example.com, placeholder URLs, or guessed URLs.
+If uncertain, omit the URL field.
 
 ### 6. Package depth
 
@@ -229,7 +230,7 @@ Use this structure:
           "resources": [
             {
               "title": "Resource title",
-              "url": "https://example.com/replace-with-real-resource",
+              "url": "https://developer.mozilla.org/",
               "type": "official_docs",
               "purpose": "What this resource helps the learner understand"
             }

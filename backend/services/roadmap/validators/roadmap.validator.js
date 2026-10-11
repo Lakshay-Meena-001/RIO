@@ -1,4 +1,3 @@
-
 import {
   ROADMAP_PACKAGE,
   ROADMAP_SCHEMA_VERSION,
@@ -37,7 +36,9 @@ function isNonEmptyString(value) {
 }
 
 function isStringArray(value) {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === "string")
+  );
 }
 
 function requireString(value, path, errors) {
@@ -68,6 +69,28 @@ function checkUniqueIds(items, path, errors) {
     }
 
     ids.add(item.id);
+  });
+}
+
+function checkUniqueTopicIdsAcrossPhases(phases, errors) {
+  if (!Array.isArray(phases)) return;
+
+  const topicIds = new Set();
+
+  phases.forEach((phase, phaseIndex) => {
+    if (!Array.isArray(phase?.topics)) return;
+
+    phase.topics.forEach((topic, topicIndex) => {
+      if (!isNonEmptyString(topic?.id)) return;
+
+      if (topicIds.has(topic.id)) {
+        errors.push(
+          `phases[${phaseIndex}].topics[${topicIndex}].id duplicates topic ID "${topic.id}" used elsewhere in the roadmap.`,
+        );
+      } else {
+        topicIds.add(topic.id);
+      }
+    });
   });
 }
 
@@ -149,12 +172,7 @@ function validateTopic(topic, path, errors) {
 
   validateStringArrayFields(
     topic,
-    [
-      "prerequisites",
-      "subtopics",
-      "practiceTasks",
-      "completionCriteria",
-    ],
+    ["prerequisites", "subtopics", "practiceTasks", "completionCriteria"],
     path,
     errors,
   );
@@ -163,10 +181,7 @@ function validateTopic(topic, path, errors) {
     if (!Array.isArray(topic.resources)) {
       errors.push(`${path}.resources must be an array.`);
     } else {
-      if (
-        topic.resources.length >
-        ROADMAP_GENERATION.MAX_RESOURCES_PER_TOPIC
-      ) {
+      if (topic.resources.length > ROADMAP_GENERATION.MAX_RESOURCES_PER_TOPIC) {
         errors.push(
           `${path}.resources exceeds the maximum of ${ROADMAP_GENERATION.MAX_RESOURCES_PER_TOPIC}.`,
         );
@@ -232,10 +247,7 @@ function validatePhaseContent(phase, expected = {}) {
     errors.push("Generated phase ID does not match the requested phase.");
   }
 
-  if (
-    Number.isInteger(expected.order) &&
-    phase.order !== expected.order
-  ) {
+  if (Number.isInteger(expected.order) && phase.order !== expected.order) {
     errors.push("Generated phase order does not match the requested order.");
   }
 
@@ -318,9 +330,7 @@ export function validateRoadmapRequest(input) {
   requireString(input.roadmapId, "roadmapId", errors);
 
   if (!VALID_PACKAGES.has(input.packageId)) {
-    errors.push(
-      `packageId must be one of: ${[...VALID_PACKAGES].join(", ")}.`,
-    );
+    errors.push(`packageId must be one of: ${[...VALID_PACKAGES].join(", ")}.`);
   }
 
   return {
@@ -356,10 +366,7 @@ export function validateGeneratedBlueprint(blueprint, expected = {}) {
     errors.push("Blueprint packageId is invalid.");
   }
 
-  if (
-    expected.packageId &&
-    blueprint.packageId !== expected.packageId
-  ) {
+  if (expected.packageId && blueprint.packageId !== expected.packageId) {
     errors.push("Blueprint packageId does not match the request.");
   }
 
@@ -447,10 +454,7 @@ export function validateGeneratedRoadmap(roadmap, expected = {}) {
   } else {
     requireString(roadmap.package.id, "package.id", errors);
 
-    if (
-      expected.packageId &&
-      roadmap.package.id !== expected.packageId
-    ) {
+    if (expected.packageId && roadmap.package.id !== expected.packageId) {
       errors.push("Generated package does not match the requested package.");
     }
   }
@@ -471,6 +475,8 @@ export function validateGeneratedRoadmap(roadmap, expected = {}) {
 
     checkUniqueIds(roadmap.phases, "phases", errors);
 
+    checkUniqueTopicIdsAcrossPhases(roadmap.phases, errors);
+
     roadmap.phases.forEach((phase, index) => {
       if (!isObject(phase)) {
         errors.push(`phases[${index}] must be an object.`);
@@ -483,7 +489,9 @@ export function validateGeneratedRoadmap(roadmap, expected = {}) {
           order: index,
         });
 
-        errors.push(...result.errors.map((error) => `phases[${index}]: ${error}`));
+        errors.push(
+          ...result.errors.map((error) => `phases[${index}]: ${error}`),
+        );
       } else if (
         phase.generationStatus !== undefined &&
         !VALID_GENERATION_STATUSES.has(phase.generationStatus)

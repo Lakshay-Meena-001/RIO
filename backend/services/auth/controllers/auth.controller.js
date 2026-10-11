@@ -6,6 +6,9 @@ import { app } from "../config/firebase.js";
 import User from "../models/user.model.js";
 import redis from "../../../shared/redis/redis.js";
 
+import mongoose from "mongoose";
+import BalanceTransaction from "../models/balance-transaction.model.js";
+
 const SESSION_TTL = 7 * 24 * 60 * 60; // 7 days
 
 const normalizeEmail = (email) => {
@@ -35,8 +38,37 @@ const buildSessionData = (user) => ({
   name: user.name,
   email: user.email,
   phoneNumber: user.phoneNumber,
-  coins: Number(user.coins) || 0,
+  balance: Number(user.balance),
   profileCompleted: user.profileCompleted,
+});
+
+/*
+ * Return only user fields that are safe for API responses.
+ * Never expose Firebase identity or internal transaction history.
+ */
+const buildPublicUser = (user) => ({
+  _id: user._id.toString(),
+  name: user.name,
+  email: user.email,
+  phoneNumber: user.phoneNumber,
+  profileCompleted: user.profileCompleted,
+
+  headline: user.headline,
+  bio: user.bio,
+  location: user.location,
+  profileImage: user.profileImage,
+
+  currentRole: user.currentRole,
+  targetRole: user.targetRole,
+  skills: user.skills,
+
+  linkedinUrl: user.linkedinUrl,
+  githubUrl: user.githubUrl,
+  portfolioUrl: user.portfolioUrl,
+
+  balance: Number(user.balance),
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
 });
 
 /*
@@ -269,7 +301,7 @@ export const googleAuth = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      user,
+      user: buildPublicUser(user),
     });
   } catch (error) {
     console.error("Firebase Authentication Error:", error);
@@ -369,14 +401,14 @@ export const completeProfile = async (req, res) => {
 
     /*
      * Rebuild the Redis session from the saved MongoDB user.
-     * This automatically keeps coins synchronized as well.
+     * This automatically keeps balance synchronized as well.
      */
     await saveSession(sessionId, user);
 
     return res.status(200).json({
       success: true,
       message: "Account setup completed successfully.",
-      user,
+      user: buildPublicUser(user),
     });
   } catch (error) {
     console.error("Account setup failed:", error);
@@ -388,13 +420,39 @@ export const completeProfile = async (req, res) => {
   }
 };
 
-// Destroy the Redis session and remove the browser cookie.
+// Destroy the Redis session, remove it from the user's
+// session index, and clear the browser cookie.
 export const logout = async (req, res) => {
   try {
     const sessionId = req.cookies?.session;
 
     if (sessionId) {
-      await redis.del(getSessionKey(sessionId));
+      const sessionKey = getSessionKey(sessionId);
+      const rawSession = await redis.get(sessionKey);
+
+      let userId = null;
+
+      if (rawSession) {
+        try {
+          const sessionData = JSON.parse(rawSession);
+          userId = sessionData.userId;
+        } catch {
+          // A malformed session must not remain active.
+          console.warn("Invalid session data encountered during logout.");
+        }
+      }
+
+      if (userId) {
+        // Remove the session and its index entry together.
+        await redis
+          .multi()
+          .del(sessionKey)
+          .srem(getUserSessionsKey(userId), sessionId)
+          .exec();
+      } else {
+        // The session may be missing or its data may be invalid.
+        await redis.del(sessionKey);
+      }
     }
 
     res.clearCookie("session", {
@@ -408,7 +466,7 @@ export const logout = async (req, res) => {
       message: "Logged out successfully.",
     });
   } catch (error) {
-    console.error("Logout Error:", error);
+    console.error("Logout failed:", error.message);
 
     return res.status(500).json({
       success: false,
@@ -418,12 +476,11 @@ export const logout = async (req, res) => {
 };
 
 /*
- * Deduct coins from the authenticated user.
- *
+ * Deduct balance from the authenticated user.
  * MongoDB is the source of truth.
  * Redis session is synchronized only after the MongoDB update succeeds.
  */
-export const useCoins = async (req, res) => {
+export const useBalance = async (req, res) => {
   try {
     const authenticatedSession = await getAuthenticatedSession(req);
 
@@ -436,17 +493,21 @@ export const useCoins = async (req, res) => {
 
     const { sessionId, data: sessionData } = authenticatedSession;
 
-    const { coin, action } = req.body;
+    const { amount, action } = req.body;
+    const balanceAmount = Number(amount);
 
-    const coinAmount = Number(coin);
+    const normalizedAction =
+      typeof action === "string" && action.trim()
+        ? action.trim().slice(0, 100)
+        : null;
 
     /*
-     * Coins must always be a positive integer.
+     * Amount must always be a positive safe integer.
      */
-    if (!Number.isInteger(coinAmount) || coinAmount <= 0) {
+    if (!Number.isSafeInteger(balanceAmount) || balanceAmount <= 0) {
       return res.status(400).json({
         success: false,
-        message: "Coin amount must be a positive integer.",
+        message: "Amount must be a positive safe integer.",
       });
     }
 
@@ -459,14 +520,10 @@ export const useCoins = async (req, res) => {
     const updatedUser = await User.findOneAndUpdate(
       {
         _id: sessionData.userId,
-        coins: {
-          $gte: coinAmount,
-        },
+        balance: { $gte: balanceAmount },
       },
       {
-        $inc: {
-          coins: -coinAmount,
-        },
+        $inc: { balance: -balanceAmount },
       },
       {
         returnDocument: "after",
@@ -477,11 +534,11 @@ export const useCoins = async (req, res) => {
     /*
      * No document means either:
      * 1. User does not exist, or
-     * 2. User does not have enough coins.
+     * 2. User does not have enough balance.
      */
     if (!updatedUser) {
       const currentUser = await User.findById(sessionData.userId).select(
-        "coins",
+        "balance",
       );
 
       if (!currentUser) {
@@ -493,8 +550,8 @@ export const useCoins = async (req, res) => {
 
       return res.status(400).json({
         success: false,
-        message: "Not enough coins.",
-        coins: Number(currentUser.coins) || 0,
+        message: "Insufficient balance.",
+        balance: Number(currentUser.balance),
       });
     }
 
@@ -503,61 +560,78 @@ export const useCoins = async (req, res) => {
      * Now synchronize every active Redis session
      * with the new authoritative balance.
      */
-    const sessionIds = await redis.smembers(
-      getUserSessionsKey(sessionData.userId),
-    );
+    try {
+      const sessionIds = await redis.smembers(
+        getUserSessionsKey(sessionData.userId),
+      );
 
-    const sessionDataJson = JSON.stringify(buildSessionData(updatedUser));
+      const sessionDataJson = JSON.stringify(buildSessionData(updatedUser));
 
-    await Promise.all(
-      sessionIds.map((activeSessionId) =>
-        redis.set(
-          getSessionKey(activeSessionId),
-          sessionDataJson,
-          "EX",
-          SESSION_TTL,
+      const results = await Promise.allSettled(
+        sessionIds.map((activeSessionId) =>
+          redis.set(
+            getSessionKey(activeSessionId),
+            sessionDataJson,
+            "EX",
+            SESSION_TTL,
+          ),
         ),
-      ),
-    );
+      );
+
+      if (results.some((result) => result.status === "rejected")) {
+        console.error(
+          "Some Redis sessions could not be synchronized after balance deduction.",
+        );
+      }
+    } catch (redisError) {
+      console.error(
+        "Redis session synchronization failed after balance deduction:",
+        redisError.message,
+      );
+    }
 
     return res.status(200).json({
       success: true,
-      message: "Coins updated successfully.",
-      action: action || null,
-      coins: Number(updatedUser.coins) || 0,
+      message: "Balance updated successfully.",
+      action: normalizedAction,
+      balance: Number(updatedUser.balance),
     });
   } catch (error) {
-    console.error("Coin deduction failed:", error);
+    console.error("Balance deduction failed:", error);
 
     return res.status(500).json({
       success: false,
-      message: "Unable to update coins. Please try again.",
+      message: "Unable to update balance. Please try again.",
     });
   }
 };
 
-export const deductCoinsInternal = async (req, res) => {
+/**
+ * Deduct balance for an authenticated internal service request.
+ *
+ * MongoDB is the source of truth.
+ * Redis sessions are synchronized after the transaction commits.
+ */
+
+export const deductBalanceInternal = async (req, res) => {
+  const userId = req.internalUserId;
+
+  const transactionId =
+    typeof req.body?.transactionId === "string"
+      ? req.body.transactionId.trim()
+      : "";
+
+  const { amount, action } = req.body ?? {};
+  const balanceAmount = Number(amount);
+
+  const normalizedAction =
+    typeof action === "string" && action.trim()
+      ? action.trim().slice(0, 100)
+      : "balance-deduction";
+
+  let mongoSession;
+
   try {
-    /*
-     * Interview Service se authenticated internal request.
-     * Gateway/user session yahan browser cookie ke through nahi aati,
-     * isliye user identity x-user-id header se receive hogi.
-     */
-    const userId = req.headers["x-user-id"];
-
-    const { coin, action, transactionId } = req.body;
-
-    if (!transactionId || typeof transactionId !== "string") {
-      return res.status(400).json({
-        success: false,
-        message: "Transaction ID is required.",
-      });
-    }
-
-    const coinAmount = Number(coin);
-    /*
-     * User identity required.
-     */
     if (!userId) {
       return res.status(401).json({
         success: false,
@@ -565,122 +639,238 @@ export const deductCoinsInternal = async (req, res) => {
       });
     }
 
-    /*
-     * Coin amount must be a positive integer.
-     */
-    if (!Number.isInteger(coinAmount) || coinAmount <= 0) {
+    if (!transactionId || transactionId.length > 200) {
       return res.status(400).json({
         success: false,
-        message: "Coin amount must be a positive integer.",
+        message: "A valid transaction ID is required.",
       });
     }
 
-    /*
-     * Atomic MongoDB deduction.
-     *
-     * Important:
-     * coins >= coinAmount
-     *
-     * This guarantees that coins cannot become negative
-     * because of a normal concurrent deduction.
-     */
-    const updatedUser = await User.findOneAndUpdate(
-      {
-        _id: userId,
-        coins: {
-          $gte: coinAmount,
-        },
-        processedCoinTransactions: {
-          $ne: transactionId,
-        },
-      },
-      {
-        $inc: {
-          coins: -coinAmount,
-        },
-        $addToSet: {
-          processedCoinTransactions: transactionId,
-        },
-      },
-      {
-        returnDocument: "after",
-        runValidators: true,
-      },
-    );
+    if (!Number.isSafeInteger(balanceAmount) || balanceAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be a positive safe integer.",
+      });
+    }
 
-    /*
-     * No document means either:
-     *
-     * 1. User does not exist
-     * 2. User does not have enough coins
-     */
-    if (!updatedUser) {
-      const currentUser = await User.findById(userId).select(
-        "coins processedCoinTransactions",
-      );
+    let outcome;
+
+    mongoSession = await mongoose.startSession();
+
+    await mongoSession.withTransaction(async () => {
+      // 1. Check whether this transaction was already processed.
+      const existingTransaction = await BalanceTransaction.findOne({
+        userId,
+        transactionId,
+      }).session(mongoSession);
+
+      if (existingTransaction) {
+        // A transaction ID cannot be reused with different details.
+        if (
+          existingTransaction.amount !== balanceAmount ||
+          existingTransaction.action !== normalizedAction
+        ) {
+          outcome = { type: "conflict" };
+          return;
+        }
+
+        const currentUser = await User.findById(userId)
+          .select("balance")
+          .session(mongoSession);
+
+        outcome = currentUser
+          ? {
+              type: "already-processed",
+              balance: Number(currentUser.balance),
+            }
+          : { type: "user-not-found" };
+
+        return;
+      }
+
+      // 2. Read the current account balance.
+      const currentUser = await User.findById(userId)
+        .select("balance")
+        .session(mongoSession);
 
       if (!currentUser) {
-        return res.status(404).json({
-          success: false,
-          message: "User account not found.",
-        });
+        outcome = { type: "user-not-found" };
+        return;
       }
 
-      if (currentUser.processedCoinTransactions?.includes(transactionId)) {
-        return res.status(200).json({
-          success: true,
-          message: "Coin transaction already processed.",
-          action: action || null,
-          coins: Number(currentUser.coins) || 0,
-          alreadyProcessed: true,
-        });
+      // 3. Deduct atomically only if sufficient balance exists.
+      const updatedUser = await User.findOneAndUpdate(
+        {
+          _id: userId,
+          balance: { $gte: balanceAmount },
+        },
+        {
+          $inc: { balance: -balanceAmount },
+        },
+        {
+          new: true,
+          runValidators: true,
+          session: mongoSession,
+        },
+      );
+
+      if (!updatedUser) {
+        outcome = {
+          type: "insufficient-balance",
+          balance: Number(currentUser.balance),
+        };
+        return;
       }
 
-      return res.status(400).json({
+      // 4. Record the transaction in the same MongoDB transaction.
+      await BalanceTransaction.create(
+        [
+          {
+            userId,
+            transactionId,
+            amount: balanceAmount,
+            action: normalizedAction,
+            balanceAfter: Number(updatedUser.balance),
+          },
+        ],
+        { session: mongoSession },
+      );
+
+      outcome = {
+        type: "success",
+        balance: Number(updatedUser.balance),
+      };
+    });
+
+    if (!outcome) {
+      throw new Error("Balance transaction completed without an outcome.");
+    }
+
+    if (outcome.type === "conflict") {
+      return res.status(409).json({
         success: false,
-        message: "Not enough coins.",
-        coins: Number(currentUser.coins) || 0,
+        message: "Transaction ID was already used with different details.",
       });
     }
 
-    /*
-     * MongoDB is authoritative.
-     * After a successful deduction, synchronize
-     * every active Redis session of this user.
-     */
-    const sessionIds = await redis.smembers(getUserSessionsKey(userId));
+    if (outcome.type === "user-not-found") {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
 
-    if (sessionIds.length > 0) {
-      const sessionData = JSON.stringify(buildSessionData(updatedUser));
+    if (outcome.type === "insufficient-balance") {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient balance.",
+        balance: outcome.balance,
+      });
+    }
 
-      await Promise.all(
-        sessionIds.map((sessionId) =>
-          redis.set(getSessionKey(sessionId), sessionData, "EX", SESSION_TTL),
-        ),
+    // 5. MongoDB is authoritative; synchronize Redis sessions afterward.
+    try {
+      const sessionIds = await redis.smembers(getUserSessionsKey(userId));
+
+      if (sessionIds.length > 0) {
+        const latestUser = await User.findById(userId);
+
+        if (latestUser) {
+          const sessionData = JSON.stringify(buildSessionData(latestUser));
+
+          const results = await Promise.allSettled(
+            sessionIds.map((sessionId) =>
+              redis.set(
+                getSessionKey(sessionId),
+                sessionData,
+                "EX",
+                SESSION_TTL,
+              ),
+            ),
+          );
+
+          if (results.some((result) => result.status === "rejected")) {
+            console.error(
+              "Some Redis sessions could not be synchronized after balance deduction.",
+            );
+          }
+        }
+      }
+    } catch (redisError) {
+      console.error(
+        "Redis session synchronization failed after balance deduction:",
+        redisError.message,
       );
     }
-    /*
-     * MongoDB is the authoritative source for the balance.
-     */
+
+    const alreadyProcessed = outcome.type === "already-processed";
+
     return res.status(200).json({
       success: true,
-      message: "Coins deducted successfully.",
-      action: action || null,
-      coins: Number(updatedUser.coins) || 0,
+      message: alreadyProcessed
+        ? "Balance transaction already processed."
+        : "Balance deducted successfully.",
+      action: normalizedAction,
+      balance: outcome.balance,
+      ...(alreadyProcessed ? { alreadyProcessed: true } : {}),
     });
   } catch (error) {
-    console.error("Internal coin deduction failed:", error);
+    // Recover a concurrent duplicate transaction safely.
+    try {
+      if (userId && transactionId) {
+        const existingTransaction = await BalanceTransaction.findOne({
+          userId,
+          transactionId,
+        });
+
+        if (existingTransaction) {
+          if (
+            existingTransaction.amount !== balanceAmount ||
+            existingTransaction.action !== normalizedAction
+          ) {
+            return res.status(409).json({
+              success: false,
+              message:
+                "Transaction ID was already used with different details.",
+            });
+          }
+
+          const currentUser = await User.findById(userId).select("balance");
+
+          if (currentUser) {
+            return res.status(200).json({
+              success: true,
+              message: "Balance transaction already processed.",
+              action: existingTransaction.action,
+              balance: Number(currentUser.balance),
+              alreadyProcessed: true,
+            });
+          }
+        }
+      }
+    } catch (recoveryError) {
+      console.error(
+        "Balance transaction recovery lookup failed:",
+        recoveryError.message,
+      );
+    }
+
+    console.error("Internal balance deduction failed:", error.message);
 
     return res.status(500).json({
       success: false,
-      message: "Unable to update coins. Please try again.",
+      message: "Unable to update balance. Please try again.",
     });
+  } finally {
+    if (mongoSession) {
+      await mongoSession.endSession();
+    }
   }
 };
 
 export const getUserBalanceInternal = async (req, res) => {
   try {
-    const userId = req.headers["x-user-id"];
+    const userId = req.internalUserId;
 
     if (!userId) {
       return res.status(401).json({
@@ -689,7 +879,7 @@ export const getUserBalanceInternal = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId).select("coins");
+    const user = await User.findById(userId).select("balance");
 
     if (!user) {
       return res.status(404).json({
@@ -700,7 +890,7 @@ export const getUserBalanceInternal = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      coins: Number(user.coins) || 0,
+      balance: Number(user.balance),
     });
   } catch (error) {
     console.error("Internal user balance lookup failed:", error);

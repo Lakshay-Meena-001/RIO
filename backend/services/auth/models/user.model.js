@@ -114,18 +114,15 @@ const userSchema = new mongoose.Schema(
       maxlength: 300,
     },
 
-    // Credits used by paid/AI features.
-    // Actual credit transactions should be maintained separately
-    // instead of relying only on this balance.
-    coins: {
+     // User's available account balance.
+    balance: {
       type: Number,
       default: 1500,
       min: 0,
-    },
-
-    processedCoinTransactions: {
-      type: [String],
-      default: [],
+      validate: {
+        validator: Number.isSafeInteger,
+        message: "Balance must be a safe integer.",
+      },
     },
   },
   {

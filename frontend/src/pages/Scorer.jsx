@@ -49,7 +49,7 @@ import {
 import api from "../utils/axios";
 import { setResume } from "../redux/resumeSlice";
 import { getResume } from "../api/resume.api";
-import { deductCoins } from "../api/user.api";
+import { deductBalance } from "../api/user.api";
 import Sidebar from "../components/SideBar";
 
 const MAX_FILE_SIZE = 20 * 1024 * 1024;
@@ -64,7 +64,7 @@ const normalizeExternalUrl = (url) => {
    COIN NOTIFICATION
 ========================================================= */
 
-const CoinNotification = ({ notification, onClose }) => {
+const BalanceNotification = ({ notification, onClose }) => {
   useEffect(() => {
     if (!notification) return;
 
@@ -107,7 +107,7 @@ const CoinNotification = ({ notification, onClose }) => {
             {isSuccess ? (
               <>
                 <p className="mt-1 text-xs leading-5 text-white/50">
-                  {notification.deducted} coins deducted.
+                  {notification.deducted} deducted from your balance.
                 </p>
                 <p className="text-xs leading-5 text-white/70">
                   Remaining balance: {notification.balance}
@@ -116,10 +116,10 @@ const CoinNotification = ({ notification, onClose }) => {
             ) : (
               <>
                 <p className="mt-1 text-xs leading-5 text-white/50">
-                  You need {notification.required} coins to use this service.
+                  You need {notification.required} to use this service.
                 </p>
                 <p className="text-xs leading-5 text-white/70">
-                  Current balance: {notification.balance} coins.
+                  Current balance: {notification.balance}.
                 </p>
                 <p className="text-xs leading-5 text-white/40">
                   Please recharge your balance.
@@ -209,11 +209,11 @@ const Scorer = ({ user, setUser }) => {
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [coinNotification, setCoinNotification] = useState(null);
+  const [balanceNotification, setBalanceNotification] = useState(null);
   const [analyzingAnother, setAnalyzingAnother] = useState(false);
 
-  const showCoinNotification = (type, data) => {
-    setCoinNotification({ type, ...data });
+  const showBalanceNotification = (type, data) => {
+    setBalanceNotification({ type, ...data });
   };
 
   const hasResult = Boolean(resume?.analysis);
@@ -269,10 +269,10 @@ const Scorer = ({ user, setUser }) => {
 
     // Client-side balance check is only a UX guard.
     // The backend performs the authoritative atomic deduction.
-    const currentBalance = Number(user?.coins ?? 0);
+    const currentBalance = Number(user?.balance ?? 0);
 
     if (currentBalance < SCORER_COST) {
-      showCoinNotification("insufficient", {
+      showBalanceNotification("insufficient", {
         required: SCORER_COST,
         balance: currentBalance,
       });
@@ -286,7 +286,7 @@ const Scorer = ({ user, setUser }) => {
       formData.append("resume", file);
 
       // 1. Analyze the resume first.
-      // Coins are NOT deducted if the analysis fails.
+      // balance are NOT deducted if the analysis fails.
       const response = await api.post("/api/resume/upload", formData);
 
       if (!response?.data?.success) {
@@ -301,34 +301,36 @@ const Scorer = ({ user, setUser }) => {
         throw new Error("Resume was analyzed but could not be loaded.");
       }
 
-      // 3. Deduct coins only after successful analysis.
+      // 3. Deduct balance only after successful analysis.
       // Backend/MongoDB is authoritative and performs an atomic check.
-      const coinResponse = await deductCoins({
-        coin: SCORER_COST,
+      const balanceResponse = await deductBalance({
+        amount: SCORER_COST,
         action: "resume_scorer",
       });
 
-      if (!coinResponse?.success) {
+      if (!balanceResponse?.success) {
         throw new Error(
-          coinResponse?.message || "Unable to update your coin balance.",
+          balanceResponse?.message || "Unable to update your balance.",
         );
       }
 
-      const newBalance = Number(
-        coinResponse?.coins ?? Math.max(currentBalance - SCORER_COST, 0),
-      );
+      const newBalance = Number(balanceResponse.balance);
+
+      if (!Number.isSafeInteger(newBalance) || newBalance < 0) {
+        throw new Error("The server returned an invalid balance.");
+      }
 
       // 4. Keep the shared user state in sync so the sidebar updates.
       setUser((previousUser) => ({
         ...previousUser,
-        coins: newBalance,
+        balance: newBalance,
       }));
 
       // 5. Only show the result after both analysis and coin deduction succeed.
       dispatch(setResume(resumeData));
       setAnalyzingAnother(false);
 
-      showCoinNotification("success", {
+      showBalanceNotification("success", {
         deducted: SCORER_COST,
         balance: newBalance,
       });
@@ -363,9 +365,9 @@ const Scorer = ({ user, setUser }) => {
 
   return (
     <>
-      <CoinNotification
-        notification={coinNotification}
-        onClose={() => setCoinNotification(null)}
+      <BalanceNotification
+        notification={balanceNotification}
+        onClose={() => setBalanceNotification(null)}
       />
 
       <div className="relative min-h-screen w-full max-w-full overflow-x-hidden overflow-y-visible bg-[#17191C] text-white">
@@ -479,7 +481,7 @@ const Scorer = ({ user, setUser }) => {
                     clearFile={clearFile}
                     handleDrop={handleDrop}
                     handleUpload={handleUpload}
-                    coinBalance={Number(user?.coins ?? 0)}
+                    balance={Number(user?.balance ?? 0)}
                     onBack={() => {
                       setAnalyzingAnother(false);
                       clearFile();
@@ -519,7 +521,7 @@ const UploadView = ({
   clearFile,
   handleDrop,
   handleUpload,
-  coinBalance,
+  balance,
   onBack,
 }) => {
   return (
@@ -749,9 +751,9 @@ const UploadView = ({
                   </button>
 
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] text-white/30">
-                    <span>Cost: {SCORER_COST} coins</span>
+                    <span>Cost: {SCORER_COST} </span>
                     <span className="text-white/15">•</span>
-                    <span>Balance: {coinBalance} coins</span>
+                    <span>Balance: {balance} </span>
                   </div>
                 </motion.div>
               )}

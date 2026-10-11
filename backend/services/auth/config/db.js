@@ -1,15 +1,39 @@
 import mongoose from "mongoose";
 
-export const connectDB = async () => {
+const connectDB = async () => {
+  const mongoUrl = process.env.MONGODB_URL?.trim();
+
+  // MongoDB is required before the Auth Service can start.
+  if (!mongoUrl) {
+    throw new Error(
+      "MONGODB_URL is missing. Configure it in the Auth Service environment.",
+    );
+  }
+
   try {
-    // MongoDB connection is required before starting the service.
-    await mongoose.connect(process.env.MONGODB_URL);
+    await mongoose.connect(mongoUrl);
 
-    console.log("Connected to MongoDB");
+    console.log("Auth Service: MongoDB connected successfully.");
   } catch (error) {
-    console.error("MongoDB connection failed:", error);
+    console.error("Auth Service: MongoDB connection failed.", error.message);
 
-    // Re-throw so the service startup can handle the failure.
     throw error;
   }
 };
+
+const disconnectDB = async () => {
+  try {
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.disconnect();
+      console.log("Auth Service: MongoDB disconnected successfully.");
+    }
+  } catch (error) {
+    console.error("Auth Service: MongoDB disconnection failed.", error.message);
+
+    throw error;
+  }
+};
+
+export { connectDB, disconnectDB };
+
+export default connectDB;
