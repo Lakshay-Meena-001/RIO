@@ -5,9 +5,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import RoadmapDetailPage from "./RoadmapDetailPage.jsx";
 
 import {
+  FiArrowLeft,
   FiArrowRight,
   FiBookOpen,
-  FiMenu,
   FiPlus,
   FiRefreshCw,
   FiSearch,
@@ -62,7 +62,7 @@ const formatDate = (value) => {
 };
 
 const FLOATING_SIDEBAR =
-  "absolute inset-y-5 w-[min(282px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[18px] border border-white/[0.10] bg-[#111214] shadow-[0_24px_80px_rgba(0,0,0,.30)]";
+  "absolute inset-y-5 w-[min(282px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[18px] border border-white/[0.11] bg-[#111315]/90 shadow-[0_22px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl";
 
 function ProgressRing({ value }) {
   const radius = 28;
@@ -135,7 +135,7 @@ function FloatingProgressSidebar({
 
   return (
     <aside
-      className={`${FLOATING_SIDEBAR} right-4 z-30 hidden lg:inset-y-5 lg:right-5 lg:flex`}
+      className={`${FLOATING_SIDEBAR} !border-transparent !bg-transparent !shadow-none right-4 z-30 hidden lg:inset-y-5 lg:right-5 lg:flex`}
     >
       <div className="min-h-0 flex-1 overflow-y-auto p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex items-start justify-between gap-3">
@@ -595,30 +595,31 @@ export default function RoadmapHistoryPage() {
   }, [roadmaps, search]);
 
   return (
-    <div className="rio-roadmap-history fixed inset-0 overflow-hidden bg-[#111214] text-white">
+    <div className="rio-roadmap-history fixed inset-0 overflow-hidden bg-[radial-gradient(ellipse_at_48%_0%,rgba(255,255,255,0.055),transparent_38%),#101113] text-white">
       <style>{`
-
-
-
         @keyframes roadmapEnter { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-
-
-
         .rio-roadmap-history { animation: roadmapEnter 300ms cubic-bezier(.22,1,.36,1); }
-
-
-
         .roadmap-history-item { animation: roadmapEnter 260ms both; }
-
-
-
         @media (prefers-reduced-motion: reduce) { .rio-roadmap-history, .roadmap-history-item { animation: none !important; transition: none !important; } }
-
-
-
       `}</style>
 
-      <div className="relative flex h-full min-h-0">
+      <div className="pointer-events-none absolute inset-0">
+        <div
+          className="absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 70% 55% at 88% 4%, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.025) 42%, transparent 72%), radial-gradient(ellipse 65% 55% at 0% 92%, rgba(255,255,255,0.035) 0%, transparent 70%), linear-gradient(135deg, #191b1e 0%, #17191c 48%, #141619 100%)",
+          }}
+        />
+        <div
+          className="absolute inset-0 opacity-[0.018] mix-blend-soft-light"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E\")",
+          }}
+        />
+      </div>
+      <div className="relative z-10 flex h-full min-h-0">
         <aside
           className={`${FLOATING_SIDEBAR} inset-y-4 left-4 z-50 w-[min(282px,calc(100vw-1rem))] shadow-[0_24px_80px_rgba(0,0,0,.30)] transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"} flex`}
         >
@@ -739,7 +740,7 @@ export default function RoadmapHistoryPage() {
                     key={itemId}
                     type="button"
                     onClick={() => selectRoadmap(itemId)}
-                    className={`roadmap-history-item group relative flex w-full items-start gap-3 border-b border-white/[0.045] px-5 py-4 text-left transition ${active ? "bg-white/[0.065]" : "hover:bg-white/[0.03]"}`}
+                    className={`roadmap-history-item group relative flex w-full items-start gap-3 border-b border-white/[0.045] px-5 py-[18px] text-left transition-colors ${active ? "bg-white/[0.065]" : "hover:bg-white/[0.035]"}`}
                     style={{ animationDelay: `${Math.min(index, 8) * 25}ms` }}
                   >
                     {active && (
@@ -747,13 +748,13 @@ export default function RoadmapHistoryPage() {
                     )}
 
                     <span
-                      className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${active ? "border-white/15 bg-white/[0.08] text-white" : "border-white/[0.08] bg-white/[0.025] text-[#696B72] group-hover:text-[#A1A1A5]"}`}
+                      className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${active ? "border-white/15 bg-white/[0.08] text-white" : "border-white/[0.08] bg-white/[0.025] text-[#777B85] group-hover:text-[#C4C6CC]"}`}
                     >
                       <FiBookOpen size={14} />
                     </span>
 
                     <span className="min-w-0 flex-1">
-                      <span className="line-clamp-2 block text-xs font-semibold leading-4 text-white">
+                      <span className="line-clamp-2 block whitespace-nowrap text-xs font-semibold leading-4 text-white">
                         {item.title || item.role || "Learning roadmap"}
                       </span>
 
@@ -766,16 +767,11 @@ export default function RoadmapHistoryPage() {
                           {formatDate(item.updatedAt || item.createdAt)}
                         </span>
 
-                        <span className="text-[10px] font-semibold tabular-nums text-[#B8BAC1]">
+                        <span
+                          className={`text-[10px] font-semibold tabular-nums ${active ? "text-white" : "text-[#B8BAC1]"}`}
+                        >
                           {getProgress(item)}%
                         </span>
-                      </span>
-
-                      <span className="mt-2 block h-0.5 overflow-hidden rounded-full bg-white/[0.07]">
-                        <span
-                          className="block h-full rounded-full bg-white/75"
-                          style={{ width: `${getProgress(item)}%` }}
-                        />
                       </span>
                     </span>
                   </button>
@@ -813,30 +809,31 @@ export default function RoadmapHistoryPage() {
 
         <main className="min-w-0 flex-1 overflow-hidden pb-[env(safe-area-inset-bottom)] lg:pl-[302px] lg:pr-[302px]">
           <div className="flex h-full min-h-0 flex-col">
-            <div className="flex h-14 shrink-0 items-center border-b border-white/[0.07] bg-[#111214]/80 px-4 backdrop-blur-xl lg:hidden">
+            <div className="flex h-16 shrink-0 items-center border-b border-white/[0.07] bg-[#111214]/75 px-4 backdrop-blur-xl lg:hidden">
               <button
                 type="button"
                 onClick={() => setMobileHistoryOpen(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[#A1A1AA]"
-                aria-label="Open roadmap history"
+                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.045] px-3 text-xs font-semibold text-[#D4D4D8] transition hover:bg-white/[0.08]"
+                aria-label="Back to roadmap history"
               >
-                <FiMenu size={16} />
+                <FiArrowLeft size={15} />
+                History
               </button>
 
-              <div className="ml-3 min-w-0">
+              <div className="ml-3 min-w-0 border-l border-white/[0.09] pl-3">
                 <p className="truncate text-xs font-semibold text-white">
                   {roadmap?.title || "Roadmap workspace"}
                 </p>
 
-                <p className="text-[9px] uppercase tracking-[0.14em] text-[#55575E]">
+                <p className="mt-0.5 text-[9px] uppercase tracking-[0.14em] text-[#858994]">
                   Learning path & progress
                 </p>
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-7 sm:py-8 lg:px-9 lg:py-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {error && (
-                <div className="mx-4 mt-4 flex items-start justify-between gap-3 rounded-xl border border-white/[0.1] bg-white/[0.04] p-3 text-xs text-[#C4C6CC] sm:mx-7">
+                <div className="mx-1 mb-5 flex items-start justify-between gap-3 rounded-2xl border border-rose-300/15 bg-rose-300/[0.055] p-4 text-xs leading-5 text-rose-100/90 sm:mx-0">
                   <span>{error}</span>
 
                   <button

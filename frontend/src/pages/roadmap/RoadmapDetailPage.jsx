@@ -33,11 +33,18 @@ const titleCase = (value = "") =>
 const Surface = ({ children, className = "" }) => (
   <section
     className={cx(
-      "rounded-2xl border border-white/[0.09] bg-[#111315]",
+      "relative overflow-hidden rounded-[22px] border border-white/[0.11] bg-[#111315] shadow-[0_22px_60px_rgba(0,0,0,0.18)]",
       className,
     )}
   >
-    {children}
+    <div
+      className="pointer-events-none absolute inset-0"
+      style={{
+        background:
+          "radial-gradient(ellipse 70% 95% at 100% 0%, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.025) 38%, transparent 70%), linear-gradient(135deg, rgba(255,255,255,0.025), transparent 48%)",
+      }}
+    />
+    <div className="relative">{children}</div>
   </section>
 );
 
@@ -282,18 +289,37 @@ export default function RoadmapDetailPage({
         embedded ? "min-h-0 bg-transparent" : "min-h-screen bg-[#17191C]",
       )}
     >
+      {!embedded && (
+        <div className="pointer-events-none fixed inset-0">
+          <div
+            className="absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse 70% 55% at 88% 4%, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.025) 42%, transparent 72%), radial-gradient(ellipse 65% 55% at 0% 92%, rgba(255,255,255,0.035) 0%, transparent 70%), linear-gradient(135deg, #191b1e 0%, #17191c 48%, #141619 100%)",
+            }}
+          />
+          <div
+            className="absolute inset-0 opacity-[0.018] mix-blend-soft-light"
+            style={{
+              backgroundImage:
+                "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' fill='white' filter='url(%23noise)'/%3E%3C/svg%3E\")",
+            }}
+          />
+        </div>
+      )}
       <div
         className={cx(
           "mx-auto w-full",
           embedded
             ? "max-w-none px-0 py-0"
-            : "max-w-[1600px] px-4 pb-12 pt-10 sm:px-6 lg:px-8",
+            : "max-w-[1600px] px-4 pb-16 pt-5 sm:px-6 sm:pb-12 sm:pt-8 lg:px-10 lg:pt-9",
         )}
       >
         {!embedded && (
           <button
+            type="button"
             onClick={() => navigate("/roadmap/history")}
-            className="mb-7 inline-flex items-center gap-2 text-xs font-medium text-[#92949B] hover:text-white"
+            className="mb-6 inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.035] px-4 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white"
           >
             <FiArrowLeft size={14} /> Back to history
           </button>
@@ -303,19 +329,32 @@ export default function RoadmapDetailPage({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <div className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8F9198]">
-            <span className="h-1.5 w-1.5 rounded-full bg-white/80" /> Your
-            learning roadmap
+          <div className="mb-6 border-b border-white/[0.08] pb-5">
+            <button
+              type="button"
+              onClick={() => navigate("/roadmap")}
+              className="group inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors duration-200 hover:text-white"
+            >
+              <FiArrowLeft
+                size={14}
+                className="transition-transform duration-200 group-hover:-translate-x-0.5"
+              />
+              Back to roadmaps
+            </button>
           </div>
-          <h1 className="max-w-4xl text-[32px] font-semibold leading-[1.06] tracking-[-0.05em] sm:text-[44px]">
+          <div className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A1A1AA]">
+            <span className="h-2 w-2 rounded-full bg-white/80" />
+            Your learning roadmap
+          </div>
+          <h1 className="max-w-4xl text-[30px] font-semibold leading-[1.08] tracking-[-0.045em] sm:text-[44px]">
             {canonical.title || "Your roadmap"}
           </h1>
           {canonical.summary && (
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-[#92949B] sm:text-[15px]">
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-[#A1A1AA] sm:text-[15px]">
               {canonical.summary}
             </p>
           )}
-          <div className="mt-6 flex flex-wrap gap-2">
+          <div className="mt-6 flex flex-wrap gap-2.5">
             <Meta
               label="Package"
               value={titleCase(
@@ -348,10 +387,11 @@ export default function RoadmapDetailPage({
             </button>
           </div>
         )}
-        <Surface className="mt-8 p-5 sm:p-6">
+        <Surface className="mt-8 overflow-hidden border-white/[0.11] bg-[linear-gradient(120deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018)_58%,rgba(255,255,255,0.018))] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.12)] sm:mt-9 sm:p-7">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="max-w-xl">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71747C]">
+              <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A1A1AA]">
+                <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
                 Your next move
               </p>
               <h2 className="mt-2 text-xl font-semibold tracking-tight">
@@ -381,7 +421,7 @@ export default function RoadmapDetailPage({
                     );
                 }
               }}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] disabled:opacity-50"
+              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] shadow-[0_5px_22px_rgba(255,255,255,0.08)] transition hover:-translate-y-0.5 hover:bg-[#EDEDF0] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {currentTopic?.status === STATUS.IN_PROGRESS
                 ? "Continue learning"
@@ -390,13 +430,13 @@ export default function RoadmapDetailPage({
             </button>
           </div>
         </Surface>
-        <section className="mt-10">
+        <section className="mt-12 sm:mt-14">
           <div className="mb-5 flex items-end justify-between gap-4">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71747C]">
                 The learning path
               </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em]">
+              <h2 className="mt-2 text-2xl font-semibold tracking-[-0.04em] sm:text-[28px]">
                 Phases & topics
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-[#858994]">
@@ -416,7 +456,10 @@ export default function RoadmapDetailPage({
                   [STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.status),
                 ).length;
                 return (
-                  <Surface key={phase.id} className="overflow-hidden">
+                  <Surface
+                    key={phase.id}
+                    className="group overflow-hidden border-white/[0.085] bg-[linear-gradient(145deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] shadow-[0_10px_35px_rgba(0,0,0,0.08)] transition-colors hover:border-white/[0.14]"
+                  >
                     <div className="border-b border-white/[0.07] p-4 sm:p-5">
                       <div className="flex items-start gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/75">
@@ -427,7 +470,9 @@ export default function RoadmapDetailPage({
                             <h3 className="text-sm font-semibold sm:text-base">
                               {phase.title}
                             </h3>
-                            <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[9px] text-[#858994]">
+                            <span
+                              className={`rounded-full border px-2.5 py-1 text-[9px] font-medium ${ready ? "border-white/[0.10] bg-white/[0.045] text-white/80" : phase.generationStatus === "failed" ? "border-white/[0.12] bg-white/[0.04] text-white/75" : "border-white/[0.09] bg-white/[0.025] text-[#A1A1AA]"}`}
+                            >
                               {ready
                                 ? `${phaseDone}/${phase.topics.length} done`
                                 : titleCase(
@@ -537,7 +582,7 @@ export default function RoadmapDetailPage({
 
 function Meta({ label, value }) {
   return (
-    <div className="min-w-0 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5">
+    <div className="min-w-0 rounded-xl border border-white/[0.085] bg-white/[0.035] px-3.5 py-3 transition-colors hover:bg-white/[0.05]">
       <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-[#71747C]">
         {label}
       </p>
@@ -565,10 +610,12 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving }) {
           className={cx(
             "mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-xs font-semibold",
             completed
-              ? "border-white/15 bg-white text-[#17191C]"
+              ? "border-white/20 bg-white text-[#101114]"
               : inProgress
                 ? "border-white/20 bg-white/[0.12] text-white"
-                : "border-white/[0.08] bg-white/[0.035] text-[#858994]",
+                : skipped
+                  ? "border-white/[0.08] bg-white/[0.025] text-[#858994]"
+                  : "border-white/[0.09] bg-white/[0.035] text-[#858994]",
           )}
         >
           {completed ? (
@@ -587,7 +634,18 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving }) {
             <h4 className="text-sm font-semibold leading-5 text-white/90">
               {topic.title || titleCase(topic.id)}
             </h4>
-            <span className="rounded-full bg-white/[0.04] px-2 py-0.5 text-[9px] text-[#858994]">
+            <span
+              className={cx(
+                "rounded-full border px-2 py-0.5 text-[9px]",
+                completed
+                  ? "border-white/[0.10] bg-white/[0.045] text-white/80"
+                  : inProgress
+                    ? "border-white/15 bg-white/[0.06] text-white/90"
+                    : skipped
+                      ? "border-white/[0.08] bg-white/[0.025] text-[#858994]"
+                      : "border-white/[0.06] bg-white/[0.025] text-[#858994]",
+              )}
+            >
               {statusLabel}
             </span>
           </div>

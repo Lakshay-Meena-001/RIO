@@ -521,14 +521,16 @@ const NewInterview = ({ user, setUser }) => {
             <div className="mx-auto w-full max-w-[1400px] px-4 pb-32 pt-[86px] sm:px-6 lg:px-8 lg:py-8 lg:pb-12">
               {/* Header */}
               <div className="mb-8">
-                <button
-                  type="button"
-                  onClick={() => navigate("/mock-interview")}
-                  className="mb-6 inline-flex items-center gap-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:text-white"
-                >
-                  <FiArrowLeft size={14} />
-                  Back to interviews
-                </button>
+                <div className="mb-6 border-b border-white/[0.08] pb-4">
+                  <button
+                    type="button"
+                    onClick={() => navigate("/mock-interview")}
+                    className="inline-flex items-center gap-2 text-xs font-medium text-[#A1A1AA] transition-colors hover:text-white"
+                  >
+                    <FiArrowLeft size={14} />
+                    Back to interviews
+                  </button>
+                </div>
 
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div>

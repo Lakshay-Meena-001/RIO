@@ -1,6 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import { useNavigate } from "react-router-dom";
+
 import { AnimatePresence, motion } from "framer-motion";
+
 import {
   FiArrowLeft,
   FiArrowRight,
@@ -15,8 +18,19 @@ import {
   FiZap,
   FiClock,
   FiRefreshCw,
+  FiCode,
+  FiServer,
+  FiDatabase,
+  FiShield,
+  FiCloud,
+  FiCpu,
+  FiGlobe,
+  FiTerminal,
+  FiGitBranch,
 } from "react-icons/fi";
+
 import Sidebar from "../../components/SideBar";
+
 import {
   getRoadmapCatalog,
   getRoadmapCategories,
@@ -29,23 +43,37 @@ const inputClass =
 const packages = [
   {
     id: "foundation",
+
     title: "Foundation",
+
     description: "Start with the essential phases and core concepts.",
+
     detail: "A focused starting point",
+
     icon: FiBookOpen,
   },
+
   {
     id: "standard",
+
     title: "Standard",
+
     description: "A balanced path through the roadmap's main phases.",
+
     detail: "Recommended for most learners",
+
     icon: FiLayers,
   },
+
   {
     id: "comprehensive",
+
     title: "Comprehensive",
+
     description: "Choose the broadest available learning path.",
+
     detail: "For deeper coverage",
+
     icon: FiZap,
   },
 ];
@@ -54,11 +82,15 @@ const unwrap = (response) => response?.data ?? response ?? null;
 
 const getList = (response, keys) => {
   const value = unwrap(response);
+
   if (Array.isArray(value)) return value;
+
   for (const key of keys) {
     if (Array.isArray(value?.[key])) return value[key];
+
     if (Array.isArray(value?.data?.[key])) return value.data[key];
   }
+
   return [];
 };
 
@@ -71,11 +103,39 @@ const roadmapIdOf = (roadmap) =>
 
 const titleOf = (roadmap) =>
   roadmap?.title || roadmap?.name || "Untitled roadmap";
+
 const summaryOf = (roadmap) =>
   roadmap?.summary ||
   roadmap?.description ||
   roadmap?.goal ||
   "A structured learning path with guided phases and progress tracking.";
+
+const roadmapIconOf = (roadmap) => {
+  const text =
+    `${titleOf(roadmap)} ${roadmap?.category || roadmap?.categoryName || ""}`.toLowerCase();
+
+  if (/security|cyber|secure/.test(text)) return FiShield;
+
+  if (/cloud|devops|deployment|infrastructure/.test(text)) return FiCloud;
+
+  if (/database|sql|mongodb|data engineering/.test(text)) return FiDatabase;
+
+  if (/backend|node|server|api/.test(text)) return FiServer;
+
+  if (/frontend|react|web development|html|css/.test(text)) return FiGlobe;
+
+  if (/system design|architecture|distributed/.test(text)) return FiGitBranch;
+
+  if (/ai|machine learning|deep learning|data science/.test(text)) return FiCpu;
+
+  if (/programming|c\+\+|java|python|javascript|typescript/.test(text))
+    return FiCode;
+
+  if (/linux|terminal|operating system|computer science/.test(text))
+    return FiTerminal;
+
+  return FiBookOpen;
+};
 
 function SectionHeading({ number, icon: Icon, title, description }) {
   return (
@@ -100,21 +160,43 @@ function SectionHeading({ number, icon: Icon, title, description }) {
 
 export default function RoadmapBuilderPage({ user, setUser }) {
   const navigate = useNavigate();
+
   const [mobileOpen, setMobileOpen] = useState(false);
+
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
   const [roadmaps, setRoadmaps] = useState([]);
+
   const [categories, setCategories] = useState([]);
+
   const [selectedRoadmapId, setSelectedRoadmapId] = useState("");
+
   const [packageId, setPackageId] = useState("standard");
+
   const [search, setSearch] = useState("");
+
   const [category, setCategory] = useState("all");
+
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false);
+
+  const categoryMenuRef = useRef(null);
+
+  const searchInputRef = useRef(null);
+
   const [showRoadmaps, setShowRoadmaps] = useState(true);
+
   const [showPackages, setShowPackages] = useState(true);
+
   const [loading, setLoading] = useState(true);
+
   const [generating, setGenerating] = useState(false);
+
   const [generationComplete, setGenerationComplete] = useState(false);
+
   const [generatedUserRoadmapId, setGeneratedUserRoadmapId] = useState("");
+
   const [error, setError] = useState("");
+
   const [notice, setNotice] = useState("");
 
   const loadCatalogue = useCallback(async () => {
@@ -123,23 +205,30 @@ export default function RoadmapBuilderPage({ user, setUser }) {
     try {
       const [catalogResponse, categoryResponse] = await Promise.all([
         getRoadmapCatalog(),
+
         getRoadmapCategories().catch(() => null),
       ]);
 
       const catalog = getList(catalogResponse, [
         "roadmaps",
+
         "catalog",
+
         "items",
+
         "results",
       ]);
 
       const categoryList = getList(categoryResponse, [
         "categories",
+
         "items",
+
         "results",
       ]);
 
       setRoadmaps(catalog);
+
       setCategories(categoryList);
 
       setSelectedRoadmapId((current) => {
@@ -154,6 +243,7 @@ export default function RoadmapBuilderPage({ user, setUser }) {
       });
     } catch (loadError) {
       setRoadmaps([]);
+
       setCategories([]);
 
       setError(
@@ -173,6 +263,7 @@ export default function RoadmapBuilderPage({ user, setUser }) {
       try {
         const [catalogResponse, categoryResponse] = await Promise.all([
           getRoadmapCatalog(),
+
           getRoadmapCategories().catch(() => null),
         ]);
 
@@ -180,18 +271,24 @@ export default function RoadmapBuilderPage({ user, setUser }) {
 
         const catalog = getList(catalogResponse, [
           "roadmaps",
+
           "catalog",
+
           "items",
+
           "results",
         ]);
 
         const categoryList = getList(categoryResponse, [
           "categories",
+
           "items",
+
           "results",
         ]);
 
         setRoadmaps(catalog);
+
         setCategories(categoryList);
 
         setSelectedRoadmapId((current) => {
@@ -212,6 +309,7 @@ export default function RoadmapBuilderPage({ user, setUser }) {
         if (cancelled) return;
 
         setRoadmaps([]);
+
         setCategories([]);
 
         setError(
@@ -233,64 +331,114 @@ export default function RoadmapBuilderPage({ user, setUser }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!categoryMenuOpen) return undefined;
+
+    const handlePointerDown = (event) => {
+      if (!categoryMenuRef.current?.contains(event.target)) {
+        setCategoryMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") setCategoryMenuOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [categoryMenuOpen]);
+
   const selectedRoadmap = useMemo(
     () =>
       roadmaps.find(
         (item) => String(roadmapIdOf(item)) === String(selectedRoadmapId),
       ) || null,
+
     [roadmaps, selectedRoadmapId],
   );
 
   const filteredRoadmaps = useMemo(() => {
     const query = search.trim().toLowerCase();
+
     return roadmaps.filter((item) => {
       const matchesCategory =
         category === "all" ||
         String(item?.category || item?.categoryName || "").toLowerCase() ===
           String(category).toLowerCase();
+
       const matchesSearch =
         !query ||
         [
           item?.title,
+
           item?.name,
+
           item?.summary,
+
           item?.description,
+
           item?.category,
+
           item?.categoryName,
         ]
+
           .filter(Boolean)
+
           .some((value) => String(value).toLowerCase().includes(query));
+
       return matchesCategory && matchesSearch;
     });
   }, [roadmaps, search, category]);
 
   const submit = async (event) => {
     event.preventDefault();
+
     if (!selectedRoadmapId) {
       setError("Choose a roadmap from the catalogue first.");
+
       return;
     }
+
     setGenerating(true);
+
     setGenerationComplete(false);
+
     setError("");
+
     setNotice("");
+
     try {
       const response = await generateRoadmap({
         roadmapId: String(selectedRoadmapId).trim(),
+
         packageId,
       });
+
       const payload = unwrap(response);
+
       const userRoadmap =
         payload?.userRoadmap ||
         payload?.data?.userRoadmap ||
         payload?.roadmap?.userRoadmap;
+
       const userRoadmapId =
         userRoadmap?._id || userRoadmap?.id || payload?.userRoadmapId;
+
       if (!userRoadmapId) {
         throw new Error("The server did not return a user roadmap ID.");
       }
+
       setGeneratedUserRoadmapId(String(userRoadmapId));
+
       setGenerationComplete(true);
+
       setNotice(`${titleOf(selectedRoadmap)} is ready to open.`);
     } catch (generateError) {
       setError(
@@ -303,24 +451,47 @@ export default function RoadmapBuilderPage({ user, setUser }) {
     }
   };
 
+  const focusRoadmapSearch = () => {
+    setCategoryMenuOpen(false);
+
+    setShowRoadmaps(true);
+
+    document.getElementById("roadmap-builder-form")?.scrollIntoView({
+      behavior: "smooth",
+
+      block: "start",
+    });
+
+    searchInputRef.current?.focus({ preventScroll: true });
+  };
+
   const openGeneratedRoadmap = () => {
     if (generatedUserRoadmapId) navigate(`/roadmap/${generatedUserRoadmapId}`);
   };
 
   const categoryOptions = useMemo(() => {
     const fromApi = categories
+
       .map((item) => {
         if (typeof item === "string") return { value: item, label: item };
+
         const value = item?.slug || item?.id || item?.name || item?.category;
+
         const label = item?.label || item?.title || item?.name || value;
+
         return value ? { value: String(value), label: String(label) } : null;
       })
+
       .filter(Boolean);
+
     if (fromApi.length) return fromApi;
+
     return [
       ...new Set(
         roadmaps
+
           .map((item) => item?.category || item?.categoryName)
+
           .filter(Boolean),
       ),
     ].map((value) => ({ value: String(value), label: String(value) }));
@@ -329,10 +500,18 @@ export default function RoadmapBuilderPage({ user, setUser }) {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#17191C] text-white">
       <style>{`
-        .rio-range { height: 5px; appearance: none; -webkit-appearance: none; border-radius: 9999px; outline: none; }
-        .rio-range::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 17px; height: 17px; border-radius: 9999px; border: 3px solid #17191C; background: #F4F4F5; box-shadow: 0 0 0 1px rgba(255,255,255,.42); }
-        .rio-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 9999px; border: 3px solid #17191C; background: #F4F4F5; box-shadow: 0 0 0 1px rgba(255,255,255,.42); }
-      `}</style>
+
+.rio-range { height: 5px; appearance: none; -webkit-appearance: none; border-radius: 9999px; outline: none; }
+
+.rio-range::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 17px; height: 17px; border-radius: 9999px; border: 3px solid #17191C; background: #F4F4F5; box-shadow: 0 0 0 1px rgba(255,255,255,.42); }
+
+.rio-range::-moz-range-thumb { width: 12px; height: 12px; border-radius: 9999px; border: 3px solid #17191C; background: #F4F4F5; box-shadow: 0 0 0 1px rgba(255,255,255,.42); }
+
+.rio-roadmap-scroll, .rio-category-scroll, .rio-package-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+
+.rio-roadmap-scroll::-webkit-scrollbar, .rio-category-scroll::-webkit-scrollbar, .rio-package-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+`}</style>
       <div
         className="pointer-events-none fixed inset-0"
         style={{
@@ -340,7 +519,6 @@ export default function RoadmapBuilderPage({ user, setUser }) {
             "radial-gradient(ellipse 75% 55% at 100% 0%, rgba(255,255,255,.055), transparent 70%), radial-gradient(ellipse 60% 55% at 0% 100%, rgba(255,255,255,.025), transparent 72%)",
         }}
       />
-
       <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-2xl border border-white/10 bg-[#17191C]/90 px-3 backdrop-blur-xl md:hidden">
         <button
           type="button"
@@ -350,17 +528,18 @@ export default function RoadmapBuilderPage({ user, setUser }) {
         >
           <FiMenu size={18} />
         </button>
+
         <span
           className="text-base tracking-wide"
           style={{ fontFamily: '"Zen Dots", sans-serif' }}
         >
           RIO
         </span>
+
         <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-xs font-semibold">
           {user?.name?.charAt(0)?.toUpperCase() || "U"}
         </span>
       </header>
-
       <div className="relative z-10 flex min-h-screen">
         <Sidebar
           mobileOpen={mobileOpen}
@@ -373,16 +552,20 @@ export default function RoadmapBuilderPage({ user, setUser }) {
         <main
           className={`min-w-0 flex-1 transition-[margin-left] duration-300 ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
-          <div className="mx-auto w-full max-w-none px-3 pb-22 pt-[82px] sm:px-6 sm:pb-16 lg:px-8 lg:py-8 lg:pb-4">
-            <button
-              type="button"
-              onClick={() => navigate("/roadmap")}
-              className="mb-4 inline-flex items-center gap-2 text-xs font-medium text-[#92959E] transition hover:text-white"
-            >
-              <FiArrowLeft size={14} />
-              Back to roadmaps
-            </button>
-
+          <div className="mx-auto w-full max-w-none px-3 pb-22 pt-[82px] sm:px-6 sm:pb-16 lg:px-8 lg:py-7 lg:pb-4">
+            <div className="mb-6 border-b border-white/[0.08] pb-5">
+              <button
+                type="button"
+                onClick={() => navigate("/roadmap")}
+                className="group inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors duration-200 hover:text-white"
+              >
+                <FiArrowLeft
+                  size={14}
+                  className="transition-transform duration-200 group-hover:-translate-x-0.5"
+                />
+                Back to roadmaps
+              </button>
+            </div>
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
@@ -394,19 +577,42 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                   <span className="h-1.5 w-1.5 rounded-full bg-white" />
                   Roadmap Studio
                 </p>
+
                 <h1 className="text-3xl font-semibold leading-tight tracking-[-0.045em] sm:text-4xl">
-                  Build your{" "}
+                  Build your
                   <span className="font-serif font-normal italic text-[#B8BAC1]">
                     learning path.
                   </span>
                 </h1>
+
                 <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#92959E] sm:mx-0">
                   Choose a roadmap from the catalogue, select how much coverage
                   you want, and start learning.
                 </p>
               </div>
-            </motion.div>
 
+              <div className="hidden shrink-0 items-center gap-3 lg:flex">
+                <button
+                  type="button"
+                  onClick={() => navigate("/roadmap/history")}
+                  className="group inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white sm:px-5"
+                >
+                  <FiClock size={14} /> View history
+                </button>
+
+                <button
+                  type="button"
+                  onClick={focusRoadmapSearch}
+                  className="group inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] sm:px-5"
+                >
+                  <FiZap size={14} /> Build roadmap
+                  <FiArrowRight
+                    size={14}
+                    className="transition-transform duration-200 group-hover:translate-x-0.5"
+                  />
+                </button>
+              </div>
+            </motion.div>
             <AnimatePresence initial={false}>
               {error && (
                 <motion.div
@@ -447,9 +653,8 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                     {notice}
                   </div>
                 </motion.div>
-              )}
-            </AnimatePresence>
-
+              )}{" "}
+            </AnimatePresence>{" "}
             <form id="roadmap-builder-form" onSubmit={submit}>
               <div className="grid w-full min-w-0 items-start gap-4">
                 <motion.section
@@ -464,15 +669,18 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                     title="Where do you want to go?"
                     description="Select a roadmap from RIO's catalogue. These roadmaps are structured and maintained centrally."
                   />
+
                   <div className="rounded-xl border border-white/[0.09] bg-white/[0.025] p-3 sm:p-4">
                     <div className="flex items-center gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[#D4D4D8]">
-                        <FiLayers size={17} />
+                        <FiLayers size={17} />{" "}
                       </span>
+
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#777B85]">
-                          Selected roadmap
+                          Selected roadmap{" "}
                         </p>
+
                         <p className="mt-1 truncate text-sm font-semibold text-white">
                           {selectedRoadmap
                             ? titleOf(selectedRoadmap)
@@ -481,151 +689,221 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                               : "Choose a roadmap"}
                         </p>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowRoadmaps((value) => !value)}
-                        aria-expanded={showRoadmaps}
-                        aria-label={
-                          showRoadmaps
-                            ? "Close roadmap list"
-                            : "Open roadmap list"
-                        }
-                        className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/[0.10] bg-white/[0.035] text-[#A1A1AA] transition hover:bg-white/[0.08] hover:text-white sm:ml-0 sm:h-auto sm:w-auto sm:gap-1.5 sm:rounded-lg sm:px-3 sm:py-2 sm:text-xs sm:font-medium sm:text-[#D4D4D8]"
-                      >
-                        <motion.span
-                          animate={{ rotate: showRoadmaps ? 180 : 0 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <FiChevronDown size={15} />
-                        </motion.span>
-                        <span className="hidden sm:inline">
-                          {showRoadmaps ? "Hide" : "Change"}
-                        </span>
-                      </button>
                     </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
-                      <label className="relative block w-full">
+
+                    <div className="mt-3 grid min-w-0 gap-2 sm:grid-cols-[minmax(0,1fr)_220px]">
+                      <label className="relative block w-full min-w-0">
                         <FiSearch
                           size={15}
                           className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#777B85]"
                         />
+
                         <input
+                          ref={searchInputRef}
                           type="search"
                           value={search}
                           onFocus={() => setShowRoadmaps(true)}
-                          onChange={(event) => setSearch(event.target.value)}
+                          onChange={(event) => {
+                            setSearch(event.target.value);
+
+                            setShowRoadmaps(true);
+                          }}
                           placeholder="Search roadmaps…"
                           aria-label="Search roadmaps"
                           className={`${inputClass} py-3 pl-10`}
                         />
                       </label>
-                      <select
-                        value={category}
-                        onChange={(event) => setCategory(event.target.value)}
-                        aria-label="Filter by category"
-                        className={inputClass}
-                      >
-                        <option value="all" className="bg-[#191B1F]">
-                          All categories
-                        </option>
-                        {categoryOptions.map((item) => (
-                          <option
-                            key={item.value}
-                            value={item.value}
-                            className="bg-[#191B1F]"
+
+                      <div className="relative min-w-0" ref={categoryMenuRef}>
+                        <button
+                          type="button"
+                          aria-label={`Filter roadmaps by category. Current: ${categoryOptions.find((item) => item.value === category)?.label || "All categories"}`}
+                          aria-haspopup="listbox"
+                          aria-expanded={categoryMenuOpen}
+                          onClick={() => {
+                            const nextOpen = !categoryMenuOpen;
+
+                            setCategoryMenuOpen(nextOpen);
+
+                            setShowRoadmaps(nextOpen ? true : showRoadmaps);
+                          }}
+                          className="flex min-h-[46px] w-full items-center justify-between gap-2 rounded-xl border border-white/[0.10] bg-[#191B1F] px-3.5 py-3 text-sm text-white outline-none transition hover:border-white/[0.18] focus:border-white/30"
+                        >
+                          <span className=" min-w-0 truncate sm:inline">
+                            {categoryOptions.find(
+                              (item) => item.value === category,
+                            )?.label || "All categories"}
+                          </span>
+
+                          <span className="sm:hidden" aria-hidden="true" />
+
+                          <motion.span
+                            animate={{ rotate: categoryMenuOpen ? 180 : 0 }}
+                            transition={{ duration: 0.18 }}
+                            className="ml-auto shrink-0 text-[#C4C6CC]"
                           >
-                            {item.label}
-                          </option>
-                        ))}
-                      </select>
+                            <FiChevronDown size={16} />{" "}
+                          </motion.span>
+                        </button>
+
+                        <AnimatePresence>
+                          {categoryMenuOpen && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -5, scale: 0.98 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -4, scale: 0.98 }}
+                              transition={{ duration: 0.16 }}
+                              className="absolute right-0 top-[calc(100%+8px)] z-50 rio-category-scroll max-h-64 w-full min-w-[190px] overflow-y-auto overscroll-contain rounded-xl border border-white/[0.12] bg-[#191B1F] p-1.5 shadow-[0_18px_50px_rgba(0,0,0,0.55)] sm:w-[220px]"
+                              role="listbox"
+                              aria-label="Roadmap categories"
+                            >
+                              {[
+                                { value: "all", label: "All categories" },
+
+                                ...categoryOptions.filter(
+                                  (item) => item.value !== "all",
+                                ),
+                              ].map((item) => {
+                                const active =
+                                  String(category) === String(item.value);
+
+                                return (
+                                  <button
+                                    key={item.value}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={active}
+                                    onClick={() => {
+                                      setCategory(item.value);
+
+                                      setCategoryMenuOpen(false);
+
+                                      setShowRoadmaps(true);
+                                    }}
+                                    className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left text-xs transition ${
+                                      active
+                                        ? "bg-white/[0.10] text-white"
+                                        : "text-[#B8BAC1] hover:bg-white/[0.06] hover:text-white"
+                                    }`}
+                                  >
+                                    <span className="min-w-0 truncate">
+                                      {item.label}{" "}
+                                    </span>
+
+                                    {active && (
+                                      <FiCheck size={14} className="shrink-0" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
                     </div>
+
                     <AnimatePresence initial={false}>
                       {showRoadmaps && (
                         <motion.div
                           initial={{ height: 0, opacity: 0, y: -5 }}
                           animate={{ height: "auto", opacity: 1, y: 0 }}
                           exit={{ height: 0, opacity: 0, y: -5 }}
-                          transition={{ duration: 0.24, ease: "easeOut" }}
+                          transition={{ duration: 0.22, ease: "easeOut" }}
                           className="overflow-hidden"
                         >
-                          <div className="pt-3">
+                          <div className="rio-roadmap-scroll mt-3 max-h-[390px] overflow-y-auto overscroll-contain pr-1">
                             {loading ? (
-                              <div className="grid gap-2 sm:grid-cols-2">
-                                {[1, 2, 3, 4].map((item) => (
+                              <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                                {[1, 2, 3, 4, 5, 6, 7, 8].map((item) => (
                                   <div
                                     key={item}
-                                    className="h-24 animate-pulse rounded-xl border border-white/[0.07] bg-white/[0.025]"
+                                    className="aspect-[3/2] animate-pulse rounded-xl border border-white/[0.07] bg-white/[0.025]"
                                   />
                                 ))}
                               </div>
                             ) : roadmaps.length === 0 ? (
                               <div className="rounded-xl border border-white/10 bg-white/[0.025] p-4 text-sm text-[#A1A1AA]">
                                 No roadmaps are available in the catalogue right
-                                now.
+                                now.{" "}
                                 <button
                                   type="button"
                                   onClick={loadCatalogue}
                                   className="ml-2 inline-flex items-center gap-1 font-medium text-white"
                                 >
                                   <FiRefreshCw size={12} />
-                                  Try again
+                                  Try again{" "}
                                 </button>
                               </div>
                             ) : filteredRoadmaps.length === 0 ? (
                               <p className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-4 text-sm text-[#858994]">
-                                No roadmaps match your search.
+                                No roadmaps match your search.{" "}
                               </p>
                             ) : (
-                              <div className="grid items-stretch gap-2 sm:grid-cols-2">
+                              <div className="grid grid-cols-2 items-stretch gap-2 lg:grid-cols-4">
                                 {filteredRoadmaps.map((roadmap) => {
                                   const id = roadmapIdOf(roadmap);
+
                                   const active =
                                     String(selectedRoadmapId) === String(id);
+
+                                  const RoadmapIcon = roadmapIconOf(roadmap);
+
                                   return (
                                     <button
                                       key={String(id)}
                                       type="button"
                                       onClick={() => {
                                         setSelectedRoadmapId(String(id));
+
                                         setShowRoadmaps(false);
+
+                                        setCategoryMenuOpen(false);
+
                                         setError("");
+
                                         setNotice("");
                                       }}
                                       aria-pressed={active}
-                                      className={`group flex h-full min-h-[112px] w-full items-start gap-3 rounded-xl border p-3 text-left transition duration-200 ${active ? "border-white/25 bg-white/[0.075]" : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.04]"}`}
+                                      title={titleOf(roadmap)}
+                                      className={`group relative flex min-h-[112px] sm:aspect-[3/1.3] sm:min-h-0 min-w-0 flex-col items-start overflow-hidden rounded-xl border p-2.5 sm:p-3 text-left transition duration-200 ${
+                                        active
+                                          ? "border-white/25 bg-white/[0.075]"
+                                          : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.17] hover:bg-white/[0.045]"
+                                      }`}
                                     >
                                       <span
-                                        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${active ? "border-white/20 bg-white/[0.09] text-white" : "border-white/10 bg-white/[0.04] text-[#A1A1AA]"}`}
+                                        className={`mb-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${
+                                          active
+                                            ? "border-white/20 bg-white/[0.09] text-white"
+                                            : "border-white/10 bg-white/[0.04] text-[#A1A1AA]"
+                                        }`}
                                       >
-                                        <FiBookOpen size={15} />
+                                        <RoadmapIcon size={14} />
                                       </span>
-                                      <span className="min-w-0 flex-1">
-                                        <span className="block text-sm font-semibold text-white">
-                                          {titleOf(roadmap)}
-                                        </span>
-                                        <span
-                                          className="mt-1 block text-xs leading-5 text-[#858994]"
-                                          style={{
-                                            display: "-webkit-box",
-                                            WebkitBoxOrient: "vertical",
-                                            WebkitLineClamp: 3,
-                                            overflow: "hidden",
-                                          }}
-                                        >
-                                          {summaryOf(roadmap)}
-                                        </span>
-                                        {(roadmap.category ||
-                                          roadmap.categoryName) && (
-                                          <span className="mt-2 block text-[10px] font-medium uppercase tracking-[0.12em] text-[#777B85]">
-                                            {roadmap.category ||
-                                              roadmap.categoryName}
-                                          </span>
-                                        )}
+
+                                      <span className="block w-full line-clamp-2 text-xs font-semibold leading-4 text-white sm:truncate sm:leading-5 sm:text-[13px]">
+                                        {titleOf(roadmap)}
                                       </span>
+
+                                      <span
+                                        className="mt-1 block w-full text-[10px] leading-4 text-[#858994] sm:text-[11px]"
+                                        style={{
+                                          display: "-webkit-box",
+
+                                          WebkitBoxOrient: "vertical",
+
+                                          WebkitLineClamp: 2,
+
+                                          overflow: "hidden",
+                                        }}
+                                      >
+                                        {summaryOf(roadmap)}
+                                      </span>
+
                                       {active && (
                                         <FiCheck
-                                          className="mt-1 shrink-0"
-                                          size={15}
+                                          size={13}
+                                          className="absolute right-2.5 top-2.5 text-white"
                                         />
                                       )}
                                     </button>
@@ -638,26 +916,31 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                       )}
                     </AnimatePresence>
                   </div>
+
                   {selectedRoadmap && (
                     <div className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#777B85]">
-                        Your selection
+                        Your selection{" "}
                       </p>
+
                       <h3 className="mt-2 text-base font-semibold text-white">
                         {titleOf(selectedRoadmap)}
                       </h3>
+
                       <p className="mt-1 text-sm leading-6 text-[#858994]">
                         {summaryOf(selectedRoadmap)}
                       </p>
+
                       <div className="mt-3 flex flex-wrap gap-2">
                         {selectedRoadmap.totalPhases ||
                         selectedRoadmap.phaseCount ? (
                           <span className="rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-[#A1A1AA]">
                             {selectedRoadmap.totalPhases ||
                               selectedRoadmap.phaseCount}{" "}
-                            phases
+                            phases{" "}
                           </span>
                         ) : null}
+
                         {selectedRoadmap.category ||
                         selectedRoadmap.categoryName ? (
                           <span className="rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-1.5 text-[10px] text-[#A1A1AA]">
@@ -682,29 +965,36 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                     title="Choose your learning coverage."
                     description="The package controls the coverage of your generated roadmap. You can start learning after generation."
                   />
+
                   <div className="mb-3 flex items-center justify-between gap-3 rounded-xl border border-white/[0.09] bg-white/[0.025] p-3 sm:p-4">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#777B85]">
-                        Selected package
+                        Selected package{" "}
                       </p>
+
                       <p className="mt-1 text-sm font-semibold text-white">
                         {packages.find((item) => item.id === packageId)
                           ?.title || "Standard"}
                       </p>
                     </div>
+
                     <button
                       type="button"
                       onClick={() => setShowPackages((value) => !value)}
                       aria-expanded={showPackages}
                       className="inline-flex items-center gap-2 rounded-lg border border-white/[0.10] bg-white/[0.035] px-3 py-2 text-xs font-medium text-[#D4D4D8] transition hover:bg-white/[0.08]"
                     >
-                      {showPackages ? "Hide options" : "Change package"}
+                      <span className="hidden sm:inline">
+                        {showPackages ? "Hide options" : "Change package"}
+                      </span>
+
                       <FiChevronDown
                         className={`transition-transform ${showPackages ? "rotate-180" : ""}`}
-                        size={14}
+                        size={15}
                       />
                     </button>
                   </div>
+
                   <AnimatePresence initial={false}>
                     {showPackages && (
                       <motion.div
@@ -713,36 +1003,43 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                         exit={{ height: 0, opacity: 0, y: -5 }}
                         className="overflow-hidden"
                       >
-                        <div className="grid gap-2 pt-1 sm:grid-cols-3">
+                        <div className="grid grid-cols-1 gap-2 pr-1 pt-1 sm:grid-cols-3">
                           {packages.map((item) => {
                             const Icon = item.icon;
+
                             const active = packageId === item.id;
+
                             return (
                               <button
                                 key={item.id}
                                 type="button"
                                 onClick={() => {
                                   setPackageId(item.id);
+
                                   setError("");
                                 }}
                                 aria-pressed={active}
-                                className={`flex min-h-[150px] items-start gap-3 rounded-xl border p-3 text-left transition ${active ? "border-white/25 bg-white/[0.075]" : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.04]"}`}
+                                className={`flex min-h-[92px] items-start gap-3 rounded-xl border p-3 text-left transition sm:min-h-[150px] ${active ? "border-white/25 bg-white/[0.075]" : "border-white/[0.08] bg-white/[0.02] hover:border-white/[0.16] hover:bg-white/[0.04]"}`}
                               >
                                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-[#D4D4D8]">
-                                  <Icon size={15} />
+                                  <Icon size={15} />{" "}
                                 </span>
+
                                 <span className="min-w-0 flex-1">
                                   <span className="flex items-center justify-between gap-2">
                                     <span className="text-sm font-semibold text-white">
-                                      {item.title}
+                                      {item.title}{" "}
                                     </span>
+
                                     {active && <FiCheck size={14} />}
                                   </span>
+
                                   <span className="mt-2 block text-xs leading-5 text-[#858994]">
-                                    {item.description}
+                                    {item.description}{" "}
                                   </span>
+
                                   <span className="mt-3 block text-[10px] font-medium text-[#C4C6CC]">
-                                    {item.detail}
+                                    {item.detail}{" "}
                                   </span>
                                 </span>
                               </button>
@@ -754,12 +1051,12 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                   </AnimatePresence>
                 </motion.section>
               </div>
-
               <div className="mt-6 flex flex-col gap-4 border-t border-white/[0.09] pt-5 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-white">
-                    Ready to start learning?
+                    Ready to start learning?{" "}
                   </p>
+
                   <p className="mt-1 text-xs text-[#858994]">
                     {selectedRoadmap
                       ? titleOf(selectedRoadmap)
@@ -769,15 +1066,17 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                     coverage
                   </p>
                 </div>
+
                 <div className="hidden shrink-0 items-center justify-end gap-2 sm:flex">
                   <button
                     type="button"
-                    onClick={() => navigate("/roadmap")}
+                    onClick={() => navigate("/roadmap/history")}
                     className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/[0.13] bg-white/[0.035] px-4 py-3 text-sm font-medium text-[#E4E4E7] transition hover:bg-white/[0.08]"
                   >
                     <FiClock size={15} />
-                    Dashboard
+                    History
                   </button>
+
                   <button
                     type="submit"
                     disabled={loading || generating || !selectedRoadmapId}
@@ -789,43 +1088,44 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                       <FiZap size={15} />
                     )}
                     {generating ? "Creating roadmap…" : "Create roadmap"}
-                    {!generating && <FiArrowRight size={15} />}
+                    {!generating && <FiArrowRight size={15} />}{" "}
                   </button>
                 </div>
-              </div>
-            </form>
-          </div>
-        </main>
-      </div>
-
+              </div>{" "}
+            </form>{" "}
+          </div>{" "}
+        </main>{" "}
+      </div>{" "}
       <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/[0.92] p-3 backdrop-blur-xl sm:hidden">
+        {" "}
         <div className="flex items-center gap-2">
+          {" "}
           <button
             type="button"
-            onClick={() => navigate("/roadmap")}
+            onClick={focusRoadmapSearch}
             className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8]"
           >
-            <FiClock size={14} />
-            <span>Dashboard</span>
-          </button>
+            <FiSearch size={14} /> <span>Search</span>{" "}
+          </button>{" "}
           <button
             type="submit"
             form="roadmap-builder-form"
             disabled={loading || generating || !selectedRoadmapId}
             className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-xs font-semibold text-[#17191C] disabled:cursor-not-allowed disabled:opacity-60"
           >
+            {" "}
             {generating ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />
             ) : (
               <FiZap size={14} />
-            )}
+            )}{" "}
             <span>{generating ? "Creating…" : "Create roadmap"}</span>
-            {!generating && <FiArrowRight size={14} />}
-          </button>
-        </div>
-      </div>
-
+            {!generating && <FiArrowRight size={14} />}{" "}
+          </button>{" "}
+        </div>{" "}
+      </div>{" "}
       <AnimatePresence>
+        {" "}
         {(generating || generationComplete) && (
           <motion.div
             className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-4 backdrop-blur-md"
@@ -836,6 +1136,7 @@ export default function RoadmapBuilderPage({ user, setUser }) {
             aria-modal="true"
             aria-labelledby="roadmap-generation-title"
           >
+            {" "}
             <motion.div
               initial={{ opacity: 0, y: 18, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -870,7 +1171,9 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                     animate={{ x: ["-100%", "300%"] }}
                     transition={{
                       duration: 1.35,
+
                       repeat: Infinity,
+
                       ease: "easeInOut",
                     }}
                   />
@@ -882,13 +1185,13 @@ export default function RoadmapBuilderPage({ user, setUser }) {
                   disabled={!generatedUserRoadmapId}
                   className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-[#17191C] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Open roadmap <FiArrowRight size={15} />
+                  Open roadmap <FiArrowRight size={15} />{" "}
                 </button>
-              )}
-            </motion.div>
+              )}{" "}
+            </motion.div>{" "}
           </motion.div>
-        )}
-      </AnimatePresence>
+        )}{" "}
+      </AnimatePresence>{" "}
     </div>
   );
 }

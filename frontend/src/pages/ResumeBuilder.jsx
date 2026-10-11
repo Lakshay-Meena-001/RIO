@@ -251,7 +251,9 @@ const CompletionRing = ({ value }) => {
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-[24px] font-semibold tracking-[-0.04em]">
           {value}
-        <span className=" ml-1 text-[18px] font-semibold tracking-[-0.04em]" >%</span>
+          <span className=" ml-1 text-[18px] font-semibold tracking-[-0.04em]">
+            %
+          </span>
         </span>
 
         <span className="mt-0.5 text-[8px] uppercase tracking-[0.12em] text-white/90">
@@ -848,16 +850,6 @@ const ResumeBuilder = ({ user, setUser }) => {
 
               <section className="mb-7 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
                 <div className="min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.history.back();
-                    }}
-                    className="mb-5 text-xs text-white/25 transition-colors hover:text-white/60"
-                  >
-                    ← Dashboard
-                  </button>
-
                   <p className="mb-2 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71717A]">
                     <Sparkles className="h-3.5 w-3.5" />
                     Resume Builder
@@ -954,38 +946,38 @@ const ResumeBuilder = ({ user, setUser }) => {
 
                     <div className="mt-2 flex w-full min-w-0 flex-col items-center">
                       <h2 className="mt-2 text-2xl font-semibold tracking-[-0.035em] text-white sm:text-[28px]">
-                      {completion >= 90
-                        ? "Your resume is nearly ready."
-                        : completion >= 60
-                          ? "Your resume is taking shape."
-                          : completion >= 30
-                            ? "Keep building your resume."
-                            : "Let's build your resume."}
-                    </h2>
+                        {completion >= 90
+                          ? "Your resume is nearly ready."
+                          : completion >= 60
+                            ? "Your resume is taking shape."
+                            : completion >= 30
+                              ? "Keep building your resume."
+                              : "Let's build your resume."}
+                      </h2>
 
-                    <div className="mt-2 flex items-center justify-center gap-2 text-xs text-white/35">
-                      {saving ? (
-                        <>
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          Saving changes...
-                        </>
-                      ) : hasChanges ? (
-                        <>
-                          <Clock3 className="h-3.5 w-3.5" />
-                          Unsaved changes
-                        </>
-                      ) : (
-                        <>
-                          <Check className="h-3.5 w-3.5 text-white/70" />
-                          All changes saved
-                        </>
-                      )}
-                    </div>
+                      <div className="mt-2 flex items-center justify-center gap-2 text-xs text-white/35">
+                        {saving ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Saving changes...
+                          </>
+                        ) : hasChanges ? (
+                          <>
+                            <Clock3 className="h-3.5 w-3.5" />
+                            Unsaved changes
+                          </>
+                        ) : (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-white/70" />
+                            All changes saved
+                          </>
+                        )}
+                      </div>
 
-                    <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-white/35">
-                      Add the important sections, keep your strongest work
-                      visible, and make every part of the resume useful.
-                    </p>
+                      <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-white/35">
+                        Add the important sections, keep your strongest work
+                        visible, and make every part of the resume useful.
+                      </p>
                     </div>
                   </div>
                 </div>
