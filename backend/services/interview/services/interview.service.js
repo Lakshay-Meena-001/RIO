@@ -834,6 +834,7 @@ async function finalizeInterviewAndDeductBalance(
    * ---------------------------------------------------------
    */
   let finalizationLeaseHeartbeat = null;
+  let balanceDeduction = null;
 
   let interview = await Interview.findOne({
     _id: interviewId,
@@ -996,12 +997,17 @@ async function finalizeInterviewAndDeductBalance(
      * transaction idempotency.
      */
     try {
-      await deductInterviewBalance(userId, interviewId);
+      const deductionResult = await deductInterviewBalance(userId, interviewId);
 
-      /*
-       * balance successfully deducted.
-       */
       interview.paymentStatus = "deducted";
+
+      // Keep the confirmed result available for the API response.
+      balanceDeduction = {
+        service: "Interview",
+        previousBalance: deductionResult.previousBalance,
+        deductedAmount: deductionResult.deductedAmount,
+        balance: deductionResult.balance,
+      };
     } catch (error) {
       /*
        * A 4xx response represents a business-level payment
@@ -1165,6 +1171,9 @@ async function finalizeInterviewAndDeductBalance(
 
   interview = completedInterview;
 
+  // Preserve the confirmed deduction result after reloading the document.
+  interview.$locals.balanceDeduction = balanceDeduction;
+
   if (finalizationLeaseHeartbeat) {
     finalizationLeaseHeartbeat.stop();
     finalizationLeaseHeartbeat = null;
@@ -1248,7 +1257,7 @@ export const startInterview = async (userId, interviewData) => {
 
   if (balance < INTERVIEW_COMPLETION_COST) {
     throw new AppError(
-      `Not enough balance. You need at least ${INTERVIEW_COMPLETION_COST} balance to start the interview.`,
+      `Insufficient balance. You need at least ${INTERVIEW_COMPLETION_COST} balance to start the interview. Please recharge your balance.`,
       400,
     );
   }
@@ -2022,7 +2031,7 @@ export const submitInterview = async (
           interviewId: latestInterview._id,
           status: latestInterview.status,
           terminationReason: latestInterview.terminationReason,
-          coinsCharged: 0,
+          amountCharged: 0,
           alreadyFinalized: false,
         };
       }
@@ -2244,7 +2253,7 @@ export const submitInterview = async (
         interviewId: interview._id,
         status: "abandoned",
         terminationReason: interview.terminationReason,
-        coinsCharged: 0,
+        amountCharged: 0,
       };
     }
 
@@ -2301,7 +2310,8 @@ export const submitInterview = async (
       weaknesses: finalizedInterview.weaknesses,
       recommendations: finalizedInterview.recommendations,
       summary: finalizedInterview.summary,
-      coinsCharged: INTERVIEW_COMPLETION_COST,
+      balanceDeduction: finalizedInterview.$locals?.balanceDeduction ?? null,
+      amountCharged: INTERVIEW_COMPLETION_COST,
       alreadyFinalized: false,
     };
   } catch (error) {
@@ -2845,7 +2855,7 @@ async function expireInterviewIfNeeded(interview) {
 
         await abandonForServerError(
           currentInterview,
-         currentInterview.userId,
+          currentInterview.userId,
           interview._id,
           finalizationKey,
         );

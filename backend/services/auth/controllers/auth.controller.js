@@ -695,6 +695,7 @@ export const useBalance = async (req, res) => {
 
       outcome = {
         type: "success",
+        previousBalance: Number(currentUser.balance),
         balance: Number(updatedUser.balance),
       };
     });
@@ -769,6 +770,15 @@ export const useBalance = async (req, res) => {
         : "Balance deducted successfully.",
       action: normalizedAction,
       balance: outcome.balance,
+
+      // Include deduction details only for a newly processed transaction.
+      ...(!alreadyProcessed
+        ? {
+            previousBalance: outcome.previousBalance,
+            deductedAmount: balanceAmount,
+          }
+        : {}),
+
       ...(alreadyProcessed ? { alreadyProcessed: true } : {}),
     });
   } catch (error) {
@@ -962,6 +972,7 @@ export const deductBalanceInternal = async (req, res) => {
 
       outcome = {
         type: "success",
+        previousBalance: Number(currentUser.balance),
         balance: Number(updatedUser.balance),
       };
     });
@@ -1038,6 +1049,15 @@ export const deductBalanceInternal = async (req, res) => {
         : "Balance deducted successfully.",
       action: normalizedAction,
       balance: outcome.balance,
+
+      // Include deduction details only for a newly processed transaction.
+      ...(!alreadyProcessed
+        ? {
+            previousBalance: outcome.previousBalance,
+            deductedAmount: balanceAmount,
+          }
+        : {}),
+
       ...(alreadyProcessed ? { alreadyProcessed: true } : {}),
     });
   } catch (error) {

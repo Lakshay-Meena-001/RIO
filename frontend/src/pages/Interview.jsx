@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Editor from "@monaco-editor/react";
 import { useNavigate, useParams } from "react-router-dom";
+import { getCurrentUser } from "../api/user.api";
 import {
   FiAlertCircle,
   FiCheck,
@@ -34,7 +35,7 @@ const MONACO_LANGUAGE_MAP = {
   java: "java",
 };
 
-const Interview = () => {
+const Interview = ({ setUser }) => {
   const { interviewId } = useParams();
   const navigate = useNavigate();
 
@@ -59,6 +60,10 @@ const Interview = () => {
   const [showInsufficientBalanceModal, setShowInsufficientBalanceModal] =
     useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [balanceDeductionDetails, setBalanceDeductionDetails] = useState(null);
+  const [insufficientBalanceAmount, setInsufficientBalanceAmount] =
+    useState(null);
+
   const [reportReady, setReportReady] = useState(false);
   const [processingStage, setProcessingStage] = useState("evaluating");
   const [showRulesModal, setShowRulesModal] = useState(false);
@@ -160,6 +165,17 @@ const Interview = () => {
       }
     }
   }, [interviewId, navigate]);
+
+  /* 
+  Refresh Interview
+  */
+  const refreshCurrentUser = useCallback(async () => {
+    const data = await getCurrentUser();
+
+    if (data?.user) {
+      setUser(data.user);
+    }
+  }, [setUser]);
 
   /*
    * ---------------------------------------------------------
@@ -479,6 +495,7 @@ const Interview = () => {
       }
 
       if (data.status === "completed") {
+        void refreshCurrentUser();
         setProcessingStage("report");
         setReportReady(true);
         setShowCompletionModal(true);
@@ -496,7 +513,7 @@ const Interview = () => {
 
       return false;
     },
-    [navigate],
+    [navigate, refreshCurrentUser],
   );
 
   /*
@@ -816,11 +833,26 @@ const Interview = () => {
          * Backend successfully finalized the interview
          * and the report is now ready.
          */
-        if (
-          result?.data?.status === "completed" ||
-          result?.data?.interview?.status === "completed"
-        ) {
+        const completedData = result?.data?.interview ?? result?.data;
+
+        if (completedData?.status === "completed") {
+          const deduction = completedData?.balanceDeduction;
+
+          // Only show the popup for a newly confirmed deduction.
+          // Never show a fresh deduction popup on an idempotent retry.
+          if (
+            completedData.alreadyFinalized !== true &&
+            deduction &&
+            deduction.alreadyProcessed !== true &&
+            Number.isFinite(Number(deduction.previousBalance)) &&
+            Number.isFinite(Number(deduction.deductedAmount)) &&
+            Number.isFinite(Number(deduction.balance))
+          ) {
+            setBalanceDeductionDetails(deduction);
+          }
+
           setProcessingStage("report");
+          await refreshCurrentUser();
           setReportReady(true);
 
           return;
@@ -850,6 +882,7 @@ const Interview = () => {
         const refreshed = await refreshInterview();
 
         if (refreshed?.status === "completed") {
+          await refreshCurrentUser();
           setProcessingStage("report");
           setReportReady(true);
           return;
@@ -880,12 +913,20 @@ const Interview = () => {
          * this request receives 409. That is NOT a submission failure.
          * Wait for the existing finalization to finish.
          */
-        const alreadyFinalizing =
+
+        const normalizedErrorMessage = errorMessage.toLowerCase();
+
+        const finalizationConflict =
           automatic &&
           statusCode === 409 &&
-          errorMessage.toLowerCase().includes("already being finalized");
+          [
+            "already being finalized",
+            "taking longer than expected",
+            "finalization lease was lost",
+            "finalization ownership was lost",
+          ].some((message) => normalizedErrorMessage.includes(message));
 
-        if (alreadyFinalizing) {
+        if (finalizationConflict) {
           setError("");
           setAutoSubmitFailed(false);
           setShowCompletionModal(true);
@@ -913,6 +954,7 @@ const Interview = () => {
 
               if (latestInterview.status === "completed") {
                 setInterview(latestInterview);
+                await refreshCurrentUser();
                 setProcessingStage("report");
                 setReportReady(true);
                 setShowCompletionModal(true);
@@ -968,10 +1010,8 @@ const Interview = () => {
           setAutoSubmitFailed(true);
         }
 
-        if (
-          errorMessage.toLowerCase().includes("insufficient") &&
-          errorMessage.toLowerCase().includes("coin")
-        ) {
+        if (errorMessage.toLowerCase().includes("insufficient balance")) {
+          setInsufficientBalanceAmount(err?.response?.data?.balance ?? null);
           setShowInsufficientBalanceModal(true);
           setError("");
         } else {
@@ -1003,6 +1043,7 @@ const Interview = () => {
       currentQuestion,
       flushDraftSave,
       navigate,
+      refreshCurrentUser,
     ],
   );
 
@@ -1439,7 +1480,7 @@ const Interview = () => {
                               Examples
                             </p>
 
-                            <div className="mt-3 space-y-3">
+                            <div className="mt-2 space-y-3">
                               {currentQuestion.examples.map(
                                 (example, index) => (
                                   <div
@@ -1467,7 +1508,7 @@ const Interview = () => {
                         )}
                     </div>
                   ) : (
-                    <h1 className="mt-4 w-full font-sans text-[11px] font-medium leading-[1.45] tracking-[-0.005em] text-[#F4F4F5] sm:text-[14px] lg:text-[16px]">
+                    <h1 className="mt-2 w-full font-sans text-[11px] font-medium leading-[1.45] tracking-[-0.005em] text-[#F4F4F5] sm:text-[12px] lg:text-[15px]">
                       {currentQuestion?.text || "Question unavailable."}
                     </h1>
                   )}
@@ -1501,12 +1542,12 @@ const Interview = () => {
     PREMIUM ANSWER WORKSPACE
 ==================================================== */}
 
-              <section className="relative flex h-[55dvh] min-h-[420px] w-full flex-col overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#0D0F12]/88 shadow-[0_30px_100px_rgba(0,0,0,0.18)] lg:h-auto lg:min-h-0">
+              <section className=" mt-2 relative flex h-[55dvh] min-h-[420px] w-full flex-col overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#0D0F12]/88 shadow-[0_30px_100px_rgba(0,0,0,0.18)] lg:h-auto lg:min-h-0">
                 {/* Editor glow */}
                 <div className="pointer-events-none absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-white/[0.025] blur-[100px]" />
 
                 {/* Editor header */}
-                <div className="relative flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5 sm:px-7">
+                <div className="mt-2 relative flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5 sm:px-7">
                   <div>
                     <div className="flex flex-wrap items-center gap-2.5">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">
@@ -1536,7 +1577,7 @@ const Interview = () => {
                 </div>
 
                 {/* Writing area */}
-                <div className="relative flex min-h-0 flex-1 flex-col">
+                <div className="relative focus:outline-none focus:ring-0 flex min-h-0 flex-1 flex-col">
                   {currentQuestion?.section === "coding" ? (
                     <Editor
                       height={
@@ -1553,7 +1594,7 @@ const Interview = () => {
                         minimap: {
                           enabled: false,
                         },
-                        fontSize: 14,
+                        fontSize: 16,
                         lineNumbers: "on",
                         automaticLayout: true,
                         wordWrap: "off",
@@ -1581,7 +1622,7 @@ const Interview = () => {
                         questionNavigating || quitting || finalSubmitting
                       }
                       placeholder="Start explaining your approach..."
-                      className="min-h-[300px] w-full resize-none border-0 bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none ring-0 focus:border-0 focus:outline-none focus:ring-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
+                      className="min-h-[300px] w-full resize-none border-0 bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none ring-0 shadow-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
                     />
                   )}
 
@@ -1957,6 +1998,81 @@ const Interview = () => {
           </div>
         </div>
       )}
+      {balanceDeductionDetails && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 px-4 backdrop-blur-md">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="balance-deduction-title"
+            className="w-full max-w-md rounded-3xl border border-white/10 bg-[#191B1E] p-6 shadow-2xl"
+          >
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/10 text-emerald-400">
+              <FiCheckCircle size={26} />
+            </div>
+
+            <h2
+              id="balance-deduction-title"
+              className="mt-4 text-center text-xl font-semibold text-white"
+            >
+              Interview Completed
+            </h2>
+
+            <p className="mt-2 text-center text-sm text-[#A1A1AA]">
+              Your interview report is ready. The balance deduction is
+              confirmed.
+            </p>
+
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-[#A1A1AA]">Service</span>
+                <span className="text-sm font-medium text-white">
+                  {balanceDeductionDetails.service || "Interview"}
+                </span>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-4">
+                <span className="text-sm text-[#A1A1AA]">Amount deducted</span>
+                <span className="text-base font-semibold text-white">
+                  -
+                  {Number(
+                    balanceDeductionDetails.deductedAmount,
+                  ).toLocaleString()}{" "}
+                  INR
+                </span>
+              </div>
+
+              <div className="my-4 border-t border-white/10" />
+
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-sm text-[#A1A1AA]">Previous balance</span>
+                <span className="text-sm text-white">
+                  {Number(
+                    balanceDeductionDetails.previousBalance,
+                  ).toLocaleString()}{" "}
+                  INR
+                </span>
+              </div>
+
+              <div className="mt-3 flex items-center justify-between gap-4">
+                <span className="text-sm text-[#A1A1AA]">
+                  Remaining balance
+                </span>
+                <span className="text-base font-semibold text-emerald-400">
+                  {Number(balanceDeductionDetails.balance).toLocaleString()} INR
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setBalanceDeductionDetails(null)}
+              className="mt-5 w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-[#17191C] transition hover:bg-white/90"
+            >
+              Continue to Report
+            </button>
+          </div>
+        </div>
+      )}
       {showInsufficientBalanceModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E] p-6 text-center shadow-2xl">
@@ -1969,7 +2085,13 @@ const Interview = () => {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
-              You need ₹100 in your balance to complete this interview.
+              This interview requires 100 balance to complete.
+              {insufficientBalanceAmount !== null && (
+                <span className="mt-2 block">
+                  Your current balance: {insufficientBalanceAmount} INR
+                </span>
+              )}
+              Please recharge your balance and try again.
             </p>
 
             <button

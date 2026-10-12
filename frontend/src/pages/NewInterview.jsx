@@ -1095,7 +1095,7 @@ const NewInterview = ({ user, setUser }) => {
                       </div>
 
                       <div className="mt-2 flex items-center gap-2">
-                        <span className="text-sm font-semibold">100</span>
+                        <span className="text-sm font-semibold">100 INR</span>
                         <span className="text-xs text-[#71717A]">
                           per interview
                         </span>
