@@ -12,5 +12,8 @@
   "type": "module",
   "dependencies": {
     "ioredis": "^6.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^5.0.3"
   }
 }

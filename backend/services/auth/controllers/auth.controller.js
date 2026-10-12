@@ -406,7 +406,7 @@ export const getCurrentUser = async (req, res) => {
 // Complete the minimum RIO account profile.
 export const completeProfile = async (req, res) => {
   try {
-    const { name, email, phoneNumber } = req.body;
+    const { name, email, phoneNumber } = req.body ?? {};
 
     const trimmedName = name?.trim();
     const normalizedEmail = normalizeEmail(email);
@@ -641,7 +641,7 @@ export const useBalance = async (req, res) => {
         outcome = currentUser
           ? {
               type: "already-processed",
-              balance: Number(currentUser.balance),
+              balance: Number(existingTransaction.balanceAfter),
             }
           : { type: "user-not-found" };
 
@@ -803,7 +803,7 @@ export const useBalance = async (req, res) => {
                 success: true,
                 message: "Balance transaction already processed.",
                 action: existingTransaction.action,
-                balance: Number(currentUser.balance),
+                balance: Number(existingTransaction.balanceAfter),
                 alreadyProcessed: true,
               });
             }
@@ -905,7 +905,7 @@ export const deductBalanceInternal = async (req, res) => {
         outcome = currentUser
           ? {
               type: "already-processed",
-              balance: Number(currentUser.balance),
+              balance: Number(existingTransaction.balanceAfter),
             }
           : { type: "user-not-found" };
 
@@ -1068,7 +1068,7 @@ export const deductBalanceInternal = async (req, res) => {
               success: true,
               message: "Balance transaction already processed.",
               action: existingTransaction.action,
-              balance: Number(currentUser.balance),
+              balance: Number(existingTransaction.balanceAfter),
               alreadyProcessed: true,
             });
           }
