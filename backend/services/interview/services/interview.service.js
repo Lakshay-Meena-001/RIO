@@ -2320,8 +2320,8 @@ export const submitInterview = async (
      */
     if (
       error instanceof AppError &&
-      error.statusCode >= 400 &&
-      error.statusCode < 500
+      error.statusCode === 400 &&
+      error.message === "Insufficient balance."
     ) {
       throw error;
     }
@@ -2817,7 +2817,7 @@ async function expireInterviewIfNeeded(interview) {
           const recoveredInterview = await Interview.findOneAndUpdate(
             {
               _id: interview._id,
-              userId,
+              userId: interview.userId,
               status: "in-progress",
               finalizationKey,
             },
@@ -2845,7 +2845,7 @@ async function expireInterviewIfNeeded(interview) {
 
         await abandonForServerError(
           currentInterview,
-          userId,
+         currentInterview.userId,
           interview._id,
           finalizationKey,
         );

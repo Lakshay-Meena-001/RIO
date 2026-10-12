@@ -525,7 +525,15 @@ const interviewSchema = new mongoose.Schema(
      */
     paymentStatus: {
       type: String,
-      enum: ["not-charged", "charging", "charged", "refunded"],
+      enum: [
+        "not-charged",
+        "not-deducted",
+        "deducting",
+        "deducted",
+        "charging",
+        "charged",
+        "refunded",
+      ],
       default: "not-charged",
     },
 

@@ -212,6 +212,18 @@ export const submitInterview = async (req, res, next) => {
     const { interviewId } = req.params;
     const { draftAnswers } = req.body;
 
+    if (
+      draftAnswers !== undefined &&
+      (!draftAnswers ||
+        typeof draftAnswers !== "object" ||
+        Array.isArray(draftAnswers))
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "draftAnswers must be an object.",
+      });
+    }
+
     const result = await interviewService.submitInterview(
       userId,
       interviewId,

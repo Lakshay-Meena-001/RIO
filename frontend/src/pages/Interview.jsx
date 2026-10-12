@@ -66,6 +66,7 @@ const Interview = () => {
 
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const autoSubmitTriggeredRef = useRef(false);
+  const autoSubmitInFlightRef = useRef(false);
   const isMountedRef = useRef(false);
   const loadRequestIdRef = useRef(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
@@ -755,9 +756,14 @@ const Interview = () => {
         finalSubmitting ||
         navigating ||
         quitting ||
-        isCompleted
+        isCompleted ||
+        (automatic && autoSubmitInFlightRef.current)
       ) {
         return;
+      }
+
+      if (automatic) {
+        autoSubmitInFlightRef.current = true;
       }
 
       /*
@@ -979,6 +985,10 @@ const Interview = () => {
         }
       } finally {
         setFinalSubmitting(false);
+
+        if (automatic) {
+          autoSubmitInFlightRef.current = false;
+        }
       }
     },
     [
