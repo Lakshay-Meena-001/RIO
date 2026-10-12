@@ -26,13 +26,16 @@ export const proxyWithHeaders = (
         proxyReqOpts.headers["x-user-id"] = String(userId);
       }
 
-      // Only explicitly configured internal services receive this secret.
+      // Only explicitly configured internal services receive a secret.
       if (options.forwardInternalSecret) {
-        const internalSecret = process.env.ROADMAP_INTERNAL_SECRET;
+        const secretEnvName =
+          options.internalSecretEnv || "ROADMAP_INTERNAL_SECRET";
 
-        if (!internalSecret) {
+        const internalSecret = process.env[secretEnvName];
+
+        if (typeof internalSecret !== "string" || !internalSecret.trim()) {
           throw new Error(
-            "ROADMAP_INTERNAL_SECRET is required for this service",
+            `${secretEnvName} is required for this internal service`,
           );
         }
 

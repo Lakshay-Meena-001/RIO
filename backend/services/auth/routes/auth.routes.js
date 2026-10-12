@@ -7,6 +7,7 @@ import {
   useBalance,
   deductBalanceInternal,
   getUserBalanceInternal,
+  getCurrentUser,
 } from "../controllers/auth.controller.js";
 
 import { internalAuthMiddleware } from "../middleware/internal-auth.middleware.js";
@@ -14,6 +15,8 @@ import { internalAuthMiddleware } from "../middleware/internal-auth.middleware.j
 const authRouter = express.Router();
 
 // Public-facing authentication routes.
+
+authRouter.get("/me", getCurrentUser);
 authRouter.post("/login", googleAuth);
 authRouter.patch("/profile", completeProfile);
 authRouter.post("/logout", logout);
@@ -36,4 +39,3 @@ authRouter.post(
 );
 
 export default authRouter;
-

@@ -1,7 +1,6 @@
-import dotenv from "dotenv";
+import "dotenv/config";
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 
-dotenv.config();
 
 const requiredEnvVars = [
   "FIREBASE_PROJECT_ID",

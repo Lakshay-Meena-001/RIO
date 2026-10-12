@@ -1,13 +1,10 @@
 import dns from "node:dns";
-import dotenv from "dotenv";
+import "dotenv/config";
 import express from "express";
 import cookieParser from "cookie-parser";
-
 import { connectDB, disconnectDB } from "./config/db.js";
 import authRouter from "./routes/auth.routes.js";
-
-// Load environment variables before application startup.
-dotenv.config();
+import redis from "../../shared/redis/redis.js";
 
 // Preserve the existing DNS resolver configuration.
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
@@ -40,15 +37,39 @@ let isShuttingDown = false;
 
 const startServer = async () => {
   try {
-    // Do not accept requests until MongoDB is connected.
+    // MongoDB must be ready before accepting requests.
     await connectDB();
+
+    // Redis must also be ready before accepting requests.
+    await redis.connect();
 
     httpServer = app.listen(PORT, () => {
       console.log(`Auth Service is running on port ${PORT}.`);
     });
   } catch (error) {
     console.error("Auth Service startup failed:", error.message);
+
+    try {
+      await closeRedis();
+    } catch (redisError) {
+      console.error("Redis cleanup failed:", redisError.message);
+    }
+
+    try {
+      await disconnectDB();
+    } catch (dbError) {
+      console.error("MongoDB cleanup failed:", dbError.message);
+    }
+
     process.exitCode = 1;
+  }
+};
+
+const closeRedis = async () => {
+  if (redis.status === "ready") {
+    await redis.quit();
+  } else if (redis.status !== "end") {
+    redis.disconnect();
   }
 };
 
@@ -74,6 +95,7 @@ const shutdown = async (signal) => {
       });
     }
 
+    await closeRedis();
     await disconnectDB();
 
     console.log("Auth Service shutdown completed.");
