@@ -28,11 +28,23 @@ function getProgressPercentage(userRoadmap) {
   const allTopics = phases.flatMap((phase) => phase.topics || []);
 
   if (allTopics.length > 0) {
-    const resolvedTopics = allTopics.filter(
-      (topic) =>
-        topic.status === ROADMAP_NODE_STATUS.COMPLETED ||
-        topic.status === ROADMAP_NODE_STATUS.SKIPPED,
-    ).length;
+    let resolvedTopics = 0;
+
+    for (const phase of phases) {
+      const topics = phase.topics || [];
+
+      // A skipped phase counts as resolved for progress.
+      if (phase.status === ROADMAP_NODE_STATUS.SKIPPED) {
+        resolvedTopics += topics.length;
+        continue;
+      }
+
+      resolvedTopics += topics.filter(
+        (topic) =>
+          topic.status === ROADMAP_NODE_STATUS.COMPLETED ||
+          topic.status === ROADMAP_NODE_STATUS.SKIPPED,
+      ).length;
+    }
 
     return Math.round((resolvedTopics / allTopics.length) * 100);
   }

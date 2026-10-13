@@ -81,23 +81,38 @@ const RoadmapDashboardPage = ({
         const allTopics = phaseProgress.flatMap((phase) =>
           Array.isArray(phase?.topics) ? phase.topics : [],
         );
-        const resolvedTopics = allTopics.filter(
-          (topic) =>
-            topic?.status === "completed" || topic?.status === "skipped",
-        ).length;
+
+        const totalTopics = allTopics.length;
+
+        const resolvedTopics = phaseProgress.reduce((total, phase) => {
+          const topics = Array.isArray(phase?.topics) ? phase.topics : [];
+
+          // If the whole phase is completed or skipped, count its topics as resolved.
+          if (["completed", "skipped"].includes(phase?.status)) {
+            return total + topics.length;
+          }
+
+          return (
+            total +
+            topics.filter((topic) =>
+              ["completed", "skipped"].includes(topic?.status),
+            ).length
+          );
+        }, 0);
+
         const completedSteps = phaseProgress.filter(
           (phase) => phase?.status === "completed",
         ).length;
+
         const totalSteps =
           Number(catalogRoadmap?.totalPhases) || phaseProgress.length;
-        const calculatedProgress = allTopics.length
-          ? Math.round((resolvedTopics / allTopics.length) * 100)
+
+        const calculatedProgress = totalTopics
+          ? Math.round((resolvedTopics / totalTopics) * 100)
           : phaseProgress.length
             ? Math.round(
-                (phaseProgress.filter(
-                  (phase) =>
-                    phase?.status === "completed" ||
-                    phase?.status === "skipped",
+                (phaseProgress.filter((phase) =>
+                  ["completed", "skipped"].includes(phase?.status),
                 ).length /
                   phaseProgress.length) *
                   100,

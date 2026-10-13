@@ -147,26 +147,50 @@ export default function RoadmapDetailPage({
     [canonical, phaseProgress],
   );
   const allTopics = useMemo(
-    () => phases.flatMap((phase) => phase.topics),
+    () =>
+      phases.flatMap((phase) =>
+        phase.topics.map((topic) => ({
+          ...topic,
+          phaseStatus: phase.savedStatus,
+        })),
+      ),
     [phases],
   );
+
   const stats = useMemo(() => {
+    const resolved = allTopics.filter(
+      (topic) =>
+        ["completed", "skipped"].includes(topic.phaseStatus) ||
+        ["completed", "skipped"].includes(topic.status),
+    ).length;
+
     const completed = allTopics.filter(
-      (topic) => topic.status === STATUS.COMPLETED,
+      (topic) =>
+        topic.phaseStatus === STATUS.COMPLETED ||
+        (topic.phaseStatus !== STATUS.SKIPPED &&
+          topic.status === STATUS.COMPLETED),
     ).length;
+
     const skipped = allTopics.filter(
-      (topic) => topic.status === STATUS.SKIPPED,
+      (topic) =>
+        topic.phaseStatus === STATUS.SKIPPED ||
+        (topic.phaseStatus !== STATUS.COMPLETED &&
+          topic.status === STATUS.SKIPPED),
     ).length;
+
     const inProgress = allTopics.filter(
-      (topic) => topic.status === STATUS.IN_PROGRESS,
+      (topic) =>
+        ![STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.phaseStatus) &&
+        topic.status === STATUS.IN_PROGRESS,
     ).length;
+
     return {
       total: allTopics.length,
       completed,
       skipped,
       inProgress,
       percentage: allTopics.length
-        ? Math.round(((completed + skipped) / allTopics.length) * 100)
+        ? Math.round((resolved / allTopics.length) * 100)
         : 0,
     };
   }, [allTopics]);
@@ -329,7 +353,6 @@ export default function RoadmapDetailPage({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-
           <div className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A1A1AA]">
             <span className="h-2 w-2 rounded-full bg-white/80" />
             Your learning roadmap
@@ -437,12 +460,16 @@ export default function RoadmapDetailPage({
             </span>
           </div>
           {phases.length ? (
-            <div className="space-y-4">
+            <div className="space-y-4">  
               {phases.map((phase, index) => {
                 const ready = phase.generationStatus === "ready";
-                const phaseDone = phase.topics.filter((topic) =>
-                  [STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.status),
-                ).length;
+                const phaseDone = [STATUS.COMPLETED, STATUS.SKIPPED].includes(
+  phase.savedStatus,
+)
+  ? phase.topics.length
+  : phase.topics.filter((topic) =>
+      [STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.status),
+    ).length;
                 return (
                   <Surface
                     key={phase.id}

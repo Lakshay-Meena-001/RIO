@@ -28,22 +28,36 @@ const calculateProgressFromTopics = (item) => {
   const phases = Array.isArray(item?.phaseProgress)
     ? item.phaseProgress
     : Object.values(item?.phaseProgress || {});
+
   const topics = phases.flatMap((phase) =>
     Array.isArray(phase?.topics) ? phase.topics : [],
   );
 
   if (topics.length) {
-    const resolved = topics.filter(
-      (topic) => topic?.status === "completed" || topic?.status === "skipped",
-    ).length;
-    return Math.round((resolved / topics.length) * 100);
+    const resolvedTopics = phases.reduce((total, phase) => {
+      const phaseTopics = Array.isArray(phase?.topics) ? phase.topics : [];
+
+      if (["completed", "skipped"].includes(phase?.status)) {
+        return total + phaseTopics.length;
+      }
+
+      return (
+        total +
+        phaseTopics.filter((topic) =>
+          ["completed", "skipped"].includes(topic?.status),
+        ).length
+      );
+    }, 0);
+
+    return Math.round((resolvedTopics / topics.length) * 100);
   }
 
   if (phases.length) {
-    const resolved = phases.filter(
-      (phase) => phase?.status === "completed" || phase?.status === "skipped",
+    const resolvedPhases = phases.filter((phase) =>
+      ["completed", "skipped"].includes(phase?.status),
     ).length;
-    return Math.round((resolved / phases.length) * 100);
+
+    return Math.round((resolvedPhases / phases.length) * 100);
   }
 
   return 0;
@@ -480,6 +494,7 @@ export default function RoadmapHistoryPage() {
             const savedPhase = phaseProgress.find(
               (item) => item.phaseId === phase.id,
             );
+
             return (phase.topics || []).map((topic) => ({
               ...topic,
               nodeId: topic.id,
@@ -487,21 +502,45 @@ export default function RoadmapHistoryPage() {
                 savedPhase?.topics?.find((item) => item.topicId === topic.id)
                   ?.status || "not_started",
               phaseId: phase.id,
+              phaseStatus: savedPhase?.status || "not_started",
             }));
           });
         const total = topics.length;
+
         const completed = topics.filter(
-          (topic) => topic.status === "completed",
+          (topic) =>
+            topic.phaseStatus !== "skipped" && topic.status === "completed",
         ).length;
+
         const skipped = topics.filter(
-          (topic) => topic.status === "skipped",
+          (topic) =>
+            topic.phaseStatus === "skipped" || topic.status === "skipped",
         ).length;
+
         const inProgress = topics.filter(
-          (topic) => topic.status === "in_progress",
+          (topic) =>
+            topic.phaseStatus !== "completed" &&
+            topic.phaseStatus !== "skipped" &&
+            topic.status === "in_progress",
         ).length;
+
+        const resolved = topics.filter(
+          (topic) =>
+            ["completed", "skipped"].includes(topic.phaseStatus) ||
+            ["completed", "skipped"].includes(topic.status),
+        ).length;
+
         const focus =
-          topics.find((topic) => topic.status === "in_progress") ||
-          topics.find((topic) => topic.status === "not_started");
+          topics.find(
+            (topic) =>
+              !["completed", "skipped"].includes(topic.phaseStatus) &&
+              topic.status === "in_progress",
+          ) ||
+          topics.find(
+            (topic) =>
+              !["completed", "skipped"].includes(topic.phaseStatus) &&
+              topic.status === "not_started",
+          );
         setRoadmap({
           ...personal,
           ...canonical,
@@ -517,9 +556,7 @@ export default function RoadmapHistoryPage() {
             completed,
             skipped,
             learning: inProgress,
-            percentage: total
-              ? Math.round(((completed + skipped) / total) * 100)
-              : 0,
+            percentage: total ? Math.round((resolved / total) * 100) : 0,
           },
           currentFocus: focus
             ? {
