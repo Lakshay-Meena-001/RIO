@@ -102,7 +102,7 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
     return () => {
       cancelled = true;
     };
-  }, [interviewId, reloadKey]);
+  }, [interviewId, reloadKey, interview]);
 
   const formatScore = (score) => {
     const numericScore = Number(score);

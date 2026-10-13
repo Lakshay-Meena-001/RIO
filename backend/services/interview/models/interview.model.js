@@ -266,6 +266,38 @@ const questionSchema = new mongoose.Schema(
   },
 );
 
+const balanceDeductionSchema = new mongoose.Schema(
+  {
+    service: {
+      type: String,
+      default: null,
+    },
+    previousBalance: {
+      type: Number,
+      default: null,
+    },
+    deductedAmount: {
+      type: Number,
+      default: null,
+    },
+    balance: {
+      type: Number,
+      default: null,
+    },
+    transactionId: {
+      type: String,
+      default: null,
+    },
+    processedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    _id: false,
+  },
+);
+
 /*
  * ---------------------------------------------------------
  * Interview Schema
@@ -501,6 +533,11 @@ const interviewSchema = new mongoose.Schema(
      */
     finalizedAt: {
       type: Date,
+      default: null,
+    },
+
+    balanceDeduction: {
+      type: balanceDeductionSchema,
       default: null,
     },
 

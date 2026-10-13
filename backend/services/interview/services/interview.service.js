@@ -1001,13 +1001,25 @@ async function finalizeInterviewAndDeductBalance(
 
       interview.paymentStatus = "deducted";
 
-      // Keep the confirmed result available for the API response.
       balanceDeduction = {
         service: "Interview",
-        previousBalance: deductionResult.previousBalance,
-        deductedAmount: deductionResult.deductedAmount,
-        balance: deductionResult.balance,
+        previousBalance: Number(deductionResult.previousBalance),
+        deductedAmount: Number(deductionResult.deductedAmount),
+        balance: Number(deductionResult.balance),
+        transactionId: paymentTransactionId,
+        processedAt: new Date(),
       };
+
+      interview.balanceDeduction = balanceDeduction;
+
+      // Persist the confirmed payment record immediately.
+      // A later finalization retry must not lose the deduction details.
+      interview = await saveFinalizationDocument(
+        interview,
+        userId,
+        interviewId,
+        finalizationKey,
+      );
     } catch (error) {
       /*
        * A 4xx response represents a business-level payment
@@ -1154,6 +1166,7 @@ async function finalizeInterviewAndDeductBalance(
         finalizationLeaseUntil: null,
         paymentStatus: interview.paymentStatus,
         paymentTransactionId: interview.paymentTransactionId,
+        balanceDeduction: interview.balanceDeduction,
       },
     },
     {
@@ -1171,8 +1184,6 @@ async function finalizeInterviewAndDeductBalance(
 
   interview = completedInterview;
 
-  // Preserve the confirmed deduction result after reloading the document.
-  interview.$locals.balanceDeduction = balanceDeduction;
 
   if (finalizationLeaseHeartbeat) {
     finalizationLeaseHeartbeat.stop();
@@ -2310,7 +2321,7 @@ export const submitInterview = async (
       weaknesses: finalizedInterview.weaknesses,
       recommendations: finalizedInterview.recommendations,
       summary: finalizedInterview.summary,
-      balanceDeduction: finalizedInterview.$locals?.balanceDeduction ?? null,
+      balanceDeduction: finalizedInterview.balanceDeduction ?? null,
       amountCharged: INTERVIEW_COMPLETION_COST,
       alreadyFinalized: false,
     };

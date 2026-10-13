@@ -69,7 +69,7 @@ const InterviewHistory = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     const load = async () => {

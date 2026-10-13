@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import BasicTemplate from "./templates/BasicTemplate";
 import ModernTemplate from "./templates/ModernTemplate";

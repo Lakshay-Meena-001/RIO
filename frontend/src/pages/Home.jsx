@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "motion/react";
 import {
   FiArrowRight,
@@ -129,12 +129,23 @@ function GlassLine({ className = "" }) {
 
 const Home = ({ setUser, user }) => {
   const [showLogin, setShowLogin] = useState(false);
+  const [dismissedSetupUser, setDismissedSetupUser] = useState(null);
 
-  useEffect(() => {
+  const setupUserKey = user?._id ?? user?.id ?? user?.email ?? user;
+
+  const needsAccountSetup = Boolean(
+    user && !user.profileCompleted && setupUserKey !== dismissedSetupUser,
+  );
+
+  const isLoginOpen = showLogin || needsAccountSetup;
+
+  const closeLogin = () => {
+    setShowLogin(false);
+
     if (user && !user.profileCompleted) {
-      setShowLogin(true);
+      setDismissedSetupUser(setupUserKey);
     }
-  }, [user]);
+  };
 
   const openLogin = () => setShowLogin(true);
 
@@ -1111,9 +1122,9 @@ const Home = ({ setUser, user }) => {
           </div>
         </div>
 
-        {showLogin && (
+        {isLoginOpen && (
           <Loginmodel
-            onClose={() => setShowLogin(false)}
+            onClose={closeLogin}
             setUser={setUser}
             initialAccountSetupUser={user}
           />

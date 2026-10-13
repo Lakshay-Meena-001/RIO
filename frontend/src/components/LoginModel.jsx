@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
+import { useWatch } from "react-hook-form";
 
 import {
   FiArrowLeft,
@@ -35,10 +36,21 @@ import api from "../utils/axios";
 import EmailVerification from "./EmailVerification";
 
 const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
+  const recaptchaVerifierRef = useRef(null);
+
   const [authMode, setAuthMode] = useState("login");
   const [method, setMethod] = useState("email");
-  const [accountSetupStep, setAccountSetupStep] = useState(false);
-  const [accountSetupUser, setAccountSetupUser] = useState(null);
+  const [accountSetupStep, setAccountSetupStep] = useState(() =>
+    Boolean(
+      initialAccountSetupUser && !initialAccountSetupUser.profileCompleted,
+    ),
+  );
+
+  const [accountSetupUser, setAccountSetupUser] = useState(() =>
+    initialAccountSetupUser && !initialAccountSetupUser.profileCompleted
+      ? initialAccountSetupUser
+      : null,
+  );
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -64,23 +76,18 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
   const {
     register,
     handleSubmit,
-    watch,
+    control,
+    getValues,
     reset,
     formState: { errors },
   } = useForm();
 
-  const newPassword = watch("newPassword");
-
-  useEffect(() => {
-    if (initialAccountSetupUser && !initialAccountSetupUser.profileCompleted) {
-      setAccountSetupUser(initialAccountSetupUser);
-      setAccountSetupStep(true);
-    }
-  }, [initialAccountSetupUser]);
+  const newPassword = useWatch({
+    control,
+    name: "newPassword",
+  });
 
   // Supports both:
-  // lakshaymeena2198
-  // lakshaymeena2198@gmail.com
   const normalizeEmail = (value) => {
     const email = value?.trim().toLowerCase();
 
@@ -91,26 +98,15 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
     return email.includes("@") ? email : `${email}@gmail.com`;
   };
 
-  // Creates a readable fallback when a provider does not return a name.
-  const getFallbackDisplayName = (email) => {
-    const localPart = email.split("@")[0];
-
-    return localPart
-      .replace(/[._-]+/g, " ")
-      .replace(/\d+/g, "")
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(" ");
+  const clearRecaptchaVerifier = () => {
+    if (recaptchaVerifierRef.current) {
+      recaptchaVerifierRef.current.clear();
+      recaptchaVerifierRef.current = null;
+    }
   };
-
   // Clears every temporary Firebase phone-auth state.
   const clearPhoneOtpSession = () => {
-    if (window.recaptchaVerifier) {
-      window.recaptchaVerifier.clear();
-      window.recaptchaVerifier = null;
-    }
+    clearRecaptchaVerifier();
 
     setOtpStep(false);
     setConfirmationResult(null);
@@ -261,12 +257,12 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
       setOtp("");
       setConfirmationResult(null);
 
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
+      if (recaptchaVerifierRef.current) {
+        recaptchaVerifierRef.current.clear();
+        recaptchaVerifierRef.current = null;
       }
 
-      window.recaptchaVerifier = new RecaptchaVerifier(
+      recaptchaVerifierRef.current = new RecaptchaVerifier(
         auth,
         "recaptcha-container",
         {
@@ -277,7 +273,7 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
       const confirmation = await signInWithPhoneNumber(
         auth,
         formattedPhoneNumber,
-        window.recaptchaVerifier,
+        recaptchaVerifierRef.current,
       );
 
       setConfirmationResult(confirmation);
@@ -300,10 +296,7 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
           "Unable to send verification code. Please try again.",
       );
 
-      if (window.recaptchaVerifier) {
-        window.recaptchaVerifier.clear();
-        window.recaptchaVerifier = null;
-      }
+      clearRecaptchaVerifier();
 
       setConfirmationResult(null);
       setOtp("");
@@ -330,6 +323,7 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
 
       // Verify the OTP with Firebase.
       const result = await confirmationResult.confirm(otp);
+      clearRecaptchaVerifier();
 
       // Get a fresh Firebase ID token after successful verification.
       const token = await result.user.getIdToken(true);
@@ -380,7 +374,7 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
 
     setForgotPasswordError("");
 
-    const email = normalizeEmail(watch("email"));
+    const email = normalizeEmail(getValues("email"));
 
     if (!email) {
       setForgotPasswordError("Email is required.");
@@ -886,11 +880,16 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
                     </p>
                   </div>
 
+                  {/* Keep the reCAPTCHA mount point in the DOM while switching between phone and OTP screens. */}
+                  <div id="recaptcha-container" />
+
                   <AnimatePresence mode="wait">
                     {accountSetupStep ? (
                       <motion.form
                         key="account-setup"
-                        onSubmit={handleSubmit(handleCompleteProfile)}
+                        onSubmit={(event) =>
+                          handleSubmit(handleCompleteProfile)(event)
+                        }
                         initial={{ opacity: 0, x: 10 }}
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -10 }}
@@ -1116,7 +1115,9 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
                         animate={{ opacity: 1, x: 0 }}
                         exit={{ opacity: 0, x: -10 }}
                         transition={{ duration: 0.18 }}
-                        onSubmit={handleSubmit(handlePasswordCreation)}
+                        onSubmit={(event) =>
+                          handleSubmit(handlePasswordCreation)(event)
+                        }
                         className="mt-8 space-y-5"
                       >
                         <div>
@@ -1273,6 +1274,7 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
 
                         <button
                           type="button"
+                          onClick={handleSendPhoneOtp}
                           disabled={isLoading}
                           className="mt-4 text-xs font-medium text-white/75 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                         >
@@ -1356,8 +1358,6 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
 
                           {!isLoading && <FiArrowRight size={16} />}
                         </button>
-
-                        <div id="recaptcha-container" />
                       </motion.div>
                     ) : (
                       <motion.div
@@ -1374,7 +1374,7 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
                             onClick={handleSelectEmail}
                             className={`rounded-lg text-xs font-semibold transition-colors ${
                               method === "email"
-                                ? "bg-white/[0.11] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
+                                ? "bg-white/11 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
                                 : "text-white/35 hover:text-white/60"
                             }`}
                           >
@@ -1386,7 +1386,7 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
                             onClick={handleSelectPhone}
                             className={`flex items-center justify-center gap-2 rounded-lg text-xs font-semibold transition-colors ${
                               method === "phone"
-                                ? "bg-white/[0.11] text-white"
+                                ? "bg-white/11 text-white"
                                 : "text-white/35 hover:text-white/60"
                             }`}
                           >
@@ -1396,7 +1396,7 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
                         </div>
 
                         <form
-                          onSubmit={handleSubmit(onSubmit)}
+                          onSubmit={(event) => handleSubmit(onSubmit)(event)}
                           className="mt-6 space-y-4"
                         >
                           {authMode === "register" && (

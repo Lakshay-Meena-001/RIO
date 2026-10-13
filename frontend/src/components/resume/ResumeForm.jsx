@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import React, { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /* -------------------------------------------------------------------------- */
 /*                               Small Helpers                                */

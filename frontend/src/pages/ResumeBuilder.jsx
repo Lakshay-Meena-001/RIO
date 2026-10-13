@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle,
@@ -293,7 +293,7 @@ const ResumeBuilder = ({ user, setUser }) => {
     Boolean(reduxResume),
   );
 
-  const [isHistoryResume, setIsHistoryResume] = useState(false);
+  const [, setIsHistoryResume] = useState(false);
 
   const [showPreview, setShowPreview] = useState(false);
 
@@ -301,13 +301,11 @@ const ResumeBuilder = ({ user, setUser }) => {
 
   const [showTemplateMenu, setShowTemplateMenu] = useState(false);
 
-  const [history, setHistory] = useState([]);
+  const [history, setHistory] = useState(getHistory);
 
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   const [showNewConfirm, setShowNewConfirm] = useState(false);
-
-  const [saveMode, setSaveMode] = useState("new");
 
   const previewRef = useRef(null);
 
@@ -390,14 +388,6 @@ const ResumeBuilder = ({ user, setUser }) => {
   }, [dispatch]);
 
   /* =======================================================
-     LOAD LOCAL HISTORY
-  ======================================================= */
-
-  useEffect(() => {
-    setHistory(getHistory());
-  }, []);
-
-  /* =======================================================
      AUTO CLEAR SUCCESS MESSAGE
   ======================================================= */
 
@@ -446,27 +436,30 @@ const ResumeBuilder = ({ user, setUser }) => {
      SAVE TO BACKEND
   ======================================================= */
 
-  const saveBackend = async (payload) => {
-    const response = await updateResume(payload);
+  const saveBackend = useCallback(
+    async (payload) => {
+      const response = await updateResume(payload);
 
-    const updatedResume = extractResumeFromResponse(response);
+      const updatedResume = extractResumeFromResponse(response);
 
-    if (!updatedResume) {
-      throw new Error(
-        "Resume was saved but the updated resume could not be loaded.",
-      );
-    }
+      if (!updatedResume) {
+        throw new Error(
+          "Resume was saved but the updated resume could not be loaded.",
+        );
+      }
 
-    dispatch(setResume(updatedResume));
+      dispatch(setResume(updatedResume));
 
-    return updatedResume;
-  };
+      return updatedResume;
+    },
+    [dispatch],
+  );
 
   /* =======================================================
      UPDATE CURRENT RESUME
   ======================================================= */
 
-  const handleUpdate = async () => {
+  const handleUpdate = useCallback(async () => {
     if (saving) return;
 
     if (!hasChanges) {
@@ -519,13 +512,13 @@ const ResumeBuilder = ({ user, setUser }) => {
     } finally {
       setSaving(false);
     }
-  };
+  }, [saving, hasChanges, saveBackend, data, selectedTemplate, history]);
 
   /* =======================================================
      SAVE AS NEW
   ======================================================= */
 
-  const handleSaveAsNew = async () => {
+  const handleSaveAsNew = useCallback(async () => {
     if (saving) return;
 
     try {
@@ -580,7 +573,7 @@ const ResumeBuilder = ({ user, setUser }) => {
     } finally {
       setSaving(false);
     }
-  };
+  }, [saving, data, selectedTemplate, history, saveBackend]);
 
   /* =======================================================
      START NEW RESUME
@@ -657,9 +650,9 @@ const ResumeBuilder = ({ user, setUser }) => {
     setShowPreview(true);
   };
 
-  const closePreview = () => {
+  const closePreview = useCallback(() => {
     setShowPreview(false);
-  };
+  }, []);
 
   /* =======================================================
      KEYBOARD SHORTCUT
@@ -687,7 +680,13 @@ const ResumeBuilder = ({ user, setUser }) => {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isExistingResume, showPreview, hasChanges, data, saving, history]);
+  }, [
+    isExistingResume,
+    showPreview,
+    handleUpdate,
+    handleSaveAsNew,
+    closePreview,
+  ]);
 
   /* =======================================================
      LOADING SCREEN

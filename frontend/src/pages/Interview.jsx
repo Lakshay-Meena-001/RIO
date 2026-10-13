@@ -61,6 +61,28 @@ const Interview = ({ setUser }) => {
     useState(false);
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [balanceDeductionDetails, setBalanceDeductionDetails] = useState(null);
+
+  const balancePopupShownRef = useRef(false);
+
+  const captureBalanceDeduction = useCallback((data) => {
+    const deduction = data?.balanceDeduction;
+
+    if (
+      !data ||
+      data.alreadyFinalized === true ||
+      !deduction ||
+      balancePopupShownRef.current ||
+      !Number.isFinite(Number(deduction.previousBalance)) ||
+      !Number.isFinite(Number(deduction.deductedAmount)) ||
+      !Number.isFinite(Number(deduction.balance))
+    ) {
+      return;
+    }
+
+    balancePopupShownRef.current = true;
+    setBalanceDeductionDetails(deduction);
+  }, []);
+
   const [insufficientBalanceAmount, setInsufficientBalanceAmount] =
     useState(null);
 
@@ -495,6 +517,7 @@ const Interview = ({ setUser }) => {
       }
 
       if (data.status === "completed") {
+        captureBalanceDeduction(data);
         void refreshCurrentUser();
         setProcessingStage("report");
         setReportReady(true);
@@ -513,7 +536,7 @@ const Interview = ({ setUser }) => {
 
       return false;
     },
-    [navigate, refreshCurrentUser],
+    [navigate, refreshCurrentUser, captureBalanceDeduction],
   );
 
   /*
@@ -836,23 +859,18 @@ const Interview = ({ setUser }) => {
         const completedData = result?.data?.interview ?? result?.data;
 
         if (completedData?.status === "completed") {
-          const deduction = completedData?.balanceDeduction;
+          captureBalanceDeduction(completedData);
 
-          // Only show the popup for a newly confirmed deduction.
-          // Never show a fresh deduction popup on an idempotent retry.
-          if (
-            completedData.alreadyFinalized !== true &&
-            deduction &&
-            deduction.alreadyProcessed !== true &&
-            Number.isFinite(Number(deduction.previousBalance)) &&
-            Number.isFinite(Number(deduction.deductedAmount)) &&
-            Number.isFinite(Number(deduction.balance))
-          ) {
-            setBalanceDeductionDetails(deduction);
+          try {
+            await refreshCurrentUser();
+          } catch (balanceError) {
+            console.error(
+              "Failed to refresh balance after interview completion:",
+              balanceError,
+            );
           }
 
           setProcessingStage("report");
-          await refreshCurrentUser();
           setReportReady(true);
 
           return;
@@ -953,7 +971,7 @@ const Interview = ({ setUser }) => {
               const latestInterview = latest.data;
 
               if (latestInterview.status === "completed") {
-                setInterview(latestInterview);
+                captureBalanceDeduction(latestInterview);
                 await refreshCurrentUser();
                 setProcessingStage("report");
                 setReportReady(true);
@@ -1011,9 +1029,32 @@ const Interview = ({ setUser }) => {
         }
 
         if (errorMessage.toLowerCase().includes("insufficient balance")) {
-          setInsufficientBalanceAmount(err?.response?.data?.balance ?? null);
+          setInsufficientBalanceAmount(null);
           setShowInsufficientBalanceModal(true);
-          setError("");
+          setError(
+            timerExpired
+              ? "Your balance is insufficient. Recharge your balance, then retry submission."
+              : "",
+          );
+
+          try {
+            const currentUserData = await getCurrentUser();
+
+            if (currentUserData?.user) {
+              setUser(currentUserData.user);
+
+              const currentBalance = Number(currentUserData.user.balance);
+
+              setInsufficientBalanceAmount(
+                Number.isFinite(currentBalance) ? currentBalance : null,
+              );
+            }
+          } catch (balanceError) {
+            console.error(
+              "Failed to refresh balance after insufficient balance:",
+              balanceError,
+            );
+          }
         } else {
           setError(errorMessage);
         }
@@ -1044,6 +1085,8 @@ const Interview = ({ setUser }) => {
       flushDraftSave,
       navigate,
       refreshCurrentUser,
+      captureBalanceDeduction,
+      setUser,
     ],
   );
 
@@ -2085,7 +2128,7 @@ const Interview = ({ setUser }) => {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
-              This interview requires 100 balance to complete.
+              This interview requires ₹100 to complete.
               {insufficientBalanceAmount !== null && (
                 <span className="mt-2 block">
                   Your current balance: {insufficientBalanceAmount} INR
