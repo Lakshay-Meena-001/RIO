@@ -77,15 +77,32 @@ const RoadmapDashboardPage = ({
         const phaseProgress = Array.isArray(item?.phaseProgress)
           ? item.phaseProgress
           : Object.values(item?.phaseProgress || {});
+        // Progress matches the backend: completed + skipped topics count.
+        const allTopics = phaseProgress.flatMap((phase) =>
+          Array.isArray(phase?.topics) ? phase.topics : [],
+        );
+        const resolvedTopics = allTopics.filter(
+          (topic) =>
+            topic?.status === "completed" || topic?.status === "skipped",
+        ).length;
         const completedSteps = phaseProgress.filter(
-          (phase) =>
-            phase?.status === "completed" || Boolean(phase?.completedAt),
+          (phase) => phase?.status === "completed",
         ).length;
         const totalSteps =
           Number(catalogRoadmap?.totalPhases) || phaseProgress.length;
-        const calculatedProgress = totalSteps
-          ? Math.round((completedSteps / totalSteps) * 100)
-          : 0;
+        const calculatedProgress = allTopics.length
+          ? Math.round((resolvedTopics / allTopics.length) * 100)
+          : phaseProgress.length
+            ? Math.round(
+                (phaseProgress.filter(
+                  (phase) =>
+                    phase?.status === "completed" ||
+                    phase?.status === "skipped",
+                ).length /
+                  phaseProgress.length) *
+                  100,
+              )
+            : 0;
 
         return {
           ...item,
@@ -102,9 +119,9 @@ const RoadmapDashboardPage = ({
             item?.category,
           totalSteps,
           completedSteps,
-          progressPercentage: Number(
-            item?.progressPercentage ?? calculatedProgress,
-          ),
+          progressPercentage: Number.isFinite(Number(item?.progressPercentage))
+            ? Math.max(0, Math.min(100, Number(item.progressPercentage)))
+            : calculatedProgress,
           updatedAt: item?.lastAccessedAt || item?.updatedAt || item?.createdAt,
           phaseProgress,
         };

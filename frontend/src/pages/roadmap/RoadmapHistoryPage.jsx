@@ -24,24 +24,60 @@ const unwrap = (response) => response?.data ?? response ?? null;
 const getId = (item) =>
   String(item?._id || item?.id || item?.userRoadmapId || "");
 
-const getProgress = (item) =>
-  Math.max(
-    0,
-    Math.min(
-      100,
-      Number(item?.progressPercentage ?? item?.progress?.percentage) || 0,
-    ),
+const calculateProgressFromTopics = (item) => {
+  const phases = Array.isArray(item?.phaseProgress)
+    ? item.phaseProgress
+    : Object.values(item?.phaseProgress || {});
+  const topics = phases.flatMap((phase) =>
+    Array.isArray(phase?.topics) ? phase.topics : [],
   );
 
-const normalizeHistoryItem = (item) => ({
-  ...item,
-  title: item?.roadmap?.title || item?.title || "Learning roadmap",
-  role:
-    item?.roadmap?.catalogRoadmapId || item?.catalogRoadmapId || "Career path",
-  templateId: item?.packageId || item?.roadmap?.packageId || "standard",
-  progressPercentage: Number(item?.progressPercentage) || 0,
-  status: item?.status || "active",
-});
+  if (topics.length) {
+    const resolved = topics.filter(
+      (topic) => topic?.status === "completed" || topic?.status === "skipped",
+    ).length;
+    return Math.round((resolved / topics.length) * 100);
+  }
+
+  if (phases.length) {
+    const resolved = phases.filter(
+      (phase) => phase?.status === "completed" || phase?.status === "skipped",
+    ).length;
+    return Math.round((resolved / phases.length) * 100);
+  }
+
+  return 0;
+};
+
+const getProgress = (item) => {
+  const saved = Number(item?.progressPercentage ?? item?.progress?.percentage);
+  const value = Number.isFinite(saved)
+    ? saved
+    : calculateProgressFromTopics(item);
+  return Math.max(0, Math.min(100, value));
+};
+
+const normalizeHistoryItem = (item) => {
+  const savedProgress = Number(item?.progressPercentage);
+  const hasSavedProgress =
+    item?.progressPercentage !== null &&
+    item?.progressPercentage !== undefined &&
+    Number.isFinite(savedProgress);
+
+  return {
+    ...item,
+    title: item?.roadmap?.title || item?.title || "Learning roadmap",
+    role:
+      item?.roadmap?.catalogRoadmapId ||
+      item?.catalogRoadmapId ||
+      "Career path",
+    templateId: item?.packageId || item?.roadmap?.packageId || "standard",
+    progressPercentage: hasSavedProgress
+      ? Math.max(0, Math.min(100, savedProgress))
+      : calculateProgressFromTopics(item),
+    status: item?.status || "active",
+  };
+};
 
 const formatDate = (value) => {
   if (!value) return "Date unavailable";
@@ -133,9 +169,9 @@ function FloatingProgressSidebar({
 
   return (
     <aside
-      className={`${FLOATING_SIDEBAR} !border-transparent !bg-transparent !shadow-none right-4 z-30 hidden lg:inset-y-5 lg:right-5 lg:flex`}
+      className={`${FLOATING_SIDEBAR}   border border-white/[.09] !bg-transparent !shadow-none right-4 z-30 hidden lg:inset-y-5 lg:right-5 lg:flex`}
     >
-      <div className="min-h-0 flex-1 overflow-y-auto p-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto p-5  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#6B6D73]">
@@ -619,7 +655,7 @@ export default function RoadmapHistoryPage() {
       </div>
       <div className="relative z-10 flex h-full min-h-0">
         <aside
-          className={`${FLOATING_SIDEBAR} top-4 bottom-20 left-4 z-50 w-[min(282px,calc(100vw-1rem))] shadow-[0_24px_80px_rgba(0,0,0,.30)] transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"} flex`}
+          className={`${FLOATING_SIDEBAR} top-4 bottom-20  left-4 z-50 w-[min(282px,calc(100vw-1rem))] shadow-[0_24px_80px_rgba(0,0,0,.30)] transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"} flex`}
         >
           <div className="shrink-0 border-b border-white/[0.065] bg-white/[0.012] px-5 pb-5 pt-6">
             <div className="flex items-start justify-between gap-3">
