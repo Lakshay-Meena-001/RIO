@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-
 import { useNavigate, useSearchParams } from "react-router-dom";
-
 import RoadmapDetailPage from "./RoadmapDetailPage.jsx";
+import { FiArrowLeft } from "react-icons/fi";
 
 import {
-  FiArrowLeft,
   FiArrowRight,
   FiBookOpen,
   FiPlus,
@@ -325,7 +323,7 @@ function FloatingProgressSidebar({
           type="button"
           disabled={!hasRoadmap || deleteLoading}
           onClick={onDelete}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.1] bg-white/[0.025] px-4 py-3 text-xs font-semibold text-[#B4B6BD] transition hover:border-red-300/25 hover:bg-red-300/[0.06] hover:text-red-100 disabled:cursor-not-allowed disabled:opacity-30"
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.1] bg-white/40 px-4 py-3 text-xs font-semibold text-white transition hover:border-white-300/25 hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-30"
         >
           <FiTrash2 size={14} />{" "}
           {deleteLoading ? "Deleting…" : "Delete roadmap"}
@@ -621,7 +619,7 @@ export default function RoadmapHistoryPage() {
       </div>
       <div className="relative z-10 flex h-full min-h-0">
         <aside
-          className={`${FLOATING_SIDEBAR} inset-y-4 left-4 z-50 w-[min(282px,calc(100vw-1rem))] shadow-[0_24px_80px_rgba(0,0,0,.30)] transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"} flex`}
+          className={`${FLOATING_SIDEBAR} top-4 bottom-20 left-4 z-50 w-[min(282px,calc(100vw-1rem))] shadow-[0_24px_80px_rgba(0,0,0,.30)] transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"} flex`}
         >
           <div className="shrink-0 border-b border-white/[0.065] bg-white/[0.012] px-5 pb-5 pt-6">
             <div className="flex items-start justify-between gap-3">
@@ -716,16 +714,6 @@ export default function RoadmapHistoryPage() {
                     ? "Try another title or clear your search."
                     : "Build your first learning path and it will live here."}
                 </p>
-
-                {!search && (
-                  <button
-                    type="button"
-                    onClick={() => navigate("/roadmap/new")}
-                    className="mt-5 inline-flex items-center gap-2 rounded-xl bg-white px-3.5 py-2.5 text-[11px] font-semibold text-[#111214]"
-                  >
-                    <FiPlus size={13} /> Build a roadmap
-                  </button>
-                )}
               </div>
             )}
 
@@ -778,17 +766,6 @@ export default function RoadmapHistoryPage() {
                 );
               })}
           </div>
-
-          <div className="shrink-0 border-t border-white/[0.065] p-4">
-            <button
-              type="button"
-              onClick={() => navigate("/roadmap/new")}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:-translate-y-0.5 hover:bg-[#E7E7E7]"
-            >
-              <FiPlus size={14} /> Build a new roadmap{" "}
-              <FiArrowRight size={13} />
-            </button>
-          </div>
         </aside>
 
         {mobileHistoryOpen && (
@@ -809,15 +786,29 @@ export default function RoadmapHistoryPage() {
 
         <main className="min-w-0 flex-1 overflow-hidden pb-[env(safe-area-inset-bottom)] lg:pl-[302px] lg:pr-[302px]">
           <div className="flex h-full min-h-0 flex-col">
+            <div className="mt-6 mx-6 hidden border-b border-white/[0.08] pb-5 lg:block">
+              <button
+                type="button"
+                onClick={() => navigate("/roadmap")}
+                className="group inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors duration-200 hover:text-white"
+                aria-label="Back to roadmaps"
+              >
+                <FiArrowLeft
+                  size={14}
+                  className="transition-transform duration-200 group-hover:-translate-x-0.5"
+                />
+                Back to roadmaps
+              </button>
+            </div>
             <div className="flex h-16 shrink-0 items-center border-b border-white/[0.07] bg-[#111214]/75 px-4 backdrop-blur-xl lg:hidden">
               <button
                 type="button"
-                onClick={() => setMobileHistoryOpen(true)}
-                className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.045] px-3 text-xs font-semibold text-[#D4D4D8] transition hover:bg-white/[0.08]"
-                aria-label="Back to roadmap history"
+                onClick={() => navigate("/roadmap")}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] p-0 text-[#D4D4D8] transition hover:bg-white/[0.08]"
+                aria-label="Back to roadmaps"
+                title="Back to roadmaps"
               >
                 <FiArrowLeft size={15} />
-                History
               </button>
 
               <div className="ml-3 min-w-0 border-l border-white/[0.09] pl-3">
@@ -861,13 +852,70 @@ export default function RoadmapHistoryPage() {
               ) : selectedId ? (
                 <RoadmapDetailPage roadmapId={selectedId} embedded />
               ) : (
-                <div className="flex min-h-[60vh] items-center justify-center text-center text-sm text-[#777B85]">
-                  Select a roadmap from your history to view its learning path.
-                </div>
+                <section className="flex min-h-[calc(100dvh-13rem)] items-center justify-center px-5 py-10 text-center lg:min-h-[60vh] lg:px-4 lg:py-12">
+                  <div className="mx-auto flex w-full max-w-xl flex-col items-center">
+                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/[0.10] bg-white/[0.035] text-[#D4D4D8] shadow-[0_10px_32px_rgba(0,0,0,.16)]">
+                      <FiBookOpen size={19} strokeWidth={1.6} />
+                    </div>
+
+                    <p className="mb-3 text-[9px] font-semibold uppercase tracking-[0.24em] text-[#858994] sm:text-[10px]">
+                      Your learning workspace
+                    </p>
+
+                    <h2 className="max-w-sm text-[25px] font-semibold leading-[1.15] tracking-[-0.045em] text-[#F4F4F5] sm:max-w-lg sm:text-3xl">
+                      Every big goal starts with a path.
+                    </h2>
+
+                    <p className="mt-4 max-w-[19rem] text-[13px] leading-6 text-[#A1A1AA] sm:max-w-md sm:text-[15px]">
+                      Choose a roadmap from your history to pick up where you
+                      left off, or create a new one to plan your next step.
+                    </p>
+
+                    <p className="mt-5 text-[10px] leading-5 text-[#686C75] sm:text-[11px]">
+                      Your progress and next steps will live here.
+                    </p>
+                  </div>
+                </section>
               )}
             </div>
           </div>
         </main>
+      </div>
+
+      {/* Mobile actions stay anchored at the bottom, outside the scrollable content. */}
+      <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#111315]/90 px-4 pt-3 backdrop-blur-xl pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
+        {selectedId ? (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileHistoryOpen((open) => !open)}
+              className="group inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+              aria-label="Open roadmap history"
+            >
+              <FiArrowLeft size={14} />
+              History
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleteLoading}
+              className="group inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
+            >
+              <FiTrash2 size={14} />
+              Delete
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => navigate("/roadmap/new")}
+            className="group inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#111214]"
+          >
+            <FiPlus size={16} />
+            Build a roadmap
+            <FiArrowRight size={14} />
+          </button>
+        )}
       </div>
 
       {confirmDelete && (

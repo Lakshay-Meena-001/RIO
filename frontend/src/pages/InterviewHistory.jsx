@@ -1,66 +1,247 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-
 import InterviewReport from "./InterviewReport";
+import {
+  FiArrowLeft,
+  FiClock,
+  FiRefreshCw,
+  FiTrash2,
+  FiSearch,
+  FiX,
+  FiActivity,
+  FiCheckCircle,
+  FiTarget,
+  FiTrendingUp,
+  FiPlay,
+} from "react-icons/fi";
 import { getInterviewHistory } from "../api/interview.api";
 
-import { FiClock, FiMenu, FiRefreshCw } from "react-icons/fi";
+const getId = (item) => item?._id || item?.id || item?.interviewId || null;
+const dateOf = (item) => item?.createdAt || item?.startedAt || item?.updatedAt;
+const dateLabel = (value) => {
+  if (!value) return "Date unavailable";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "Date unavailable"
+    : date.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+};
+const timeLabel = (value) => {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" });
+};
+const typeLabel = (type) =>
+  ({
+    dsa: "DSA",
+    coding: "Coding",
+    core: "Core CS",
+    development: "Development",
+    project: "Project",
+    "system-design": "System Design",
+    behavioral: "Behavioral",
+    full: "Full Interview",
+  })[type] ||
+  type ||
+  "Mock Interview";
+const scoreLabel = (value) =>
+  Number.isFinite(Number(value)) && value !== null && value !== ""
+    ? `${Number(value).toFixed(1)}/10`
+    : "—";
 
-const InterviewHistory = () => {
+const Sidebar = ({ interview }) => {
+  const questions = Array.isArray(interview?.questions)
+    ? interview.questions
+    : [];
+  const answered = questions.filter(
+    (q) => q?.submittedAt || q?.answer?.trim(),
+  ).length;
+  const evaluated = questions.filter(
+    (q) => q?.evaluation && Number.isFinite(Number(q.evaluation.score)),
+  );
+  const score = Number(interview?.overallScore);
+  const validScore =
+    interview?.overallScore !== null &&
+    interview?.overallScore !== "" &&
+    Number.isFinite(score);
+  const percent = validScore ? Math.max(0, Math.min(100, score * 10)) : 0;
+  const status = interview?.status || "unknown";
+  return (
+    <aside className="hidden xl:flex absolute inset-y-5 right-5 z-20 w-[260px] flex-col overflow-hidden rounded-[18px] border border-white/[.09] bg-white/[.018]">
+      <div className="min-h-0 flex-1 overflow-y-auto p-5 [scrollbar-width:none]">
+        <p className="text-[9px] font-semibold uppercase tracking-[.22em] text-[#6B6D73]">
+          Your practice
+        </p>
+        <h2 className="mt-2 text-[17px] font-semibold tracking-[-.035em]">
+          Interview highlights
+        </h2>
+        <p className="mt-1.5 text-[11px] leading-5 text-[#70727A]">
+          A concise snapshot of this interview and its key takeaways.
+        </p>
+        <div className="mt-5 border-t border-white/[.07] pt-4 flex items-center justify-between">
+          <span className="text-[9px] uppercase tracking-[.16em] text-[#66686F]">
+            Selected interview
+          </span>
+          <span className="text-xs font-semibold text-[#D4D4D8]">
+            {interview ? "1" : "0"}
+          </span>
+        </div>
+        {interview ? (
+          <>
+            <div className="mt-5 flex items-center gap-3">
+              <div className="relative h-[68px] w-[68px] shrink-0">
+                <svg viewBox="0 0 68 68" className="h-full w-full -rotate-90">
+                  <circle
+                    cx="34"
+                    cy="34"
+                    r="27"
+                    fill="none"
+                    stroke="rgba(255,255,255,.09)"
+                    strokeWidth="5"
+                  />
+                  <circle
+                    cx="34"
+                    cy="34"
+                    r="27"
+                    fill="none"
+                    stroke="rgba(255,255,255,.88)"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 27}
+                    strokeDashoffset={2 * Math.PI * 27 * (1 - percent / 100)}
+                  />
+                </svg>
+                <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold">
+                  {validScore ? `${Math.round(percent)}%` : "—"}
+                </span>
+              </div>
+              <div>
+                <p className="text-2xl font-semibold tracking-[-.04em]">
+                  {validScore ? score.toFixed(1) : "—"}
+                  <span className="ml-1 text-xs font-normal text-[#777B85]">
+                    / 10
+                  </span>
+                </p>
+                <p className="mt-1 text-[10px] text-[#858994]">Overall score</p>
+              </div>
+            </div>
+            <div className="mt-5 h-1 overflow-hidden rounded-full bg-white/[.08]">
+              <div
+                className="h-full rounded-full bg-white/80"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+            <div className="mt-5 space-y-3">
+              {[
+                ["Questions", questions.length, <FiTarget key="i" size={13} />],
+                ["Answered", answered, <FiCheckCircle key="i" size={13} />],
+                [
+                  "Evaluated",
+                  evaluated.length,
+                  <FiActivity key="i" size={13} />,
+                ],
+                [
+                  "Status",
+                  String(status).replace(/[-_]/g, " "),
+                  <FiClock key="i" size={13} />,
+                ],
+              ].map(([label, value, icon]) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between gap-3 text-xs"
+                >
+                  <span className="flex items-center gap-2 text-[#858994]">
+                    {icon}
+                    {label}
+                  </span>
+                  <span className="max-w-[110px] truncate text-right font-semibold capitalize text-[#D4D4D8]">
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 border-t border-white/[.07] pt-4">
+              <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#777B85]">
+                Interview details
+              </p>
+              <div className="mt-3 space-y-3 text-[11px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-[#777B85]">Type</span>
+                  <span className="text-right text-[#D4D4D8]">
+                    {typeLabel(interview.interviewType)}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-[#777B85]">Date</span>
+                  <span className="text-right text-[#D4D4D8]">
+                    {dateLabel(dateOf(interview))}
+                  </span>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-[#777B85]">Time limit</span>
+                  <span className="text-right text-[#D4D4D8]">
+                    {interview.timeLimit ? `${interview.timeLimit} min` : "—"}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {Array.isArray(interview.strengths) &&
+              interview.strengths.length > 0 && (
+                <div className="mt-5 border-t border-white/[.07] pt-4">
+                  <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#777B85]">
+                    Strongest takeaway
+                  </p>
+                  <p className="mt-2 text-xs leading-5 text-[#D4D4D8]">
+                    {interview.strengths[0]}
+                  </p>
+                </div>
+              )}
+          </>
+        ) : (
+          <p className="mt-6 text-xs leading-6 text-[#70727A]">
+            Select an interview to see its score, completion and review
+            highlights.
+          </p>
+        )}
+      </div>
+    </aside>
+  );
+};
+
+export default function InterviewHistory() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
   const [interviews, setInterviews] = useState([]);
   const [selectedInterviewId, setSelectedInterviewId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
-
-  const getInterviewId = (interview) =>
-    interview?._id || interview?.id || interview?.interviewId;
+  const [search, setSearch] = useState("");
+  const [deleteRequest, setDeleteRequest] = useState(false);
 
   const loadInterviewHistory = useCallback(async () => {
+    setLoading(true);
+    setError("");
     try {
-      setLoading(true);
-
       const result = await getInterviewHistory();
-
-      if (!result?.success) {
+      if (!result?.success)
         throw new Error(result?.message || "Failed to load interview history.");
-      }
-
       const history = Array.isArray(result.data) ? result.data : [];
-
       setInterviews(history);
-
-      const requestedInterviewId = searchParams.get("interview");
-
-      setSelectedInterviewId((currentSelectedId) => {
-        if (
-          requestedInterviewId &&
-          history.some(
-            (interview) => getInterviewId(interview) === requestedInterviewId,
-          )
-        ) {
-          return requestedInterviewId;
-        }
-
-        if (
-          currentSelectedId &&
-          history.some(
-            (interview) => getInterviewId(interview) === currentSelectedId,
-          )
-        ) {
-          return currentSelectedId;
-        }
-
-        return getInterviewId(history[0]) || null;
+      const requested = searchParams.get("interview");
+      setSelectedInterviewId((current) => {
+        if (requested && history.some((item) => getId(item) === requested))
+          return requested;
+        if (current && history.some((item) => getId(item) === current))
+          return current;
+        return getId(history[0]);
       });
-
-      setError("");
     } catch (err) {
-      console.error("Failed to load interview history:", err);
-
       setError(
         err?.response?.data?.message ||
           err?.message ||
@@ -72,211 +253,84 @@ const InterviewHistory = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    const load = async () => {
-      await loadInterviewHistory();
-    };
-
-    load();
+    void loadInterviewHistory();
   }, [loadInterviewHistory]);
 
-  const formatInterviewType = (type) => {
-    const labels = {
-      dsa: "DSA",
-      core: "Core CS",
-      development: "Development",
-      project: "Project",
-      "system-design": "System Design",
-      behavioral: "Behavioral",
-      full: "Full Interview",
-    };
+  const selectedInterview =
+    interviews.find((item) => getId(item) === selectedInterviewId) || null;
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return !query
+      ? interviews
+      : interviews.filter((item) =>
+          [item.role, item.interviewType, item.status].some((value) =>
+            String(value || "")
+              .toLowerCase()
+              .includes(query),
+          ),
+        );
+  }, [interviews, search]);
 
-    return labels[type] || type || "Interview";
-  };
-
-  const formatDate = (date) => {
-    if (!date) {
-      return "Unknown date";
-    }
-
-    const parsedDate = new Date(date);
-
-    if (Number.isNaN(parsedDate.getTime())) {
-      return "Unknown date";
-    }
-
-    return parsedDate.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
-
-  const formatTime = (date) => {
-    if (!date) {
-      return "";
-    }
-
-    const parsedDate = new Date(date);
-
-    if (Number.isNaN(parsedDate.getTime())) {
-      return "";
-    }
-
-    return parsedDate.toLocaleTimeString("en-IN", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
-  const formatScore = (score) => {
-    const numericScore = Number(score);
-
-    if (!Number.isFinite(numericScore)) {
-      return "—";
-    }
-
-    return `${numericScore.toFixed(1)}/10`;
-  };
-
-  const handleSelectInterview = (interviewId) => {
-    if (!interviewId) {
-      return;
-    }
-
-    setSelectedInterviewId(interviewId);
+  const selectInterview = (id) => {
+    if (!id) return;
+    setSelectedInterviewId(id);
     setMobileHistoryOpen(false);
-    navigate(`/mock-interview/history?interview=${interviewId}`, {
+    navigate(`/mock-interview/history?interview=${encodeURIComponent(id)}`, {
       replace: true,
     });
   };
-
-  const handleInterviewDeleted = (deletedInterviewId) => {
-    const deletedIndex = interviews.findIndex(
-      (interview) => getInterviewId(interview) === deletedInterviewId,
+  const handleDeleted = (deletedId) => {
+    const remaining = interviews.filter((item) => getId(item) !== deletedId);
+    setInterviews(remaining);
+    const next = getId(remaining[0]) || null;
+    setSelectedInterviewId(next);
+    navigate(
+      next
+        ? `/mock-interview/history?interview=${encodeURIComponent(next)}`
+        : "/mock-interview/history",
+      { replace: true },
     );
-
-    const updatedInterviews = interviews.filter(
-      (interview) => getInterviewId(interview) !== deletedInterviewId,
-    );
-
-    setInterviews(updatedInterviews);
-
-    if (updatedInterviews.length === 0) {
-      setSelectedInterviewId(null);
-      return;
-    }
-
-    const nextIndex = Math.min(
-      Math.max(deletedIndex, 0),
-      updatedInterviews.length - 1,
-    );
-
-    const nextInterviewId =
-      getInterviewId(updatedInterviews[nextIndex]) || null;
-
-    setSelectedInterviewId(nextInterviewId);
-
-    if (nextInterviewId) {
-      navigate(`/mock-interview/history?interview=${nextInterviewId}`, {
-        replace: true,
-      });
-    } else {
-      navigate("/mock-interview/history", { replace: true });
-    }
   };
 
-  const selectedInterview = interviews.find(
-    (interview) => getInterviewId(interview) === selectedInterviewId,
-  );
-
   return (
-    <div className="rio-history-page fixed inset-0 overflow-hidden bg-[#111214] text-white">
+    <div className="rio-interview-history fixed inset-0 overflow-hidden bg-[radial-gradient(ellipse_at_48%_0%,rgba(255,255,255,.055),transparent_38%),#101113] text-white">
       <style>{`
-        @media (prefers-reduced-motion: reduce) {
-          *, *::before, *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            scroll-behavior: auto !important;
-            transition-duration: 0.01ms !important;
-          }
-        }
-        :focus-visible {
-          outline: 2px solid rgba(255,255,255,0.72);
-          outline-offset: 3px;
-        }
-`}</style>
-      <style>{`
-        @keyframes rioHistoryEnter {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes rioHistorySoftFade {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-
-        @keyframes rioHistoryModal {
-          from { opacity: 0; transform: translateY(12px) scale(.985); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-
-        .rio-history-page {
-          animation: rioHistoryEnter 360ms cubic-bezier(.22,1,.36,1);
-        }
-
-        .rio-history-item {
-          animation: rioHistoryEnter 320ms cubic-bezier(.22,1,.36,1) both;
-        }
-
-        .rio-history-modal {
-          animation: rioHistoryModal 220ms cubic-bezier(.22,1,.36,1);
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          .rio-history-page,
-          .rio-history-item,
-          .rio-history-modal {
-            animation: none !important;
-          }
-        }
-      `}</style>
-
-      {/* Ambient depth: monochrome only, so semantic colors remain meaningful. */}
+      @keyframes rioInterviewEnter {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+      .rio-interview-history{animation:rioInterviewEnter 280ms cubic-bezier(.22,1,.36,1)}
+      .rio-interview-item{animation:rioInterviewEnter 260ms both}
+      @media(prefers-reduced-motion:reduce){.rio-interview-history,.rio-interview-item{animation:none!important;transition:none!important}}
+    `}</style>
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 70% 55% at 88% 4%,rgba(255,255,255,.075),transparent 72%),radial-gradient(ellipse 65% 55% at 0% 92%,rgba(255,255,255,.035),transparent 70%),linear-gradient(135deg,#191b1e 0%,#17191c 48%,#141619 100%)",
+        }}
       />
-
       <div className="relative z-10 flex h-full min-h-0">
-        {/* History rail */}
         <aside
-          className={`absolute inset-y-4 left-4 z-50 flex w-[min(292px,calc(100vw-1rem))] max-w-none flex-col overflow-hidden rounded-[18px] border border-white/[0.10] bg-[#111214] shadow-[0_24px_80px_rgba(0,0,0,.42),inset_0_1px_0_rgba(255,255,255,.035)] backdrop-blur-2xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:max-w-none lg:translate-x-0 ${
-            mobileHistoryOpen
-              ? "translate-x-0"
-              : "-translate-x-[calc(100%+1rem)]"
-          }`}
+          className={`absolute inset-y-4 bottom-20 left-4 z-50 flex w-[min(292px,calc(100vw - 1rem))] flex-col overflow-hidden rounded-[18px] border border-white/[.10] bg-[#111315]/95 shadow-[0_22px_60px_rgba(0,0,0,.3)] backdrop-blur-2xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"}`}
         >
-          <div className="shrink-0 border-b border-white/[0.065] bg-white/[0.012] px-5 pb-5 pt-6">
-            <div className="flex items-start justify-between gap-4">
+          <div className="shrink-0 border-b border-white/[.065] bg-white/[.012] px-5 pb-4 pt-5">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.22em] text-[#6B6D73]">
+                <p className="text-[9px] font-semibold uppercase tracking-[.22em] text-[#6B6D73]">
                   Your practice
                 </p>
-                <h1 className="mt-2 text-[19px] font-semibold tracking-[-0.035em] text-white">
+                <h1 className="mt-2 text-[19px] font-semibold tracking-[-.035em]">
                   Interview history
                 </h1>
                 <p className="mt-1.5 max-w-[205px] text-[11px] leading-5 text-[#70727A]">
-                  A quiet record of the rounds you have completed.
+                  Every round, result and next step — in one place.
                 </p>
               </div>
-
               <button
                 type="button"
                 onClick={loadInterviewHistory}
                 disabled={loading}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[#9B9DA4] transition-all duration-200 hover:-translate-y-0.5 hover:border-white/15 hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="Refresh interview history"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[.045] text-[#9B9DA4] transition hover:bg-white/[.08] hover:text-white disabled:opacity-50"
               >
                 <FiRefreshCw
                   size={13}
@@ -284,151 +338,124 @@ const InterviewHistory = () => {
                 />
               </button>
             </div>
-
-            {!loading && !error && interviews.length > 0 && (
-              <div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-4">
-                <span className="text-[9px] font-medium uppercase tracking-[0.16em] text-[#52545B]">
-                  Completed rounds
-                </span>
-                <span className="text-xs font-semibold tabular-nums text-[#D4D4D8]">
-                  {interviews.length}
-                </span>
-              </div>
-            )}
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {loading && (
-              <div className="flex min-h-[300px] items-center justify-center px-5">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="h-7 w-7 animate-spin rounded-full border-2 border-white/10 border-t-white/80" />
-                  <p className="text-[11px] text-[#696B72]">
-                    Loading your rounds…
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {!loading && error && (
-              <div className="px-5 py-8">
-                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#EAB308]" />
-                    <div>
-                      <p className="text-xs font-semibold text-white">
-                        History is unavailable
-                      </p>
-                      <p className="mt-2 text-[11px] leading-5 text-[#70727A]">
-                        {error}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={loadInterviewHistory}
-                    className="mt-5 rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2 text-[11px] font-semibold text-white transition-all duration-200 hover:bg-white/[0.09]"
-                  >
-                    Try again
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {!loading && !error && interviews.length === 0 && (
-              <div className="flex min-h-[390px] flex-col justify-center px-6">
-                <div className="h-px w-10 bg-white/20" />
-                <p className="mt-5 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#66686F]">
-                  First round
-                </p>
-                <p className="mt-2 text-[18px] font-semibold tracking-[-0.03em] text-white">
-                  Nothing here yet.
-                </p>
-                <p className="mt-3 max-w-[220px] text-[11px] leading-5 text-[#70727A]">
-                  Complete a mock interview and this becomes your personal
-                  practice record.
-                </p>
+            <div className="mt-4 flex items-center justify-between border-t border-white/[.06] pt-3">
+              <span className="text-[9px] font-medium uppercase tracking-[.16em] text-[#52545B]">
+                Saved interviews
+              </span>
+              <span className="text-xs font-semibold tabular-nums text-[#D4D4D8]">
+                {interviews.length}
+              </span>
+            </div>
+            <label className="mt-3 flex items-center gap-2 rounded-xl border border-white/[.08] bg-white/[.025] px-3 py-2.5 focus-within:border-white/20">
+              <FiSearch size={13} className="shrink-0 text-[#686B74]" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Find an interview…"
+                className="w-full bg-transparent text-xs text-white outline-none placeholder:text-[#62656D]"
+              />
+              {search && (
                 <button
                   type="button"
-                  onClick={() => navigate("/mock-interview/new")}
-                  className="mt-6 w-fit rounded-xl bg-white px-4 py-2.5 text-[11px] font-semibold text-[#111214] shadow-[0_12px_30px_rgba(0,0,0,.2)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#EDEDEF]"
+                  onClick={() => setSearch("")}
+                  aria-label="Clear search"
                 >
-                  Start an interview
+                  <FiX size={13} />
+                </button>
+              )}
+            </label>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]">
+            {loading && (
+              <div className="flex min-h-[200px] items-center justify-center">
+                <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/10 border-t-white/80" />
+              </div>
+            )}
+            {!loading && error && (
+              <div className="px-5 py-6">
+                <p className="text-xs font-semibold">History is unavailable</p>
+                <p className="mt-2 text-[11px] leading-5 text-[#858994]">
+                  {error}
+                </p>
+                <button
+                  onClick={loadInterviewHistory}
+                  className="mt-4 rounded-xl border border-white/10 px-3 py-2 text-xs"
+                >
+                  Try again
                 </button>
               </div>
             )}
-
-            {!loading && !error && interviews.length > 0 && (
-              <div className="py-2">
-                {interviews.map((interview, index) => {
-                  const interviewId = getInterviewId(interview);
-                  const isSelected = interviewId === selectedInterviewId;
-                  const interviewDate =
-                    interview.createdAt || interview.startedAt;
-
-                  return (
-                    <button
-                      key={interviewId}
-                      type="button"
-                      onClick={() => handleSelectInterview(interviewId)}
-                      className={`rio-history-item group relative flex w-full items-center gap-3 border-b border-white/[0.045] px-5 py-4 text-left transition-all duration-200 ${
-                        isSelected
-                          ? "bg-white/[0.065]"
-                          : "hover:bg-white/[0.03]"
-                      }`}
-                      style={{ animationDelay: `${Math.min(index, 8) * 28}ms` }}
-                    >
-                      {isSelected && (
-                        <span className="absolute bottom-3 left-0 top-3 w-0.5 rounded-r-full bg-white" />
-                      )}
-
-                      <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 ${
-                          isSelected
-                            ? "border-white/15 bg-white/[0.08] text-white"
-                            : "border-white/[0.08] bg-white/[0.025] text-[#696B72] group-hover:border-white/12 group-hover:text-[#A1A1A5]"
-                        }`}
-                      >
-                        <FiClock size={14} />
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="min-w-0">
-                          <p className="line-clamp-2 text-xs font-semibold leading-4 tracking-[-0.01em] text-white">
-                            {interview.role || "Mock Interview"}
-                          </p>
-                          <span className="mt-1 block text-[8px] font-medium uppercase tracking-[0.08em] text-[#66686F]">
-                            {formatInterviewType(interview.interviewType)}
-                          </span>
-                        </div>
-
-                        <div className="mt-1.5 flex items-center gap-2 text-[10px] text-[#55575E]">
-                          <span>{formatDate(interviewDate)}</span>
-                          {formatTime(interviewDate) && (
-                            <>
-                              <span aria-hidden="true">·</span>
-                              <span>{formatTime(interviewDate)}</span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="shrink-0 text-right">
-                        <p className="text-[13px] font-semibold tabular-nums text-[#E4E4E7]">
-                          {formatScore(interview.overallScore)}
-                        </p>
-                        <p className="mt-0.5 text-[8px] uppercase tracking-[0.12em] text-[#4F5157]">
-                          score
-                        </p>
-                      </div>
-                    </button>
-                  );
-                })}
+            {!loading && !error && filtered.length === 0 && (
+              <div className="px-5 py-10">
+                <div className="h-px w-10 bg-white/20" />
+                <p className="mt-5 text-[9px] uppercase tracking-[.2em] text-[#66686F]">
+                  {search ? "No matches" : "First round"}
+                </p>
+                <p className="mt-2 text-[17px] font-semibold">
+                  {search ? "Nothing found." : "Nothing here yet."}
+                </p>
+                <p className="mt-2 text-[11px] leading-5 text-[#70727A]">
+                  {search
+                    ? "Try a different search."
+                    : "Complete a mock interview and your review will appear here."}
+                </p>
+                {!search && (
+                  <button
+                    onClick={() => navigate("/mock-interview/new")}
+                    className="mt-5 rounded-xl bg-white px-4 py-2.5 text-[11px] font-semibold text-[#111214]"
+                  >
+                    Start an interview{" "}
+                    <FiPlay className="ml-1 inline" size={12} />
+                  </button>
+                )}
               </div>
             )}
+            {!loading &&
+              filtered.map((item, index) => {
+                const id = getId(item),
+                  active = id === selectedInterviewId,
+                  date = dateOf(item);
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => selectInterview(id)}
+                    className={`rio-interview-item group relative flex w-full items-start gap-3 border-b border-white/[.045] px-5 py-4 text-left transition-colors ${active ? "bg-white/[.065]" : "hover:bg-white/[.03]"}`}
+                    style={{ animationDelay: `${Math.min(index, 8) * 24}ms` }}
+                  >
+                    {active && (
+                      <span className="absolute bottom-3 left-0 top-3 w-0.5 rounded-r-full bg-white" />
+                    )}
+                    <span
+                      className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border ${active ? "border-white/15 bg-white/[.08] text-white" : "border-white/[.08] bg-white/[.025] text-[#777B85]"}`}
+                    >
+                      <FiClock size={14} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block line-clamp-2 text-xs font-semibold leading-4 text-white">
+                        {item.role || "Mock Interview"}
+                      </span>
+                      <span className="mt-1 block truncate text-[8px] uppercase tracking-[.08em] text-[#66686F]">
+                        {typeLabel(item.interviewType)}
+                      </span>
+                      <span className="mt-2 flex flex-wrap items-center gap-x-2 text-[10px] text-[#62656D]">
+                        <span>{dateLabel(date)}</span>
+                        {timeLabel(date) && <span>· {timeLabel(date)}</span>}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-right">
+                      <span className="block text-[13px] font-semibold tabular-nums text-[#E4E4E7]">
+                        {scoreLabel(item.overallScore)}
+                      </span>
+                      <span className="mt-0.5 block text-[8px] uppercase tracking-[.12em] text-[#4F5157]">
+                        score
+                      </span>
+                    </span>
+                  </button>
+                );
+              })}
           </div>
         </aside>
-
-        {/* Mobile rail backdrop */}
         {mobileHistoryOpen && (
           <button
             type="button"
@@ -437,67 +464,76 @@ const InterviewHistory = () => {
             className="absolute inset-0 z-40 bg-black/55 backdrop-blur-[2px] lg:hidden"
           />
         )}
-
-        {/* Report workspace */}
-        <main className="min-w-0 flex-1 overflow-hidden pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[312px]">
+        <Sidebar interview={selectedInterview} />
+        <main className="min-w-0 flex-1 overflow-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[312px] xl:pr-[292px]">
           <div className="flex h-full min-h-0 flex-col">
-            <div className="flex h-14 shrink-0 items-center border-b border-white/[0.07] bg-[#111214]/80 px-4 backdrop-blur-xl lg:hidden">
+            <div className="mt-6 mx-6 hidden border-b border-white/[.08] pb-5 lg:block">
               <button
                 type="button"
-                onClick={() => setMobileHistoryOpen(true)}
-                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-[#A1A1AA] transition-all duration-200 hover:bg-white/[0.08] hover:text-white"
-                aria-label="Open interview history"
+                onClick={() => navigate("/mock-interview")}
+                className="group inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition hover:text-white"
               >
-                <FiMenu size={16} />
+                <FiArrowLeft
+                  size={14}
+                  className="transition-transform group-hover:-translate-x-0.5"
+                />
+                Back to mock interviews
               </button>
-
-              <div className="ml-3 min-w-0">
-                <p className="truncate text-xs font-semibold text-white">
-                  {selectedInterview?.role || "Interview report"}
+            </div>
+            <div className="flex h-16 shrink-0 items-center border-b border-white/[.07] bg-[#111214]/75 px-4 backdrop-blur-xl lg:hidden">
+              <button
+                type="button"
+                onClick={() => navigate("/mock-interview")}
+                aria-label="Back to mock interviews"
+                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[.045]"
+              >
+                <FiArrowLeft size={15} />
+              </button>
+              <div className="ml-3 min-w-0 border-l border-white/[.09] pl-3">
+                <p className="truncate text-xs font-semibold">
+                  {selectedInterview?.role || "Interview workspace"}
                 </p>
-                <p className="text-[9px] uppercase tracking-[0.14em] text-[#55575E]">
+                <p className="mt-0.5 text-[9px] uppercase tracking-[.14em] text-[#858994]">
                   Performance review
                 </p>
               </div>
             </div>
-
-            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {selectedInterview ? (
-                <div className="rio-history-item min-h-full">
-                  <InterviewReport
-                    interviewId={selectedInterviewId}
-                    onDeleted={handleInterviewDeleted}
-                  />
-                </div>
+            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]">
+              {selectedInterviewId ? (
+                <InterviewReport
+                  interviewId={selectedInterviewId}
+                  initialInterview={selectedInterview}
+                  onDeleted={handleDeleted}
+                  embedded
+                  deleteRequest={deleteRequest}
+                  onDeleteRequestHandled={() => setDeleteRequest(false)}
+                />
               ) : (
-                <div className="flex min-h-full items-center justify-center px-6 py-20">
-                  <div className="rio-history-item w-full max-w-lg text-center">
-                    <div className="mx-auto h-px w-12 bg-white/20" />
-
-                    <p className="mt-6 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#5F6168]">
+                <div className="flex min-h-full items-center justify-center px-6 py-16">
+                  <div className="max-w-lg text-center">
+                    <div className="mx-auto h-px w-12 bg-white/25" />
+                    <p className="mt-6 text-[9px] font-semibold uppercase tracking-[.22em] text-[#66686F]">
                       Review workspace
                     </p>
-
-                    <h2 className="mt-3 text-[25px] font-semibold tracking-[-0.045em] text-white sm:text-[30px]">
-                      Your performance has a story.
+                    <h2 className="mt-3 text-[26px] font-semibold tracking-[-.045em] sm:text-3xl">
+                      {loading
+                        ? "Preparing your interview history…"
+                        : "Your performance has a story."}
                     </h2>
-
-                    <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-[#73757D]">
-                      Select a completed interview to see what went well, where
-                      you lost ground, and what to work on next.
+                    <p className="mx-auto mt-4 max-w-md text-sm leading-7 text-[#858994]">
+                      {loading
+                        ? "Your saved rounds and reports will appear here."
+                        : "Select a completed interview to review your score, answers and what to improve next."}
                     </p>
-
-                    <p className="mt-5 text-xs italic text-[#4F5157]">
-                      Practice. Review. Improve.
-                    </p>
-
-                    <button
-                      type="button"
-                      onClick={() => navigate("/mock-interview/new")}
-                      className="mt-7 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#111214] shadow-[0_14px_34px_rgba(0,0,0,.22)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#EDEDEF]"
-                    >
-                      Start an interview
-                    </button>
+                    {!loading && !interviews.length && (
+                      <button
+                        onClick={() => navigate("/mock-interview/new")}
+                        className="mt-6 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#111214]"
+                      >
+                        Start an interview{" "}
+                        <FiPlay className="ml-1 inline" size={12} />
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -505,8 +541,36 @@ const InterviewHistory = () => {
           </div>
         </main>
       </div>
+      <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/[.08] bg-[#111315]/92 px-4 pt-3 backdrop-blur-xl pb-[calc(.75rem+env(safe-area-inset-bottom))] lg:hidden">
+        {interviews.length === 0 && !loading && !error ? (
+          <button
+            onClick={() => navigate("/mock-interview/new")}
+            className="w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C]"
+          >
+            Start an interview <FiPlay className="ml-1 inline" size={13} />
+          </button>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setMobileHistoryOpen((open) => !open)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8]"
+            >
+              <FiClock size={14} />
+              History
+            </button>
+            <button
+              type="button"
+              onClick={() => setDeleteRequest(true)}
+              disabled={!selectedInterviewId}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] disabled:opacity-40"
+            >
+              <FiTrash2 size={14} />
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
-};
-
-export default InterviewHistory;
+}

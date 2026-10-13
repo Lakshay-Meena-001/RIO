@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useParams } from "react-router-dom";
-
 import {
   FiAlertCircle,
   FiArrowLeft,
@@ -9,239 +8,185 @@ import {
   FiBarChart2,
   FiCheckCircle,
   FiChevronDown,
-  FiClock,
   FiTarget,
-  FiTrash2,
   FiTrendingUp,
+  FiTrash2,
   FiX,
 } from "react-icons/fi";
-
 import { deleteInterview, getInterview } from "../api/interview.api";
 
-const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
+export default function InterviewReport({
+  interviewId: interviewIdProp,
+  initialInterview = null,
+  onDeleted,
+  embedded = false,
+  deleteRequest = false,
+  onDeleteRequestHandled,
+}) {
   const { interviewId: routeInterviewId } = useParams();
   const navigate = useNavigate();
-
-  const navigateWithTransition = (path, options) => {
-    if (
-      typeof document !== "undefined" &&
-      typeof document.startViewTransition === "function"
-    ) {
-      document.startViewTransition(() => {
-        navigate(path, options);
-      });
-      return;
-    }
-
-    navigate(path, options);
-  };
-
   const interviewId = interviewIdProp || routeInterviewId;
-
-  const [interview, setInterview] = useState(null);
+  const [fetchedInterview, setFetchedInterview] = useState(initialInterview);
+  const [fetchedInterviewId, setFetchedInterviewId] = useState(null);
+  const interview =
+    fetchedInterviewId === interviewId && fetchedInterview
+      ? fetchedInterview
+      : initialInterview || fetchedInterview;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandedQuestion, setExpandedQuestion] = useState(null);
-
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
-
     const fetchReport = async () => {
       if (!interviewId) {
         setError("Interview ID is missing.");
         setLoading(false);
         return;
       }
-
-      setLoading(true);
-      setIsRefreshing(Boolean(interview));
+      setLoading(!interview);
       setError("");
       setExpandedQuestion(null);
-
       try {
         const result = await getInterview(interviewId);
-
-        if (!result?.success || !result?.data) {
+        if (!result?.success || !result?.data)
           throw new Error(
             result?.message || "Unable to load interview report.",
           );
-        }
-
         if (!cancelled) {
-          setInterview(result.data);
-          setIsRefreshing(false);
+          setFetchedInterview(result.data);
+          setFetchedInterviewId(interviewId);
         }
       } catch (err) {
-        if (cancelled) {
-          return;
-        }
-
-        console.error("Failed to load interview report:", err);
-
-        setError(
-          err?.response?.data?.message ||
-            err?.message ||
-            "Unable to load this interview report.",
-        );
+        if (!cancelled && !interview)
+          setError(
+            err?.response?.data?.message ||
+              err?.message ||
+              "Unable to load this interview report.",
+          );
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-          setIsRefreshing(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
-
-    fetchReport();
-
+    void fetchReport();
     return () => {
       cancelled = true;
     };
-  }, [interviewId, reloadKey, interview]);
+  }, [interviewId, reloadKey]);
 
-  const formatScore = (score) => {
-    const numericScore = Number(score);
-
-    if (!Number.isFinite(numericScore)) {
-      return "—";
-    }
-
-    return `${numericScore.toFixed(1)}/10`;
+  const formatScore = (value) =>
+    value === null ||
+    value === undefined ||
+    value === "" ||
+    !Number.isFinite(Number(value))
+      ? "—"
+      : `${Number(value).toFixed(1)}/10`;
+  const formatDate = (value) => {
+    if (!value) return "Unknown date";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? "Unknown date"
+      : date.toLocaleDateString("en-IN", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        });
   };
-
-  const formatDate = (date) => {
-    if (!date) return "Unknown date";
-
-    const parsedDate = new Date(date);
-
-    if (Number.isNaN(parsedDate.getTime())) {
-      return "Unknown date";
-    }
-
-    return parsedDate.toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+  const formatTime = (value) => {
+    if (!value) return "";
+    const date = new Date(value);
+    return Number.isNaN(date.getTime())
+      ? ""
+      : date.toLocaleTimeString("en-IN", {
+          hour: "numeric",
+          minute: "2-digit",
+        });
   };
-
-  const formatTime = (date) => {
-    if (!date) return "";
-
-    const parsedDate = new Date(date);
-
-    if (Number.isNaN(parsedDate.getTime())) {
-      return "";
-    }
-
-    return parsedDate.toLocaleTimeString("en-IN", {
-      hour: "numeric",
-      minute: "2-digit",
-    });
-  };
-
-  const formatInterviewType = (type) => {
-    const labels = {
+  const formatType = (type) =>
+    ({
       coding: "Coding",
+      dsa: "DSA",
       core: "Core CS",
       development: "Development",
       project: "Project",
       "system-design": "System Design",
       behavioral: "Behavioral",
       full: "Full Interview",
-    };
-
-    return labels[type] || type || "Interview";
-  };
-
-  const formatSectionName = (section) => {
-    if (!section) return "General";
-
-    return section
-      .replace(/[-_]/g, " ")
-      .replace(/\b\w/g, (character) => character.toUpperCase());
-  };
-
+    })[type] ||
+    type ||
+    "Interview";
+  const formatSection = (value) =>
+    value
+      ? value
+          .replace(/[-_]/g, " ")
+          .replace(/\b\w/g, (letter) => letter.toUpperCase())
+      : "General";
   const sectionScores = useMemo(() => {
-    if (!interview?.sectionScores) {
-      return [];
-    }
-
-    const source = interview.sectionScores;
-
-    if (source instanceof Map) {
-      return Array.from(source.entries());
-    }
-
-    if (typeof source === "object") {
-      return Object.entries(source);
-    }
-
-    return [];
-  }, [interview]);
-
-  const questionStats = useMemo(() => {
-    const questions = Array.isArray(interview?.questions)
-      ? interview.questions
+    if (!interview?.sectionScores) return [];
+    if (interview.sectionScores instanceof Map)
+      return Array.from(interview.sectionScores.entries());
+    return typeof interview.sectionScores === "object"
+      ? Object.entries(interview.sectionScores)
       : [];
-
+  }, [interview]);
+  const questions = Array.isArray(interview?.questions)
+    ? interview.questions
+    : [];
+  const questionStats = useMemo(() => {
     const answered = questions.filter(
-      (question) => question?.submittedAt,
+      (q) => q?.submittedAt || q?.answer?.trim(),
     ).length;
-
     const evaluated = questions.filter(
-      (question) =>
-        question?.evaluation &&
-        Number.isFinite(Number(question.evaluation.score)),
+      (q) => q?.evaluation && Number.isFinite(Number(q.evaluation.score)),
     );
-
-    const averageQuestionScore =
-      evaluated.length > 0
-        ? evaluated.reduce(
-            (sum, question) => sum + Number(question.evaluation.score),
-            0,
-          ) / evaluated.length
-        : null;
-
     return {
       total: questions.length,
       answered,
       evaluated: evaluated.length,
-      averageQuestionScore,
+      average: evaluated.length
+        ? evaluated.reduce((sum, q) => sum + Number(q.evaluation.score), 0) /
+          evaluated.length
+        : null,
     };
   }, [interview]);
-
-  const handleDeleteInterview = async () => {
-    if (!interviewId || deleting) {
-      return;
-    }
-
+  const overallScore =
+    interview?.overallScore === null ||
+    interview?.overallScore === undefined ||
+    interview?.overallScore === ""
+      ? NaN
+      : Number(interview.overallScore);
+  const validScore = Number.isFinite(overallScore);
+  const scorePercent = validScore
+    ? Math.min(Math.max(overallScore * 10, 0), 100)
+    : 0;
+  const completed = interview?.status === "completed";
+  const tone = (score) => {
+    const value = Number(score);
+    if (!Number.isFinite(value)) return "bg-white/40";
+    if (value >= 7) return "bg-emerald-400";
+    if (value >= 4) return "bg-amber-300";
+    return "bg-rose-400";
+  };
+  const deleteInterviewNow = async () => {
+    if (!interviewId || deleting) return;
     try {
       setDeleting(true);
       setDeleteError("");
-
       const result = await deleteInterview(interviewId);
-
-      if (!result?.success) {
+      if (!result?.success)
         throw new Error(result?.message || "Unable to delete this interview.");
-      }
-
       setShowDeleteModal(false);
-
+      onDeleteRequestHandled?.();
       if (typeof onDeleted === "function") {
         onDeleted(interviewId);
         return;
       }
-
-      navigateWithTransition("/mock-interview/history", { replace: true });
+      navigate("/mock-interview/history", { replace: true });
     } catch (err) {
-      console.error("Failed to delete interview:", err);
-
       setDeleteError(
         err?.response?.data?.message ||
           err?.message ||
@@ -251,51 +196,39 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
       setDeleting(false);
     }
   };
-
-  const closeDeleteModal = () => {
-    if (deleting) {
-      return;
-    }
-
+  const closeDelete = () => {
+    if (deleting) return;
     setShowDeleteModal(false);
     setDeleteError("");
+    onDeleteRequestHandled?.();
   };
 
-  if (loading && !interview) {
+  if (!interviewId) return null;
+  if (loading && !interview)
     return (
-      <div className="min-h-full bg-[#111214] px-4 py-10 text-white sm:px-6 lg:px-8">
-        <div className="flex min-h-[70vh] items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-
-            <p className="text-xs text-[#71717A]">
-              Preparing your interview report...
-            </p>
-          </div>
+      <div className="px-5 py-20">
+        <div className="mx-auto max-w-3xl animate-pulse">
+          <div className="h-3 w-28 rounded bg-white/[.07]" />
+          <div className="mt-5 h-10 w-2/3 rounded bg-white/[.07]" />
+          <div className="mt-7 h-32 rounded-2xl bg-white/[.04]" />
+          <div className="mt-4 h-48 rounded-2xl bg-white/[.04]" />
         </div>
       </div>
     );
-  }
-
-  if (!interview) {
+  if (!interview)
     return (
-      <div className="flex min-h-full items-center justify-center bg-[#111214] px-5 py-20 text-white">
-        <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.045] p-6 text-center">
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-[#A1A1AA]">
+      <div className="flex min-h-full items-center justify-center px-5 py-16 text-white">
+        <div className="w-full max-w-md text-center">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[.04]">
             <FiAlertCircle size={18} />
           </div>
-
           <h1 className="mt-4 text-lg font-semibold">Unable to load report</h1>
-
-          <p className="mt-2 text-sm leading-6 text-[#71717A]">
+          <p className="mt-2 text-sm leading-6 text-[#858994]">
             {error || "Something went wrong while loading this report."}
           </p>
-
           <button
             type="button"
-            onClick={() => {
-              setReloadKey((currentKey) => currentKey + 1);
-            }}
+            onClick={() => setReloadKey((key) => key + 1)}
             className="mt-5 rounded-xl bg-white px-5 py-2.5 text-xs font-semibold text-[#17191C]"
           >
             Try again
@@ -303,342 +236,211 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
         </div>
       </div>
     );
-  }
-
-  const questions = Array.isArray(interview.questions)
-    ? interview.questions
-    : [];
-
-  const completed = interview.status === "completed";
-  const overallScore = Number(interview.overallScore);
-  const scorePercent = Number.isFinite(overallScore)
-    ? Math.min(Math.max(overallScore * 10, 0), 100)
-    : 0;
-
-  const getScoreTone = (score) => {
-    const numericScore = Number(score);
-
-    if (!Number.isFinite(numericScore)) {
-      return {
-        dot: "bg-[#A1A1AA]",
-        glow: "shadow-[0_0_14px_rgba(161,161,170,0.28)]",
-      };
-    }
-
-    if (numericScore >= 7) {
-      return {
-        dot: "bg-[#22C55E]",
-        glow: "shadow-[0_0_14px_rgba(34,197,94,0.42)]",
-      };
-    }
-
-    if (numericScore >= 4) {
-      return {
-        dot: "bg-[#EAB308]",
-        glow: "shadow-[0_0_14px_rgba(234,179,8,0.40)]",
-      };
-    }
-
-    return {
-      dot: "bg-[#EF4444]",
-      glow: "shadow-[0_0_14px_rgba(239,68,68,0.40)]",
-    };
-  };
-
-  const overallTone = getScoreTone(overallScore);
 
   return (
-    <div className="rio-report-page min-h-full bg-[#111214] text-white">
+    <div
+      className={`rio-report-page min-h-full text-white ${embedded ? "bg-transparent" : "bg-[#17191C]"}`}
+    >
       <style>{`
-        @media (prefers-reduced-motion: reduce) {
-          *, *::before, *::after {
-            animation-duration: 0.01ms !important;
-            animation-iteration-count: 1 !important;
-            scroll-behavior: auto !important;
-            transition-duration: 0.01ms !important;
-          }
-        }
-        :focus-visible {
-          outline: 2px solid rgba(255,255,255,0.72);
-          outline-offset: 3px;
-        }
-`}</style>
-      <style>{`
-        @keyframes rioReportEnter {
-          from { opacity: 0; transform: translateY(10px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes rioReportFade {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        @keyframes rioModalIn {
-          from { opacity: 0; transform: translateY(10px) scale(.985); }
-          to { opacity: 1; transform: translateY(0) scale(1); }
-        }
-        ::view-transition-old(root) {
-          animation: 180ms ease both rioReportFade;
-        }
-        ::view-transition-new(root) {
-          animation: 280ms cubic-bezier(.22,1,.36,1) both rioReportEnter;
-        }
-        .rio-report-page {
-  animation: rioReportFade 320ms ease both;
-}
-        .rio-report-section {
-          animation: rioReportEnter 360ms cubic-bezier(.22,1,.36,1) both;
-        }
-        .rio-modal {
-          animation: rioModalIn 180ms cubic-bezier(.22,1,.36,1);
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .rio-report-page,
-          .rio-report-section,
-          .rio-modal {
-            animation: none !important;
-          }
-        }
-      `}</style>
-      <div className="relative mx-auto w-full max-w-[1500px] px-4 pb-4 pt-6 sm:px-6 lg:px-8 lg:pb-12 lg:pt-8">
-        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-          <div className="absolute right-[-12%] top-[-10%] h-[420px] w-[420px] rounded-full bg-white/[0.025] blur-3xl" />
-          <div className="absolute left-[-10%] top-[42%] h-[360px] w-[360px] rounded-full bg-[#EAB308]/[0.02] blur-3xl" />
-        </div>
-        {isRefreshing && (
-          <div className="pointer-events-none fixed inset-0 z-40">
-            <div className="absolute inset-0 bg-[#111214]/20 backdrop-blur-[1px]" />
-            <div className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-white/10 bg-[#111214]/85 px-3 py-2 text-[10px] font-medium text-[#A1A1AA] shadow-xl backdrop-blur-xl">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-              Loading report
-            </div>
-          </div>
-        )}
-        {/* Header */}
-        <section className="rio-report-section mb-7">
-          <div className="mb-6 border-b border-white/[0.08] pb-5">
+      @keyframes rioReportEnter{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}
+      .rio-report-section{animation:rioReportEnter 300ms cubic-bezier(.22,1,.36,1) both}
+      @media(prefers-reduced-motion:reduce){.rio-report-section{animation:none!important;transition:none!important}}
+    `}</style>
+      <div
+        className={`mx-auto w-full px-4 pb-8 pt-5 sm:px-6 lg:px-8 ${embedded ? "max-w-none" : "max-w-[1500px]"}`}
+      >
+        {!embedded && (
+          <div className="mb-5 border-b border-white/[.08] pb-4">
             <button
               type="button"
               onClick={() => navigate("/mock-interview")}
-              className="group inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors duration-200 hover:text-white"
+              className="inline-flex items-center gap-2 text-xs text-[#858994] transition hover:text-white"
             >
-              <FiArrowLeft
-                size={13}
-                className="transition-transform duration-200 group-hover:-translate-x-0.5"
-              />
+              <FiArrowLeft size={14} />
               Mock Interviews
             </button>
           </div>
-
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="mb-2 hidden text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71717A] sm:block">
-                Interview Report
+        )}
+        <header className="rio-report-section mb-7 border-b border-white/[.08] pb-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-[.22em] text-[#777B85]">
+                Your interview review
               </p>
-
-              <h1 className="text-[30px] font-semibold tracking-[-0.035em] sm:text-[38px]">
+              <h1 className="mt-2 max-w-3xl text-[27px] font-semibold leading-[1.12] tracking-[-.045em] sm:text-[34px]">
                 {interview.role || "Mock Interview"}
               </h1>
-
-              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-[#71717A]">
-                <span>{formatInterviewType(interview.interviewType)}</span>
-
-                <span className="text-white/20">•</span>
-
-                <span>{formatDate(interview.createdAt)}</span>
-
-                {formatTime(interview.createdAt) && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[11px] text-[#858994]">
+                <span>{formatType(interview.interviewType)}</span>
+                <span className="text-white/20">·</span>
+                <span>
+                  {formatDate(interview.createdAt || interview.startedAt)}
+                </span>
+                {formatTime(interview.createdAt || interview.startedAt) && (
                   <>
-                    <span className="text-white/20">•</span>
-                    <span>{formatTime(interview.createdAt)}</span>
+                    <span className="text-white/20">·</span>
+                    <span>
+                      {formatTime(interview.createdAt || interview.startedAt)}
+                    </span>
                   </>
                 )}
               </div>
             </div>
-
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex shrink-0 flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(true)}
-                className="hidden items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-semibold text-[#D4D4D8] transition-colors hover:border-white/15 hover:bg-white/[0.08] hover:text-white sm:inline-flex"
+                className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-white/[.10] bg-white/[.025] px-3.5 py-2 text-[11px] font-semibold text-[#D4D4D8] transition hover:bg-white/[.07]"
               >
-                <FiTrash2 size={15} />
+                <FiTrash2 size={13} />
                 Delete
               </button>
-
               <button
                 type="button"
-                onClick={() => navigateWithTransition("/mock-interview/new")}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-[#17191C] transition-transform hover:scale-[1.02]"
+                onClick={() => navigate("/mock-interview/new")}
+                className="inline-flex min-h-9 items-center gap-2 rounded-xl bg-white px-3.5 py-2 text-[11px] font-semibold text-[#17191C] transition hover:bg-[#E7E7E7]"
               >
-                <FiTrendingUp size={15} />
-                Interview Again
-                <FiArrowRight size={15} />
+                Interview again <FiArrowRight size={13} />
               </button>
             </div>
           </div>
-        </section>
+          {!completed && (
+            <div className="mt-5 flex items-start gap-3 border-l-2 border-amber-300/70 bg-white/[.025] px-4 py-3 text-xs leading-5 text-[#BFC0C5]">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300" />
+              <p>
+                This interview is not marked as completed. Some evaluation data
+                may still be missing.
+              </p>
+            </div>
+          )}
+        </header>
 
-        {!completed && (
-          <div className="mb-5 flex items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] px-4 py-3 text-sm text-[#D4D4D8]">
-            <span
-              aria-hidden="true"
-              className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-[#EAB308] shadow-[0_0_12px_rgba(234,179,8,0.38)]"
-            />
-
-            <p>
-              This interview is not marked as completed, so the final report may
-              not contain all evaluation data yet.
-            </p>
-          </div>
-        )}
-
-        {/* Overall score */}
-        <section className="grid gap-4 lg:grid-cols-[1.2fr_2fr]">
-          <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-6 shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:p-7">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+        <section className="rio-report-section rounded-2xl border border-white/[.09] bg-white/[.025] p-4 sm:p-6 grid gap-5 md:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
+          <div className="flex min-w-0 items-center gap-4 sm:gap-7">
+            <div className="relative h-[100px] w-[100px] shrink-0 sm:h-[128px] sm:w-[128px]">
+              <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90">
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="54"
+                  fill="none"
+                  stroke="rgba(255,255,255,.08)"
+                  strokeWidth="7"
+                />
+                <circle
+                  cx="64"
+                  cy="64"
+                  r="54"
+                  fill="none"
+                  stroke="rgba(255,255,255,.9)"
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 54}
+                  strokeDashoffset={2 * Math.PI * 54 * (1 - scorePercent / 100)}
+                  className="transition-all duration-700"
+                />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-[30px] font-semibold leading-none tracking-[-.06em] sm:text-[34px]">
+                  {validScore ? overallScore.toFixed(1) : "—"}
+                </span>
+                <span className="mt-1 text-[10px] text-[#858994]">
+                  out of 10
+                </span>
+              </div>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] font-semibold uppercase tracking-[.2em] text-[#777B85]">
                 Overall performance
               </p>
-
-              <div className="mt-1 flex items-center gap-2.5">
+              <h2 className="mt-2 text-lg font-semibold tracking-[-.025em]">
+                {validScore
+                  ? overallScore >= 8
+                    ? "Strong performance"
+                    : overallScore >= 6
+                      ? "Good foundation"
+                      : overallScore >= 4
+                        ? "Room to improve"
+                        : "Keep building"
+                  : "Score unavailable"}
+              </h2>
+              <p className="mt-2 max-w-sm text-[11px] leading-5 text-[#858994] sm:text-xs">
+                Your overall result from the evaluations recorded for this
+                round.
+              </p>
+              <div className="mt-3 flex items-center gap-2 text-[10px] text-[#858994]">
                 <span
-                  aria-hidden="true"
-                  className={`h-2.5 w-2.5 shrink-0 rounded-full ${overallTone.dot} ${overallTone.glow}`}
+                  className={`h-1.5 w-1.5 rounded-full ${completed ? "bg-emerald-300" : "bg-amber-300"}`}
                 />
-
-                <h2 className="text-lg font-semibold text-white">
-                  Final Score
-                </h2>
-              </div>
-            </div>
-
-            <div className="mt-8 flex items-end gap-2">
-              <span className="text-5xl font-semibold tracking-[-0.05em] text-white">
-                {Number.isFinite(overallScore) ? overallScore.toFixed(1) : "—"}
-              </span>
-
-              <span className="mb-1.5 text-sm text-[#71717A]">/ 10</span>
-            </div>
-
-            <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/[0.07]">
-              <div
-                className="h-full rounded-full bg-white/80 transition-[width] duration-700 ease-out"
-                style={{ width: `${scorePercent}%` }}
-              />
-            </div>
-
-            <p className="mt-4 text-xs leading-5 text-[#71717A]">
-              Based on the evaluations generated across your submitted answers.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.025] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)]">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
-                <FiBarChart2 size={16} />
-              </div>
-
-              <p className="mt-5 text-[10px] font-medium uppercase tracking-[0.12em] text-[#71717A]">
-                Questions
-              </p>
-
-              <p className="mt-1 text-2xl font-semibold">
-                {questionStats.total}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.025] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)]">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
-                <FiCheckCircle size={16} />
-              </div>
-
-              <p className="mt-5 text-[10px] font-medium uppercase tracking-[0.12em] text-[#71717A]">
-                Answered
-              </p>
-
-              <p className="mt-1 text-2xl font-semibold">
-                {questionStats.answered}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.025] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)]">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
-                <FiTarget size={16} />
-              </div>
-
-              <p className="mt-5 text-[10px] font-medium uppercase tracking-[0.12em] text-[#71717A]">
-                Avg. question
-              </p>
-
-              <p className="mt-1 text-2xl font-semibold">
-                {formatScore(questionStats.averageQuestionScore)}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.025] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)]">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
-                <FiClock size={16} />
-              </div>
-
-              <p className="mt-5 text-[10px] font-medium uppercase tracking-[0.12em] text-[#71717A]">
-                Time limit
-              </p>
-
-              <p className="mt-1 text-2xl font-semibold">
-                {interview.timeLimit || "—"}
-                <span className="ml-1 text-xs font-normal text-[#71717A]">
-                  min
+                <span className="capitalize">
+                  {String(interview.status || "status unavailable").replace(
+                    /[-_]/g,
+                    " ",
+                  )}
                 </span>
-              </p>
+              </div>
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-white/[.07] pt-4 sm:gap-x-5 md:self-center md:border-l md:border-t-0 md:pl-6 md:pt-0">
+            {[
+              ["Questions", questionStats.total, <FiBarChart2 size={13} />],
+              ["Answered", questionStats.answered, <FiCheckCircle size={13} />],
+              ["Evaluated", questionStats.evaluated, <FiTarget size={13} />],
+              [
+                "Avg. question",
+                formatScore(questionStats.average),
+                <FiTrendingUp size={13} />,
+              ],
+            ].map(([label, value, icon]) => (
+              <div key={label} className="min-w-0">
+                <div className="flex items-center gap-2 text-[#777B85]">
+                  {icon}
+                  <span className="truncate text-[9px] font-semibold uppercase tracking-[.12em]">
+                    {label}
+                  </span>
+                </div>
+                <p className="mt-1.5 text-lg font-semibold tracking-[-.03em]">
+                  {value}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
-        {/* Section scores */}
         {sectionScores.length > 0 && (
-          <section className="rio-report-section mt-4 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.025] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
-            <div className="mb-6 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
-                <FiBarChart2 size={17} />
-              </div>
-
+          <section className="rio-report-section mt-5 rounded-2xl border border-white/[.09] bg-white/[.018] p-4 sm:mt-6 sm:p-6">
+            <div className="mb-4 flex items-end justify-between gap-3">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                  Breakdown
+                <p className="text-[9px] font-semibold uppercase tracking-[.2em] text-[#777B85]">
+                  Performance breakdown
                 </p>
-
-                <h2 className="mt-1 text-lg font-semibold">Section scores</h2>
+                <h2 className="mt-1.5 text-lg font-semibold tracking-[-.03em]">
+                  Section scores
+                </h2>
               </div>
+              <span className="text-[10px] text-[#62656D]">
+                {sectionScores.length} sections
+              </span>
             </div>
-
-            <div className="space-y-5">
-              {sectionScores.map(([section, score]) => {
-                const numericScore = Number(score);
-                const width = Number.isFinite(numericScore)
-                  ? Math.min(Math.max(numericScore * 10, 0), 100)
-                  : 0;
-
+            <div className="space-y-4">
+              {sectionScores.map(([section, value]) => {
+                const n = Number(value),
+                  width = Number.isFinite(n)
+                    ? Math.max(0, Math.min(100, n * 10))
+                    : 0;
                 return (
                   <div key={section}>
-                    <div className="mb-2 flex items-center justify-between gap-4">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <span
-                          aria-hidden="true"
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${getScoreTone(score).dot} ${getScoreTone(score).glow}`}
-                        />
-                        <span className="truncate text-xs font-medium text-[#D4D4D8]">
-                          {formatSectionName(section)}
-                        </span>
-                      </div>
-
-                      <span className="shrink-0 text-xs font-semibold text-white">
-                        {formatScore(score)}
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <span className="text-xs font-medium text-[#D4D4D8]">
+                        {formatSection(section)}
+                      </span>
+                      <span className="text-xs font-semibold tabular-nums">
+                        {formatScore(value)}
                       </span>
                     </div>
-
-                    <div className="h-2 overflow-hidden rounded-full bg-white/[0.07]">
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/[.08]">
                       <div
-                        className="h-full rounded-full bg-white"
+                        className="h-full rounded-full bg-white/80 transition-all duration-500"
                         style={{ width: `${width}%` }}
                       />
                     </div>
@@ -649,474 +451,358 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
           </section>
         )}
 
-        {/* Summary */}
         {interview.summary && (
-          <section className="rio-report-section mt-4 rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.025] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-              Interview summary
+          <section className="rio-report-section mt-5 rounded-2xl border border-white/[.09] bg-white/[.025] p-4 sm:mt-6 sm:p-6">
+            <p className="text-[9px] font-semibold uppercase tracking-[.2em] text-[#777B85]">
+              Executive summary
             </p>
-
-            <p className="mt-4 max-w-4xl text-sm leading-7 text-[#D4D4D8]">
+            <p className="mt-3 max-w-4xl whitespace-pre-wrap text-sm leading-7 text-[#D4D4D8]">
               {interview.summary}
             </p>
           </section>
         )}
 
-        {/* Strengths / weaknesses */}
-        <section className="mt-4 grid gap-4 lg:grid-cols-2">
-          <div className="rio-report-section rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                What went well
-              </p>
-
-              <div className=" mt-1 flex items-center gap-2.5">
-                <span
-                  aria-hidden="true"
-                  className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#22C55E] shadow-[0_0_14px_rgba(34,197,94,0.42)]"
-                />
-                <h2 className=" text-lg font-semibold">Strengths</h2>
-              </div>
+        <section className="rio-report-section mt-5 grid gap-4 md:grid-cols-2 sm:mt-6">
+          <div className="rounded-2xl border border-white/[.09] bg-white/[.018] p-4 sm:p-5">
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300" />
+              <h2 className="text-base font-semibold">Strengths</h2>
             </div>
-
+            <p className="mt-1 text-[10px] text-[#777B85]">
+              What worked well in this round
+            </p>
             {Array.isArray(interview.strengths) &&
-            interview.strengths.length > 0 ? (
-              <ul className="mt-6 space-y-3">
-                {interview.strengths.map((strength, index) => (
+            interview.strengths.length ? (
+              <ul className="mt-4 space-y-3">
+                {interview.strengths.map((item, i) => (
                   <li
-                    key={`${strength}-${index}`}
-                    className="flex gap-3 text-sm leading-6 text-[#D4D4D8]"
+                    key={`${item}-${i}`}
+                    className="flex gap-2.5 text-xs leading-6 text-[#C9CBD0]"
                   >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#22C55E]" />
-                    <span>{strength}</span>
+                    <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-emerald-300" />
+                    <span>{item}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-6 text-sm text-[#71717A]">
-                No strengths were recorded for this interview.
+              <p className="mt-4 text-xs text-[#71717A]">
+                No strengths were recorded.
               </p>
             )}
           </div>
-
-          <div className="rio-report-section rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
-            <div className="mt-1 flex items-center gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                  What to improve
-                </p>
-
-                <div className=" mt-1 flex items-center gap-2.5">
-                  <span
-                    aria-hidden="true"
-                    className="h-2.5 w-2.5 shrink-0 rounded-full bg-[#EF4444] shadow-[0_0_14px_rgba(239,68,68,0.40)]"
-                  />
-                  <h2 className=" text-lg font-semibold">Weaknesses</h2>
-                </div>
-              </div>
+          <div className="rounded-2xl border border-white/[.09] bg-white/[.018] p-4 sm:p-5">
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+              <h2 className="text-base font-semibold">Areas to improve</h2>
             </div>
-
+            <p className="mt-1 text-[10px] text-[#777B85]">
+              The most useful opportunities for your next round
+            </p>
             {Array.isArray(interview.weaknesses) &&
-            interview.weaknesses.length > 0 ? (
-              <ul className="mt-6 space-y-3">
-                {interview.weaknesses.map((weakness, index) => (
+            interview.weaknesses.length ? (
+              <ul className="mt-4 space-y-3">
+                {interview.weaknesses.map((item, i) => (
                   <li
-                    key={`${weakness}-${index}`}
-                    className="flex gap-3 text-sm leading-6 text-[#D4D4D8]"
+                    key={`${item}-${i}`}
+                    className="flex gap-2.5 text-xs leading-6 text-[#C9CBD0]"
                   >
-                    <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#EF4444]" />
-                    <span>{weakness}</span>
+                    <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-amber-300" />
+                    <span>{item}</span>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="mt-6 text-sm text-[#71717A]">
-                No weaknesses were recorded for this interview.
+              <p className="mt-4 text-xs text-[#71717A]">
+                No improvement areas were recorded.
               </p>
             )}
           </div>
         </section>
 
-        {/* Recommendations */}
         {Array.isArray(interview.recommendations) &&
           interview.recommendations.length > 0 && (
-            <section className="rio-report-section mt-4 rounded-2xl border border-white/10 bg-white/[0.035] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.1)] sm:p-6">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]">
-                  <FiTrendingUp size={17} />
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                    Next steps
-                  </p>
-
-                  <h2 className="mt-1 text-lg font-semibold">
-                    Recommendations
-                  </h2>
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-3">
-                {interview.recommendations.map((recommendation, index) => (
-                  <div
-                    key={`${recommendation}-${index}`}
-                    className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4"
+            <section className="rio-report-section mt-5 rounded-2xl border border-white/[.09] bg-white/[.018] p-4 sm:mt-6 sm:p-6">
+              <p className="text-[9px] font-semibold uppercase tracking-[.2em] text-[#777B85]">
+                Recommended next steps
+              </p>
+              <h2 className="mt-1.5 text-lg font-semibold">
+                Turn feedback into progress
+              </h2>
+              <ol className="mt-4 divide-y divide-white/[.07]">
+                {interview.recommendations.map((item, i) => (
+                  <li
+                    key={`${item}-${i}`}
+                    className="flex gap-3 py-3.5 first:pt-0"
                   >
-                    <div className="flex gap-3">
-                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.05] text-[10px] font-semibold text-[#A1A1AA]">
-                        {index + 1}
-                      </span>
-
-                      <p className="text-sm leading-6 text-[#D4D4D8]">
-                        {recommendation}
-                      </p>
-                    </div>
-                  </div>
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/[.12] text-[10px] font-semibold text-[#BFC1C7]">
+                      {i + 1}
+                    </span>
+                    <p className="pt-0.5 text-xs leading-6 text-[#D4D4D8]">
+                      {item}
+                    </p>
+                  </li>
                 ))}
-              </div>
+              </ol>
             </section>
           )}
 
-        {/* Question-by-question review */}
-        <section className="rio-report-section mt-4 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.025] shadow-[0_12px_34px_rgba(0,0,0,0.1)]">
-          <div className="border-b border-white/[0.07] px-5 py-5 sm:px-6">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#71717A]">
-              Detailed review
-            </p>
-
-            <h2 className="mt-2 text-xl font-semibold tracking-[-0.025em]">
-              Question-by-question analysis
-            </h2>
-
-            <p className="mt-2 text-xs leading-5 text-[#71717A]">
-              Review your answers, evaluation and the stronger answer approach
-              suggested by the interviewer.
-            </p>
-          </div>
-
-          {questions.length === 0 ? (
-            <div className="px-5 py-12 text-center">
-              <p className="text-sm text-[#71717A]">
-                No questions are available for this report.
+        <section className="rio-report-section mt-5 rounded-2xl border border-white/[.09] bg-white/[.018] p-4 sm:mt-6 sm:p-6">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[.2em] text-[#777B85]">
+                Detailed review
+              </p>
+              <h2 className="mt-1.5 text-lg font-semibold tracking-[-.03em]">
+                Question-by-question analysis
+              </h2>
+              <p className="mt-1.5 text-xs leading-5 text-[#777B85]">
+                Open any question to review your answer, evaluation and
+                feedback.
               </p>
             </div>
+            <span className="text-[10px] text-[#62656D]">
+              {questions.length} questions
+            </span>
+          </div>
+          {questions.length === 0 ? (
+            <p className="border-y border-white/[.07] py-8 text-center text-xs text-[#777B85]">
+              No questions are available for this report.
+            </p>
           ) : (
-            <div className="divide-y divide-white/[0.07]">
+            <div className="divide-y divide-white/[.07] border-y border-white/[.07]">
               {questions.map((question, index) => {
-                const evaluation = question.evaluation || {};
-                const questionKey = question.questionId || index;
-                const isExpanded = expandedQuestion === questionKey;
-
+                const evaluation = question.evaluation || {},
+                  key = question.questionId || index,
+                  expanded = expandedQuestion === key;
+                const metrics = [
+                  ["Score", evaluation.score],
+                  ["Correctness", evaluation.correctness],
+                  ["Clarity", evaluation.clarity],
+                  ["Relevance", evaluation.relevance],
+                  ["Communication", evaluation.communication],
+                  ...(question.section === "coding"
+                    ? [
+                        ["Logic", evaluation.logic],
+                        ["Complexity", evaluation.complexity],
+                        ["Edge cases", evaluation.edgeCases],
+                        ["Code quality", evaluation.codeQuality],
+                      ]
+                    : []),
+                ].filter(([, v]) => v !== undefined && v !== null && v !== "");
                 return (
-                  <div key={questionKey}>
+                  <article key={key}>
                     <button
                       type="button"
+                      aria-expanded={expanded}
                       onClick={() =>
-                        setExpandedQuestion((previous) =>
-                          previous === questionKey ? null : questionKey,
+                        setExpandedQuestion((prev) =>
+                          prev === key ? null : key,
                         )
                       }
-                      className="flex w-full items-center gap-4 px-5 py-5 text-left transition-colors hover:bg-white/[0.025] sm:px-6"
+                      className="flex w-full items-center gap-3 py-4 text-left transition hover:bg-white/[.02]"
                     >
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-xs font-semibold text-[#A1A1AA]">
-                        {index + 1}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-[9px] font-medium uppercase tracking-[0.1em] text-[#71717A]">
-                            {formatSectionName(question.section)}
-                          </span>
-
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/[.09] bg-white/[.025] text-[10px] font-semibold text-[#A1A1AA]">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center gap-2 text-[9px] uppercase tracking-[.1em] text-[#777B85]">
+                          <span>{formatSection(question.section)}</span>
                           {question.difficulty && (
                             <>
-                              <span className="text-white/20">•</span>
-
-                              <span className="text-[9px] capitalize text-[#71717A]">
-                                {question.difficulty}
-                              </span>
+                              <span className="text-white/20">·</span>
+                              <span>{question.difficulty}</span>
                             </>
                           )}
-                        </div>
-
-                        <p className="mt-1 line-clamp-2 text-sm font-medium leading-6 text-[#D4D4D8]">
-                          {question.text}
-                        </p>
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-3">
-                        <span className="hidden items-center gap-2 sm:flex">
-                          <span
-                            aria-hidden="true"
-                            className={`h-1.5 w-1.5 rounded-full ${getScoreTone(evaluation.score).dot} ${getScoreTone(evaluation.score).glow}`}
-                          />
-                          <span className="text-xs font-semibold text-[#D4D4D8]">
-                            {formatScore(evaluation.score)}
-                          </span>
                         </span>
-
-                        <FiChevronDown
-                          size={16}
-                          className={`text-[#71717A] transition-transform ${
-                            isExpanded ? "rotate-180" : ""
-                          }`}
+                        <span className="mt-1 block line-clamp-2 text-xs font-medium leading-5 text-[#D4D4D8]">
+                          {question.text || "Question details unavailable"}
+                        </span>
+                      </span>
+                      <span className="hidden shrink-0 items-center gap-2 sm:flex">
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${tone(evaluation.score)}`}
                         />
-                      </div>
+                        <span className="text-xs font-semibold tabular-nums">
+                          {formatScore(evaluation.score)}
+                        </span>
+                      </span>
+                      <FiChevronDown
+                        size={15}
+                        className={`shrink-0 text-[#777B85] transition-transform ${expanded ? "rotate-180" : ""}`}
+                      />
                     </button>
-
-                    {isExpanded && (
-                      <div className="border-t border-white/[0.06] bg-black/[0.08] px-5 py-6 sm:px-6">
-                        <div
-                          className={`grid grid-cols-2 gap-2 ${
-                            question.section === "coding"
-                              ? "sm:grid-cols-3 lg:grid-cols-6"
-                              : "sm:grid-cols-5"
-                          }`}
-                        >
-                          {[
-                            ["Score", evaluation.score],
-                            ["Correctness", evaluation.correctness],
-                            ["Clarity", evaluation.clarity],
-                            ["Relevance", evaluation.relevance],
-                            ["Communication", evaluation.communication],
-                            ...(question.section === "coding"
-                              ? [
-                                  ["Logic", evaluation.logic],
-                                  ["Complexity", evaluation.complexity],
-                                  ["Edge Cases", evaluation.edgeCases],
-                                  ["Code Quality", evaluation.codeQuality],
-                                ]
-                              : []),
-                          ].map(([label, value]) => (
-                            <div
-                              key={label}
-                              className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"
-                            >
-                              <p className="text-[9px] uppercase tracking-[0.1em] text-[#71717A]">
-                                {label}
-                              </p>
-
-                              <p className="mt-1 text-sm font-semibold">
-                                {formatScore(value)}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="mt-5">
-                          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                    {expanded && (
+                      <div className="pb-5 pl-0 sm:pl-11">
+                        {metrics.length > 0 && (
+                          <div className="mb-5 flex flex-wrap gap-x-5 gap-y-3">
+                            {metrics.map(([label, value]) => (
+                              <div key={label} className="min-w-[70px]">
+                                <p className="text-[9px] uppercase tracking-[.12em] text-[#777B85]">
+                                  {label}
+                                </p>
+                                <p className="mt-1 text-xs font-semibold">
+                                  {formatScore(value)}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        <div className="border-l border-white/[.12] pl-4">
+                          <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#777B85]">
                             Your answer
                           </p>
-
-                          <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
-                            <p className="whitespace-pre-wrap text-sm leading-7 text-[#D4D4D8]">
-                              {question.answer?.trim() ||
-                                "No answer submitted."}
-                            </p>
-                          </div>
+                          <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#C9CBD0]">
+                            {question.answer?.trim() || "No answer submitted."}
+                          </p>
                         </div>
-
                         {evaluation.feedback && (
-                          <div className="mt-5">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                          <div className="mt-5 border-l border-white/[.12] pl-4">
+                            <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#777B85]">
                               Interviewer feedback
                             </p>
-
-                            <p className="mt-3 text-sm leading-7 text-[#D4D4D8]">
+                            <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#C9CBD0]">
                               {evaluation.feedback}
                             </p>
                           </div>
                         )}
-
-                        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-                          <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717A]">
-                              Strengths
-                            </p>
-
-                            {Array.isArray(evaluation.strengths) &&
-                            evaluation.strengths.length > 0 ? (
-                              <ul className="mt-3 space-y-2">
-                                {evaluation.strengths.map((item, itemIndex) => (
-                                  <li
-                                    key={`${item}-${itemIndex}`}
-                                    className="flex gap-2 text-xs leading-5 text-[#D4D4D8]"
-                                  >
-                                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#22C55E]" />
-                                    {item}
-                                  </li>
-                                ))}
-                              </ul>
-                            ) : (
-                              <p className="mt-3 text-xs text-[#52525B]">
-                                No specific strengths recorded.
+                        <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                          {[
+                            ["Strengths", evaluation.strengths],
+                            ["Areas to improve", evaluation.weaknesses],
+                          ].map(([title, items]) => (
+                            <div key={title}>
+                              <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-[#777B85]">
+                                {title}
                               </p>
-                            )}
-                          </div>
-
-                          <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717A]">
-                              Weaknesses
-                            </p>
-
-                            {Array.isArray(evaluation.weaknesses) &&
-                            evaluation.weaknesses.length > 0 ? (
-                              <ul className="mt-3 space-y-2">
-                                {evaluation.weaknesses.map(
-                                  (item, itemIndex) => (
+                              {Array.isArray(items) && items.length ? (
+                                <ul className="mt-3 space-y-2">
+                                  {items.map((item, i) => (
                                     <li
-                                      key={`${item}-${itemIndex}`}
-                                      className="flex gap-2 text-xs leading-5 text-[#D4D4D8]"
+                                      key={`${item}-${i}`}
+                                      className="flex gap-2 text-xs leading-5 text-[#C9CBD0]"
                                     >
-                                      <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#EF4444]" />
+                                      <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-white/50" />
                                       {item}
                                     </li>
-                                  ),
-                                )}
-                              </ul>
-                            ) : (
-                              <p className="mt-3 text-xs text-[#52525B]">
-                                No specific weaknesses recorded.
-                              </p>
-                            )}
-                          </div>
+                                  ))}
+                                </ul>
+                              ) : (
+                                <p className="mt-2 text-[11px] text-[#62656D]">
+                                  No details recorded.
+                                </p>
+                              )}
+                            </div>
+                          ))}
                         </div>
-
                         {evaluation.betterAnswer && (
-                          <div className="mt-5 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717A]">
-                              Better answer
+                          <div className="mt-5 border-l border-white/[.12] pl-4">
+                            <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#777B85]">
+                              A stronger answer
                             </p>
-
-                            <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-[#D4D4D8]">
+                            <p className="mt-2 whitespace-pre-wrap text-xs leading-6 text-[#C9CBD0]">
                               {evaluation.betterAnswer}
                             </p>
                           </div>
                         )}
-
                         {Array.isArray(evaluation.recommendations) &&
                           evaluation.recommendations.length > 0 && (
                             <div className="mt-5">
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#71717A]">
+                              <p className="text-[9px] font-semibold uppercase tracking-[.16em] text-[#777B85]">
                                 How to improve
                               </p>
-
                               <ul className="mt-3 space-y-2">
-                                {evaluation.recommendations.map(
-                                  (item, itemIndex) => (
-                                    <li
-                                      key={`${item}-${itemIndex}`}
-                                      className="flex gap-2 text-xs leading-5 text-[#D4D4D8]"
-                                    >
-                                      <span className="mt-1.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-white/10 text-[8px]">
-                                        {itemIndex + 1}
-                                      </span>
-
-                                      {item}
-                                    </li>
-                                  ),
-                                )}
+                                {evaluation.recommendations.map((item, i) => (
+                                  <li
+                                    key={`${item}-${i}`}
+                                    className="flex gap-2 text-xs leading-5 text-[#C9CBD0]"
+                                  >
+                                    <span className="text-[#858994]">
+                                      {i + 1}.
+                                    </span>
+                                    {item}
+                                  </li>
+                                ))}
                               </ul>
                             </div>
                           )}
                       </div>
                     )}
-                  </div>
+                  </article>
                 );
               })}
             </div>
           )}
         </section>
-
-        {/* Bottom CTA */}
-        <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.045] p-5 sm:flex sm:items-center sm:justify-between">
+        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-white/[.08] pt-5">
           <div>
             <p className="text-sm font-semibold">Ready for another round?</p>
-
-            <p className="mt-1 text-xs text-[#71717A]">
-              Practice again with a different interview configuration.
+            <p className="mt-1 text-xs text-[#777B85]">
+              Use what you learned to make your next attempt stronger.
             </p>
           </div>
-
-          <div className="mt-4 flex sm:mt-0">
-            <button
-              type="button"
-              onClick={() => navigate("/mock-interview/new")}
-              className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] transition-transform hover:scale-[1.02]"
-            >
-              Interview Again
-              <FiArrowRight size={14} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/mock-interview/new")}
+            className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-[#E7E7E7]"
+          >
+            Interview again <FiArrowRight size={13} />
+          </button>
         </div>
-        {createPortal(
-          <div className="fixed inset-x-0 bottom-0 z-[100] border-t border-white/[0.08] bg-[#111214]/95 px-4 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-3 shadow-[0_-16px_40px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:hidden">
-            <div className="mx-auto max-w-xl">
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(true)}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-3 text-xs font-semibold black-[#D4D4D8] transition-colors hover:bg-black/[0.8] active:bg-white/[0.10]"
-              >
-                <FiTrash2 size={14} />
-                Delete Interview
-              </button>
-            </div>
-          </div>,
-          document.body,
-        )}
       </div>
 
-      {showDeleteModal &&
+      {(showDeleteModal || deleteRequest) &&
         createPortal(
-          <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
-            <div className="rio-modal w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E]/95 p-6 shadow-2xl backdrop-blur-xl">
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-interview-title"
+          >
+            <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E]/95 p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-base font-semibold text-white">
+                  <h2
+                    id="delete-interview-title"
+                    className="text-base font-semibold"
+                  >
                     Delete interview?
                   </h2>
-
-                  <p className="mt-2 text-xs leading-5 text-[#71717A]">
-                    This will permanently remove this completed interview and
-                    its report from your history.
+                  <p className="mt-2 text-xs leading-5 text-[#858994]">
+                    This permanently removes this interview and its report from
+                    your history.
                   </p>
                 </div>
-
                 <button
                   type="button"
-                  onClick={closeDeleteModal}
+                  onClick={closeDelete}
                   disabled={deleting}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/10 text-[#71717A] transition-colors hover:bg-white/[0.05] hover:text-white disabled:opacity-50"
                   aria-label="Close"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-[#858994] hover:bg-white/[.05] disabled:opacity-50"
                 >
                   <FiX size={15} />
                 </button>
               </div>
-
               {deleteError && (
-                <p className="mt-4 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 text-xs leading-5 text-[#D4D4D8]">
+                <p className="mt-4 rounded-xl border border-white/[.08] px-3 py-2.5 text-xs leading-5 text-[#D4D4D8]">
                   {deleteError}
                 </p>
               )}
-
               <div className="mt-6 flex gap-3">
                 <button
                   type="button"
-                  onClick={closeDeleteModal}
+                  onClick={closeDelete}
                   disabled={deleting}
-                  className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-medium text-white transition-colors hover:bg-white/[0.08] disabled:opacity-50"
+                  className="flex-1 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-xs font-medium hover:bg-white/[.08] disabled:opacity-50"
                 >
                   Cancel
                 </button>
-
                 <button
                   type="button"
-                  onClick={handleDeleteInterview}
+                  onClick={deleteInterviewNow}
                   disabled={deleting}
-                  className="flex-1 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#111214] transition-colors hover:bg-[#EDEDEF] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#111214] hover:bg-[#EDEDEF] disabled:opacity-50"
                 >
-                  {deleting ? "Deleting..." : "Delete"}
+                  {deleting ? "Deleting…" : "Delete"}
                 </button>
               </div>
             </div>
@@ -1125,6 +811,4 @@ const InterviewReport = ({ interviewId: interviewIdProp, onDeleted }) => {
         )}
     </div>
   );
-};
-
-export default InterviewReport;
+}

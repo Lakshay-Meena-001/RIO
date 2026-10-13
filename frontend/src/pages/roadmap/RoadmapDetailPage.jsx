@@ -329,19 +329,7 @@ export default function RoadmapDetailPage({
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <div className="mb-6 border-b border-white/[0.08] pb-5">
-            <button
-              type="button"
-              onClick={() => navigate("/roadmap")}
-              className="group inline-flex items-center gap-2 text-xs font-medium text-[#71717A] transition-colors duration-200 hover:text-white"
-            >
-              <FiArrowLeft
-                size={14}
-                className="transition-transform duration-200 group-hover:-translate-x-0.5"
-              />
-              Back to roadmaps
-            </button>
-          </div>
+          
           <div className="mb-4 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#A1A1AA]">
             <span className="h-2 w-2 rounded-full bg-white/80" />
             Your learning roadmap
