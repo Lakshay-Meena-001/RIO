@@ -92,6 +92,37 @@ const normalizeHistoryItem = (item) => {
   };
 };
 
+const getCurrentFocusTopic = (topics, roadmapId) => {
+  const savedTopicId = roadmapId
+    ? localStorage.getItem(`roadmap:last-opened-topic:${roadmapId}`)
+    : null;
+
+  // Priority 1: Last-opened topic, even if it is already completed.
+  const lastOpenedTopic = topics.find(
+    (topic) => topic.id === savedTopicId || topic.nodeId === savedTopicId,
+  );
+
+  if (lastOpenedTopic) return lastOpenedTopic;
+
+  // Priority 2: An unfinished topic currently in progress.
+  const inProgressTopic = topics.find(
+    (topic) =>
+      !["completed", "skipped"].includes(topic.phaseStatus) &&
+      ["in_progress", "learning"].includes(topic.status),
+  );
+
+  if (inProgressTopic) return inProgressTopic;
+
+  // Priority 3: First unfinished topic.
+  return (
+    topics.find(
+      (topic) =>
+        !["completed", "skipped"].includes(topic.phaseStatus) &&
+        !["completed", "skipped"].includes(topic.status),
+    ) || null
+  );
+};
+
 const formatDate = (value) => {
   if (!value) return "Date unavailable";
 
@@ -494,15 +525,27 @@ export default function RoadmapHistoryPage() {
               (item) => item.phaseId === phase.id,
             );
 
-            return (phase.topics || []).map((topic) => ({
-              ...topic,
-              nodeId: topic.id,
-              status:
-                savedPhase?.topics?.find((item) => item.topicId === topic.id)
-                  ?.status || "not_started",
-              phaseId: phase.id,
-              phaseStatus: savedPhase?.status || "not_started",
-            }));
+            return (phase.topics || []).map((topic) => {
+              const savedTopic = savedPhase?.topics?.find(
+                (item) => item.topicId === topic.id,
+              );
+
+              let status = savedTopic?.status || "not_started";
+
+              if (savedPhase?.status === "completed") {
+                status = "completed";
+              } else if (savedPhase?.status === "skipped") {
+                status = "skipped";
+              }
+
+              return {
+                ...topic,
+                nodeId: topic.id,
+                status,
+                phaseId: phase.id,
+                phaseStatus: savedPhase?.status || "not_started",
+              };
+            });
           });
         const total = topics.length;
 
@@ -523,17 +566,23 @@ export default function RoadmapHistoryPage() {
             topic.status === "in_progress",
         ).length;
 
-        const focus =
-          topics.find(
-            (topic) =>
-              !["completed", "skipped"].includes(topic.phaseStatus) &&
-              topic.status === "in_progress",
-          ) ||
-          topics.find(
-            (topic) =>
-              !["completed", "skipped"].includes(topic.phaseStatus) &&
-              topic.status === "not_started",
-          );
+        const focus = getCurrentFocusTopic(topics, getId(personal));
+
+        setRoadmaps((current) =>
+          current.map((item) =>
+            getId(item) === getId(personal)
+              ? {
+                  ...item,
+                  phaseProgress,
+                  progressPercentage: calculateProgressFromTopics({
+                    ...item,
+                    phaseProgress,
+                  }),
+                }
+              : item,
+          ),
+        );
+
         setRoadmap({
           ...personal,
           ...canonical,
@@ -641,17 +690,7 @@ export default function RoadmapHistoryPage() {
           node.status === "learning",
       ).length;
 
-      const focus =
-        nodes.find(
-          (node) =>
-            !["completed", "skipped"].includes(node.phaseStatus) &&
-            node.status === "learning",
-        ) ||
-        nodes.find(
-          (node) =>
-            !["completed", "skipped"].includes(node.phaseStatus) &&
-            node.status === "not_started",
-        );
+      const focus = getCurrentFocusTopic(nodes, roadmapId);
 
       return {
         ...current,

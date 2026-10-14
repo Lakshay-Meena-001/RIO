@@ -148,10 +148,39 @@ export default function RoadmapDetailPage({
           order: phase.order ?? index + 1,
           topics,
           savedStatus: saved?.status || STATUS.NOT_STARTED,
+          topicSummary: {
+            total: topics.length,
+            completed: topics.filter(
+              (topic) => topic.status === STATUS.COMPLETED,
+            ).length,
+            skipped: topics.filter((topic) => topic.status === STATUS.SKIPPED)
+              .length,
+            remaining: topics.filter(
+              (topic) =>
+                ![STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.status),
+            ).length,
+          },
         };
       }),
     [canonical, phaseProgress],
   );
+
+  useEffect(() => {
+    if (!roadmapId || phases.length === 0) return;
+
+    const storageKey = `roadmap:last-opened-topic:${roadmapId}`;
+    const savedTopicId = localStorage.getItem(storageKey);
+
+    if (
+      savedTopicId &&
+      phases.some((phase) =>
+        phase.topics.some((topic) => topic.id === savedTopicId),
+      )
+    ) {
+      setExpandedTopicId(savedTopicId);
+    }
+  }, [roadmapId, phases]);
+
   const allTopics = useMemo(
     () =>
       phases.flatMap((phase) =>
@@ -220,6 +249,24 @@ export default function RoadmapDetailPage({
     if (payload?.userRoadmap) setUserRoadmap(payload.userRoadmap);
   };
 
+  const applyProgressResponse = (response) => {
+    const userProgress = response?.data?.data?.phaseProgress
+      ? response.data.data
+      : response?.data?.phaseProgress
+        ? response.data
+        : response?.data?.data?.userRoadmap ||
+          response?.data?.userRoadmap ||
+          response?.userRoadmap;
+
+    if (!userProgress?.phaseProgress) {
+      return false;
+    }
+
+    setUserRoadmap(userProgress);
+    onProgressChange?.(userProgress);
+    return true;
+  };
+
   const changeTopicStatus = async (phaseId, topicId, status) => {
     if (!roadmapId || savingId) return;
 
@@ -231,16 +278,17 @@ export default function RoadmapDetailPage({
     }));
 
     try {
-      await updateRoadmapTopicStatus(roadmapId, phaseId, topicId, status);
+      const response = await updateRoadmapTopicStatus(
+        roadmapId,
+        phaseId,
+        topicId,
+        status,
+      );
 
-      const loaded = await loadRoadmap(false);
+      const updated = applyProgressResponse(response);
 
-      if (!loaded) {
-        setActionErrors((current) => ({
-          ...current,
-          [errorKey]:
-            "Saved, but the latest progress could not be loaded. Retry refreshing the roadmap.",
-        }));
+      if (!updated) {
+        await loadRoadmap(false);
       }
     } catch (err) {
       setActionErrors((current) => ({
@@ -266,16 +314,16 @@ export default function RoadmapDetailPage({
     }));
 
     try {
-      await updateRoadmapPhaseStatus(roadmapId, phaseId, status);
+      const response = await updateRoadmapPhaseStatus(
+        roadmapId,
+        phaseId,
+        status,
+      );
 
-      const loaded = await loadRoadmap(false);
+      const updated = applyProgressResponse(response);
 
-      if (!loaded) {
-        setActionErrors((current) => ({
-          ...current,
-          [errorKey]:
-            "Saved, but the latest progress could not be loaded. Retry refreshing the roadmap.",
-        }));
+      if (!updated) {
+        await loadRoadmap(false);
       }
     } catch (err) {
       setActionErrors((current) => ({
@@ -462,6 +510,12 @@ export default function RoadmapDetailPage({
               disabled={!currentTopic}
               onClick={() => {
                 setExpandedTopicId(currentTopic.id);
+
+                localStorage.setItem(
+                  `roadmap:last-opened-topic:${roadmapId}`,
+                  currentTopic.id,
+                );
+
                 document
                   .getElementById(`roadmap-topic-${currentTopic.id}`)
                   ?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -508,6 +562,7 @@ export default function RoadmapDetailPage({
             <div className="space-y-4">
               {phases.map((phase, index) => {
                 const ready = phase.generationStatus === "ready";
+
                 const phaseDone =
                   phase.savedStatus === STATUS.COMPLETED
                     ? phase.topics.length
@@ -516,6 +571,25 @@ export default function RoadmapDetailPage({
                       : phase.topics.filter(
                           (topic) => topic.status === STATUS.COMPLETED,
                         ).length;
+
+                const summary = phase.topicSummary;
+
+                const phaseLabel =
+                  phase.savedStatus === STATUS.COMPLETED
+                    ? "Completed"
+                    : phase.savedStatus === STATUS.SKIPPED
+                      ? "Skipped"
+                      : summary.total > 0 &&
+                          summary.completed + summary.skipped === summary.total
+                        ? `${summary.completed} completed · ${summary.skipped} skipped`
+                        : summary.remaining > 0 &&
+                            (summary.completed > 0 || summary.skipped > 0)
+                          ? `${summary.remaining} left`
+                          : phase.savedStatus === STATUS.IN_PROGRESS
+                            ? "In progress"
+                            : summary.completed > 0
+                              ? `${summary.completed} completed`
+                              : "Not started";
                 return (
                   <Surface
                     key={phase.id}
@@ -535,7 +609,7 @@ export default function RoadmapDetailPage({
                               className={`rounded-full border px-2.5 py-1 text-[9px] font-medium ${ready ? "border-white/[0.10] bg-white/[0.045] text-white/80" : phase.generationStatus === "failed" ? "border-white/[0.12] bg-white/[0.04] text-white/75" : "border-white/[0.09] bg-white/[0.025] text-[#A1A1AA]"}`}
                             >
                               {ready
-                                ? `${phaseDone}/${phase.topics.length} done`
+                                ? phaseLabel
                                 : titleCase(
                                     phase.generationStatus || "pending",
                                   )}
@@ -590,11 +664,19 @@ export default function RoadmapDetailPage({
                             expanded={expandedTopicId === topic.id}
                             saving={savingId === topic.id}
                             error={actionErrors[`topic:${topic.id}`]}
-                            onExpand={() =>
-                              setExpandedTopicId((current) =>
-                                current === topic.id ? null : topic.id,
-                              )
-                            }
+                            onExpand={() => {
+                              const nextId =
+                                expandedTopicId === topic.id ? null : topic.id;
+
+                              setExpandedTopicId(nextId);
+
+                              if (nextId) {
+                                localStorage.setItem(
+                                  `roadmap:last-opened-topic:${roadmapId}`,
+                                  nextId,
+                                );
+                              }
+                            }}
                             onStatus={(status) =>
                               void changeTopicStatus(phase.id, topic.id, status)
                             }
@@ -607,7 +689,9 @@ export default function RoadmapDetailPage({
                       <div className="border-t border-white/[0.06] px-4 py-4 sm:px-5">
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex flex-wrap items-center gap-2">
-                            {phase.savedStatus === STATUS.COMPLETED ? (
+                            {[STATUS.COMPLETED, STATUS.SKIPPED].includes(
+                              phase.savedStatus,
+                            ) ? (
                               <button
                                 disabled={Boolean(savingId)}
                                 onClick={() =>
@@ -616,28 +700,17 @@ export default function RoadmapDetailPage({
                                     STATUS.NOT_STARTED,
                                   )
                                 }
-                                className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 disabled:opacity-50"
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-red-400/40 hover:bg-red-400/[0.06] hover:text-red-200 hover:shadow-[0_0_12px_rgba(248,113,113,0.12)] disabled:opacity-50"
                               >
                                 Reset phase
                               </button>
                             ) : (
                               <>
-                                <button
-                                  disabled={Boolean(savingId)}
-                                  onClick={() =>
-                                    void changePhaseStatus(
-                                      phase.id,
-                                      STATUS.IN_PROGRESS,
-                                    )
-                                  }
-                                  className={`rounded-xl border px-3 py-2 text-[11px] disabled:opacity-50 ${
-                                    phase.savedStatus === STATUS.IN_PROGRESS
-                                      ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
-                                      : "border-white/10 text-white/80"
-                                  }`}
-                                >
-                                  In progress
-                                </button>
+                                {phase.savedStatus === STATUS.IN_PROGRESS && (
+                                  <span className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-[11px] text-emerald-300">
+                                    In progress
+                                  </span>
+                                )}
 
                                 <button
                                   disabled={Boolean(savingId)}
@@ -660,7 +733,7 @@ export default function RoadmapDetailPage({
                                       STATUS.NOT_STARTED,
                                     )
                                   }
-                                 className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-white/25 hover:bg-white/[0.045] hover:text-white hover:shadow-[0_0_12px_rgba(255,255,255,0.06)] disabled:opacity-50"
+                                  className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-white/25 hover:bg-white/[0.045] hover:text-white hover:shadow-[0_0_12px_rgba(255,255,255,0.06)] disabled:opacity-50"
                                 >
                                   Reset phase
                                 </button>
@@ -668,7 +741,9 @@ export default function RoadmapDetailPage({
                             )}
                           </div>
 
-                          {phase.savedStatus !== STATUS.COMPLETED && (
+                          {![STATUS.COMPLETED, STATUS.SKIPPED].includes(
+                            phase.savedStatus,
+                          ) && (
                             <button
                               disabled={Boolean(savingId)}
                               onClick={() =>
@@ -856,41 +931,40 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving, error }) {
             </InfoBlock>
           )}
           <div className="mt-5 flex flex-wrap gap-2 border-t border-white/[0.07] pt-4">
-            {!inProgress && !completed && (
-              <button
-                disabled={saving}
-                onClick={startLearning}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs font-semibold text-white/80 disabled:opacity-50"
-              >
-                <FiPlay size={13} /> Start learning
-              </button>
-            )}
-            {!completed && (
-              <button
-                disabled={saving}
-                onClick={() => onStatus(STATUS.COMPLETED)}
-                className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-xs font-semibold text-[#17191C] disabled:opacity-50"
-              >
-                <FiCheck size={13} /> Mark complete
-              </button>
-            )}
-            {completed && (
+            <button
+              disabled={saving}
+              onClick={startLearning}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] font-semibold text-white/80 transition-all duration-200 hover:border-white/25 hover:bg-white/[0.045] hover:text-white hover:shadow-[0_0_12px_rgba(255,255,255,0.06)] disabled:opacity-50"
+            >
+              <FiPlay size={12} /> Start learning
+            </button>
+
+            {completed || skipped ? (
               <button
                 disabled={saving}
                 onClick={() => onStatus(STATUS.NOT_STARTED)}
-                className="rounded-xl border border-white/10 px-3 py-2.5 text-xs text-[#92949B] disabled:opacity-50"
+                className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-red-400/40 hover:bg-red-400/[0.06] hover:text-red-200 hover:shadow-[0_0_12px_rgba(248,113,113,0.12)] disabled:opacity-50"
               >
                 Reset progress
               </button>
-            )}
-            {!skipped && !completed && (
-              <button
-                disabled={saving}
-                onClick={() => onStatus(STATUS.SKIPPED)}
-                className="rounded-xl border border-white/[0.08] px-3 py-2.5 text-xs text-[#92949B] disabled:opacity-50"
-              >
-                Skip topic
-              </button>
+            ) : (
+              <>
+                <button
+                  disabled={saving}
+                  onClick={() => onStatus(STATUS.COMPLETED)}
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold text-[#17191C] transition-all duration-200 hover:bg-emerald-100 disabled:opacity-50"
+                >
+                  <FiCheck size={12} /> Mark complete
+                </button>
+
+                <button
+                  disabled={saving}
+                  onClick={() => onStatus(STATUS.SKIPPED)}
+                  className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-white/25 hover:bg-white/[0.045] hover:text-white hover:shadow-[0_0_12px_rgba(255,255,255,0.06)] disabled:opacity-50"
+                >
+                  Skip topic
+                </button>
+              </>
             )}
             {saving && (
               <span className="px-2 text-xs text-[#858994]">Saving…</span>

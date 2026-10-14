@@ -25,7 +25,10 @@ function validateObjectId(id, fieldName = "roadmapId") {
 
 function getProgressPercentage(userRoadmap) {
   const phases = userRoadmap.phaseProgress || [];
-  const allTopics = phases.flatMap((phase) => phase.topics || []);
+
+  const allTopics = phases.flatMap((phase) =>
+    phase.status === ROADMAP_NODE_STATUS.SKIPPED ? [] : phase.topics || [],
+  );
 
   // Only completed topics count toward completion percentage.
   // Skipped topics and skipped phases do not increase progress.
@@ -64,6 +67,10 @@ function synchronizePhaseStatus(phase) {
     (topic) => topic.status === ROADMAP_NODE_STATUS.COMPLETED,
   );
 
+  const allSkipped = topics.every(
+    (topic) => topic.status === ROADMAP_NODE_STATUS.SKIPPED,
+  );
+
   const allUnstarted = topics.every(
     (topic) => topic.status === ROADMAP_NODE_STATUS.NOT_STARTED,
   );
@@ -73,8 +80,13 @@ function synchronizePhaseStatus(phase) {
     phase.completedAt = phase.completedAt || new Date();
     return;
   }
-
   phase.completedAt = null;
+
+  if (allSkipped) {
+    phase.status = ROADMAP_NODE_STATUS.SKIPPED;
+    phase.completedAt = null;
+    return;
+  }
 
   if (allUnstarted) {
     // Preserve an explicit Mark Phase In Progress action.
@@ -154,6 +166,46 @@ async function syncProgressStructure(userRoadmap) {
 
   const existingPhaseProgress = new Map(
     (userRoadmap.phaseProgress || []).map((phase) => [phase.phaseId, phase]),
+  );
+
+  console.log(
+    "EXISTING PHASE IDS:",
+    (userRoadmap.phaseProgress || []).map((p) => p.phaseId),
+  );
+
+  console.log(
+    "CANONICAL PHASE IDS:",
+    readyPhases.map((p) => p.id),
+  );
+
+  console.dir(
+    (userRoadmap.phaseProgress || []).map((phase) => ({
+      phaseId: phase.phaseId,
+      topics: phase.topics.map((topic) => ({
+        topicId: topic.topicId,
+        status: topic.status,
+      })),
+    })),
+    { depth: null },
+  );
+
+  console.log(
+    "EXISTING TOPICS:",
+    (userRoadmap.phaseProgress || []).map((p) => ({
+      phaseId: p.phaseId,
+      topics: (p.topics || []).map((t) => ({
+        topicId: t.topicId,
+        status: t.status,
+      })),
+    })),
+  );
+
+  console.log(
+    "CANONICAL TOPICS:",
+    readyPhases.map((p) => ({
+      phaseId: p.id,
+      topics: (p.topics || []).map((t) => t.id),
+    })),
   );
 
   const nextPhaseProgress = readyPhases.map((phase) => {
@@ -247,8 +299,12 @@ async function updateTopicStatus({
     topic.notes = notes;
   }
 
-  // Editing a topic means the phase is no longer skipped.
-  if (phase.status === ROADMAP_NODE_STATUS.SKIPPED) {
+  // Any topic action reopens a skipped or completed phase.
+  // The phase status is then derived from the updated topic states.
+  if (
+    phase.status === ROADMAP_NODE_STATUS.SKIPPED ||
+    phase.status === ROADMAP_NODE_STATUS.COMPLETED
+  ) {
     phase.status = ROADMAP_NODE_STATUS.NOT_STARTED;
     phase.completedAt = null;
   }
@@ -301,6 +357,11 @@ async function updatePhaseStatus({ userId, userRoadmapId, phaseId, status }) {
   } else if (status === ROADMAP_NODE_STATUS.SKIPPED) {
     phase.status = ROADMAP_NODE_STATUS.SKIPPED;
     phase.completedAt = null;
+
+    for (const topic of phase.topics) {
+      topic.status = ROADMAP_NODE_STATUS.SKIPPED;
+      topic.completedAt = null;
+    }
   } else if (status === ROADMAP_NODE_STATUS.NOT_STARTED) {
     phase.status = ROADMAP_NODE_STATUS.NOT_STARTED;
     phase.startedAt = null;
