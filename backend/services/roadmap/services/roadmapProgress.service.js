@@ -168,46 +168,6 @@ async function syncProgressStructure(userRoadmap) {
     (userRoadmap.phaseProgress || []).map((phase) => [phase.phaseId, phase]),
   );
 
-  console.log(
-    "EXISTING PHASE IDS:",
-    (userRoadmap.phaseProgress || []).map((p) => p.phaseId),
-  );
-
-  console.log(
-    "CANONICAL PHASE IDS:",
-    readyPhases.map((p) => p.id),
-  );
-
-  console.dir(
-    (userRoadmap.phaseProgress || []).map((phase) => ({
-      phaseId: phase.phaseId,
-      topics: phase.topics.map((topic) => ({
-        topicId: topic.topicId,
-        status: topic.status,
-      })),
-    })),
-    { depth: null },
-  );
-
-  console.log(
-    "EXISTING TOPICS:",
-    (userRoadmap.phaseProgress || []).map((p) => ({
-      phaseId: p.phaseId,
-      topics: (p.topics || []).map((t) => ({
-        topicId: t.topicId,
-        status: t.status,
-      })),
-    })),
-  );
-
-  console.log(
-    "CANONICAL TOPICS:",
-    readyPhases.map((p) => ({
-      phaseId: p.id,
-      topics: (p.topics || []).map((t) => t.id),
-    })),
-  );
-
   const nextPhaseProgress = readyPhases.map((phase) => {
     const existingPhase = existingPhaseProgress.get(phase.id);
 

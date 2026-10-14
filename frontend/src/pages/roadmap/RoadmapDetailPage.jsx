@@ -5,12 +5,15 @@ import {
   FiArrowLeft,
   FiBookOpen,
   FiCheck,
+  FiCheckCircle,
+  FiAward,
   FiChevronDown,
   FiLayers,
   FiPlay,
   FiRefreshCw,
   FiX,
 } from "react-icons/fi";
+
 import {
   getUserRoadmap,
   generateRoadmapPhase,
@@ -248,6 +251,8 @@ export default function RoadmapDetailPage({
     if (payload?.roadmap) setCanonical(payload.roadmap);
     if (payload?.userRoadmap) setUserRoadmap(payload.userRoadmap);
   };
+
+  const isRoadmapComplete = phases.length > 0 && stats.percentage >= 100;
 
   const applyProgressResponse = (response) => {
     const userProgress = response?.data?.data?.phaseProgress
@@ -491,55 +496,102 @@ export default function RoadmapDetailPage({
             </button>
           </div>
         )}
-        <Surface className="mt-8 overflow-hidden border-white/[0.11] bg-[linear-gradient(120deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018)_58%,rgba(255,255,255,0.018))] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.12)] sm:mt-9 sm:p-7">
+
+        <Surface
+          className={cx(
+            "mt-8 overflow-hidden p-5 shadow-[0_18px_60px_rgba(0,0,0,0.12)] transition-colors sm:mt-9 sm:p-7",
+            isRoadmapComplete
+              ? "border-emerald-400/20 bg-[linear-gradient(120deg,rgba(16,185,129,0.10),rgba(255,255,255,0.025)_65%)]"
+              : "border-white/[0.11] bg-[linear-gradient(120deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018)_58%,rgba(255,255,255,0.018))]",
+          )}
+        >
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
             <div className="max-w-xl">
-              <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#A1A1AA]">
-                <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
-                Your next move
+              <p
+                className={cx(
+                  "flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]",
+                  isRoadmapComplete ? "text-emerald-300" : "text-[#A1A1AA]",
+                )}
+              >
+                {isRoadmapComplete ? (
+                  <FiAward size={14} />
+                ) : (
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
+                )}
+                {isRoadmapComplete ? "Achievement unlocked" : "Your next move"}
               </p>
-              <h2 className="mt-2 text-xl font-semibold tracking-tight">
-                {currentTopic?.title || "Your learning path is ready"}
+
+              <h2 className="mt-2 text-xl font-semibold tracking-tight sm:text-2xl">
+                {isRoadmapComplete
+                  ? "You did it! Roadmap completed."
+                  : currentTopic?.title || "Your learning path is ready"}
               </h2>
+
               <p className="mt-2 text-sm leading-6 text-[#92949B]">
-                {currentTopic?.description ||
-                  "Generate a phase to reveal its topics, resources and practice tasks."}
+                {isRoadmapComplete
+                  ? "Every step brought you here. Take a moment to celebrate your progress, then choose your next learning goal."
+                  : currentTopic?.description ||
+                    "Your next chapter starts here. Generate a phase to unlock topics, learning resources, and practice tasks."}
               </p>
             </div>
-            <button
-              disabled={!currentTopic}
-              onClick={() => {
-                setExpandedTopicId(currentTopic.id);
 
-                localStorage.setItem(
-                  `roadmap:last-opened-topic:${roadmapId}`,
-                  currentTopic.id,
-                );
+            {isRoadmapComplete ? (
+              <button
+                type="button"
+                onClick={() => navigate("/roadmap/new")}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] shadow-[0_5px_22px_rgba(255,255,255,0.08)] transition hover:-translate-y-0.5 hover:bg-emerald-50"
+              >
+                <FiAward size={14} />
+                Build new roadmap
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={!currentTopic}
+                onClick={() => {
+                  setExpandedTopicId(currentTopic.id);
 
-                document
-                  .getElementById(`roadmap-topic-${currentTopic.id}`)
-                  ?.scrollIntoView({ behavior: "smooth", block: "center" });
-                if (currentTopic.status === STATUS.NOT_STARTED) {
-                  const phase = phases.find((item) =>
-                    item.topics.some((topic) => topic.id === currentTopic.id),
+                  localStorage.setItem(
+                    `roadmap:last-opened-topic:${roadmapId}`,
+                    currentTopic.id,
                   );
-                  if (phase)
-                    void changeTopicStatus(
-                      phase.id,
-                      currentTopic.id,
-                      STATUS.IN_PROGRESS,
+
+                  document
+                    .getElementById(`roadmap-topic-${currentTopic.id}`)
+                    ?.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                  if (currentTopic.status === STATUS.NOT_STARTED) {
+                    const phase = phases.find((item) =>
+                      item.topics.some((topic) => topic.id === currentTopic.id),
                     );
-                }
-              }}
-              className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] shadow-[0_5px_22px_rgba(255,255,255,0.08)] transition hover:-translate-y-0.5 hover:bg-[#EDEDF0] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {currentTopic?.status === STATUS.IN_PROGRESS
-                ? "Continue learning"
-                : "Start learning"}
-              <FiPlay size={13} />
-            </button>
+
+                    if (phase) {
+                      void changeTopicStatus(
+                        phase.id,
+                        currentTopic.id,
+                        STATUS.IN_PROGRESS,
+                      );
+                    }
+                  }
+                }}
+                className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-xs font-semibold text-[#17191C] shadow-[0_5px_22px_rgba(255,255,255,0.08)] transition hover:-translate-y-0.5 hover:bg-[#EDEDF0] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {currentTopic?.status === STATUS.IN_PROGRESS
+                  ? "Continue learning"
+                  : "Start learning"}
+                <FiPlay size={13} />
+              </button>
+            )}
           </div>
+
+          {isRoadmapComplete && (
+            <div className="mt-6 flex items-center gap-2 border-t border-emerald-400/15 pt-4 text-xs text-emerald-200/80">
+              <FiCheckCircle size={15} />
+              <span>100% progress · All topics resolved</span>
+            </div>
+          )}
         </Surface>
+
         <section className="mt-12 sm:mt-14">
           <div className="mb-5 flex items-end justify-between gap-4">
             <div>
@@ -993,7 +1045,7 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving, error }) {
                 <button
                   disabled={saving}
                   onClick={() => onStatus(STATUS.COMPLETED)}
-                  className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold text-[#17191C] transition-all duration-200 hover:bg-emerald-100 disabled:opacity-50"
+                  className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold text-[#17191C] transition-all duration-200 hover:bg-gray-100 disabled:opacity-50"
                 >
                   <FiCheck size={12} /> Mark complete
                 </button>

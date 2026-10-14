@@ -184,6 +184,67 @@ function synchronizeGeneratedPhaseProgress(userRoadmap, phase) {
   }
 }
 
+async function persistGeneratedPhaseProgress({ userId, userRoadmapId, phase }) {
+  const filter = {
+    _id: userRoadmapId,
+    userId: String(userId),
+  };
+
+  // Add the phase only if it does not already exist.
+  await UserRoadmap.updateOne(
+    {
+      ...filter,
+      "phaseProgress.phaseId": { $ne: phase.id },
+    },
+    {
+      $push: {
+        phaseProgress: {
+          phaseId: phase.id,
+          status: ROADMAP_NODE_STATUS.NOT_STARTED,
+          startedAt: null,
+          completedAt: null,
+          topics: [],
+        },
+      },
+    },
+  );
+
+  // Add only missing topics; preserve existing statuses and notes.
+  for (const topic of phase.topics || []) {
+    await UserRoadmap.updateOne(
+      {
+        ...filter,
+        phaseProgress: {
+          $elemMatch: {
+            phaseId: phase.id,
+            topics: {
+              $not: {
+                $elemMatch: { topicId: topic.id },
+              },
+            },
+          },
+        },
+      },
+      {
+        $push: {
+          "phaseProgress.$.topics": {
+            topicId: topic.id,
+            status: ROADMAP_NODE_STATUS.NOT_STARTED,
+            completedAt: null,
+            notes: "",
+          },
+        },
+      },
+    );
+  }
+
+  await UserRoadmap.updateOne(filter, {
+    $set: { lastAccessedAt: new Date() },
+  });
+
+  return UserRoadmap.findOne(filter);
+}
+
 async function updateCompletedGenerationCount(roadmapId) {
   const roadmap = await Roadmap.findById(roadmapId).select("phases");
 
@@ -710,11 +771,11 @@ async function generateRoadmapPhaseForUser({ userId, userRoadmapId, phaseId }) {
 
   // Reopening an already-generated phase must not invoke the LLM.
   if (phase.generationStatus === "ready") {
-    synchronizeGeneratedPhaseProgress(userRoadmap, phase);
-
-    userRoadmap.lastAccessedAt = new Date();
-
-    await userRoadmap.save();
+    const updatedUserRoadmap = await persistGeneratedPhaseProgress({
+      userId,
+      userRoadmapId,
+      phase,
+    });
 
     return {
       roadmap: canonicalRoadmap,
@@ -752,11 +813,11 @@ async function generateRoadmapPhaseForUser({ userId, userRoadmapId, phaseId }) {
     );
   }
 
-  synchronizeGeneratedPhaseProgress(userRoadmap, generatedPhase);
-
-  userRoadmap.lastAccessedAt = new Date();
-
-  await userRoadmap.save();
+  const updatedUserRoadmap = await persistGeneratedPhaseProgress({
+    userId,
+    userRoadmapId,
+    phase: generatedPhase,
+  });
 
   return {
     roadmap: refreshedRoadmap,
@@ -774,7 +835,7 @@ async function getRoadmapForUser({ userId, userRoadmapId }) {
     throw createError("Invalid user roadmap ID.", "INVALID_INPUT", 400);
   }
 
-  const userRoadmap = await getProgress(userId, userRoadmapId);
+  let userRoadmap = await getProgress(userId, userRoadmapId);
 
   if (!userRoadmap) {
     throw createError("Roadmap not found.", "ROADMAP_NOT_FOUND", 404);
@@ -788,10 +849,14 @@ async function getRoadmapForUser({ userId, userRoadmapId }) {
 
   assertCanonicalRoadmapComplete(roadmap);
 
-  // Add newly generated topics without resetting saved user progress.
+  // Persist missing progress entries without resetting existing progress.
   for (const phase of roadmap.phases) {
     if (phase.generationStatus === "ready") {
-      synchronizeGeneratedPhaseProgress(userRoadmap, phase);
+      userRoadmap = await persistGeneratedPhaseProgress({
+        userId,
+        userRoadmapId,
+        phase,
+      });
     }
   }
 
@@ -850,7 +915,10 @@ async function getUserRoadmaps({ userId, page = 1, limit = 20 }) {
 
   const roadmapsWithFreshProgress = roadmaps.map((item) => {
     const phases = item.phaseProgress || [];
-    const allTopics = phases.flatMap((phase) => phase.topics || []);
+
+    const allTopics = phases.flatMap((phase) =>
+      phase.status === ROADMAP_NODE_STATUS.SKIPPED ? [] : phase.topics || [],
+    );
 
     let progressPercentage = 0;
 
@@ -862,6 +930,12 @@ async function getUserRoadmaps({ userId, page = 1, limit = 20 }) {
       progressPercentage = Math.round(
         (completedTopics / allTopics.length) * 100,
       );
+    } else if (phases.length > 0) {
+      const completedPhases = phases.filter(
+        (phase) => phase.status === ROADMAP_NODE_STATUS.COMPLETED,
+      ).length;
+
+      progressPercentage = Math.round((completedPhases / phases.length) * 100);
     } else if (phases.length > 0) {
       const completedPhases = phases.filter(
         (phase) => phase.status === ROADMAP_NODE_STATUS.COMPLETED,

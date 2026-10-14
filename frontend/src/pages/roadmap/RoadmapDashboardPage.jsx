@@ -467,18 +467,30 @@ const RoadmapDashboardPage = ({
                               {progressOf(currentRoadmap)}%
                             </p>
                           </div>
-
-                          <button
-                            type="button"
-                            onClick={continueRoadmap}
-                            className="group/button inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5 sm:px-5"
-                          >
-                            Continue{" "}
-                            <FiArrowRight
-                              size={14}
-                              className="transition-transform group-hover/button:translate-x-0.5"
-                            />
-                          </button>
+                      
+                          {progressOf(currentRoadmap) >= 100 ? (
+                            <button
+                              type="button"
+                              onClick={continueRoadmap}
+                              className="group/button inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5 sm:px-5"
+                            >
+                              <FiCheckCircle size={14} />
+                              Completed
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={continueRoadmap}
+                              className="group/button inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5 sm:px-5"
+                            >
+                              Continue
+                              <FiArrowRight
+                                size={14}
+                                className="transition-transform group-hover/button:translate-x-0.5"
+                              />
+                            </button>
+                          )}
+                      
                         </div>
                       </div>
 
