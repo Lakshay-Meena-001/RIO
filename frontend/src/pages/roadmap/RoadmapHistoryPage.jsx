@@ -1041,7 +1041,7 @@ export default function RoadmapHistoryPage() {
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-7 sm:py-8 lg:px-9 lg:py-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-18 sm:px-7 sm:py-8 lg:px-9 lg:py-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {error && (
                 <div className="mx-1 mb-5 flex items-start justify-between gap-3 rounded-2xl border border-rose-300/15 bg-rose-300/[0.055] p-4 text-xs leading-5 text-rose-100/90 sm:mx-0">
                   <span>{error}</span>

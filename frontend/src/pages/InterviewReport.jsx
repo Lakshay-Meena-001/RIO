@@ -31,7 +31,7 @@ export default function InterviewReport({
   const interview =
     fetchedInterviewId === interviewId && fetchedInterview
       ? fetchedInterview
-      : initialInterview || fetchedInterview;
+      : initialInterview;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandedQuestion, setExpandedQuestion] = useState(null);
@@ -48,7 +48,6 @@ export default function InterviewReport({
         setLoading(false);
         return;
       }
-      setLoading(!interview);
       setError("");
       setExpandedQuestion(null);
       try {
@@ -62,7 +61,7 @@ export default function InterviewReport({
           setFetchedInterviewId(interviewId);
         }
       } catch (err) {
-        if (!cancelled && !interview)
+        if (!cancelled)
           setError(
             err?.response?.data?.message ||
               err?.message ||
@@ -133,26 +132,29 @@ export default function InterviewReport({
       ? Object.entries(interview.sectionScores)
       : [];
   }, [interview]);
+
   const questions = Array.isArray(interview?.questions)
     ? interview.questions
     : [];
-  const questionStats = useMemo(() => {
-    const answered = questions.filter(
-      (q) => q?.submittedAt || q?.answer?.trim(),
-    ).length;
-    const evaluated = questions.filter(
-      (q) => q?.evaluation && Number.isFinite(Number(q.evaluation.score)),
-    );
-    return {
-      total: questions.length,
-      answered,
-      evaluated: evaluated.length,
-      average: evaluated.length
-        ? evaluated.reduce((sum, q) => sum + Number(q.evaluation.score), 0) /
-          evaluated.length
-        : null,
-    };
-  }, [interview]);
+
+  const answered = questions.filter(
+    (q) => q?.submittedAt || q?.answer?.trim(),
+  ).length;
+
+  const evaluated = questions.filter(
+    (q) => q?.evaluation && Number.isFinite(Number(q.evaluation.score)),
+  );
+
+  const questionStats = {
+    total: questions.length,
+    answered,
+    evaluated: evaluated.length,
+    average: evaluated.length
+      ? evaluated.reduce((sum, q) => sum + Number(q.evaluation.score), 0) /
+        evaluated.length
+      : null,
+  };
+
   const overallScore =
     interview?.overallScore === null ||
     interview?.overallScore === undefined ||
@@ -768,8 +770,9 @@ export default function InterviewReport({
                     Delete interview?
                   </h2>
                   <p className="mt-2 text-xs leading-5 text-[#858994]">
-                    This permanently removes this interview and its report from
-                    your history.
+                    This action cannot be undone. Your interview, saved answers,
+                    evaluations, score, and report will be permanently deleted
+                    from your history.
                   </p>
                 </div>
                 <button
@@ -777,7 +780,7 @@ export default function InterviewReport({
                   onClick={closeDelete}
                   disabled={deleting}
                   aria-label="Close"
-                  className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 text-[#858994] hover:bg-white/[.05] disabled:opacity-50"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 text-[#858994] transition hover:bg-white/[.08] disabled:opacity-50"
                 >
                   <FiX size={15} />
                 </button>

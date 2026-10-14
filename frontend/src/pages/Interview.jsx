@@ -799,6 +799,15 @@ const Interview = ({ setUser }) => {
         isCompleted ||
         (automatic && autoSubmitInFlightRef.current)
       ) {
+        if (
+          automatic &&
+          !autoSubmitInFlightRef.current &&
+          !isCompleted &&
+          (finalSubmitting || navigating || quitting)
+        ) {
+          autoSubmitTriggeredRef.current = false;
+        }
+
         return;
       }
 
@@ -1146,7 +1155,9 @@ const Interview = ({ setUser }) => {
         remaining === 0 &&
         !autoSubmitTriggeredRef.current &&
         !finalSubmitting &&
-        !isCompleted
+        !isCompleted &&
+        !navigating &&
+        !quitting
       ) {
         autoSubmitTriggeredRef.current = true;
 
@@ -1169,6 +1180,8 @@ const Interview = ({ setUser }) => {
     interview?.timeLimit,
     isCompleted,
     finalSubmitting,
+    navigating,
+    quitting,
     interview,
     handleSubmitInterview,
   ]);

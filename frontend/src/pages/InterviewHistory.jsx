@@ -11,7 +11,6 @@ import {
   FiActivity,
   FiCheckCircle,
   FiTarget,
-  FiTrendingUp,
   FiPlay,
 } from "react-icons/fi";
 import { getInterviewHistory } from "../api/interview.api";
@@ -227,18 +226,28 @@ export default function InterviewHistory() {
   const loadInterviewHistory = useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
       const result = await getInterviewHistory();
-      if (!result?.success)
+
+      if (!result?.success) {
         throw new Error(result?.message || "Failed to load interview history.");
+      }
+
       const history = Array.isArray(result.data) ? result.data : [];
       setInterviews(history);
+
       const requested = searchParams.get("interview");
+
       setSelectedInterviewId((current) => {
-        if (requested && history.some((item) => getId(item) === requested))
+        if (requested && history.some((item) => getId(item) === requested)) {
           return requested;
-        if (current && history.some((item) => getId(item) === current))
+        }
+
+        if (current && history.some((item) => getId(item) === current)) {
           return current;
+        }
+
         return getId(history[0]);
       });
     } catch (err) {
@@ -253,8 +262,57 @@ export default function InterviewHistory() {
   }, [searchParams]);
 
   useEffect(() => {
-    void loadInterviewHistory();
-  }, [loadInterviewHistory]);
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const result = await getInterviewHistory();
+
+        if (cancelled) return;
+
+        if (!result?.success) {
+          throw new Error(
+            result?.message || "Failed to load interview history.",
+          );
+        }
+
+        const history = Array.isArray(result.data) ? result.data : [];
+        setInterviews(history);
+
+        const requested = searchParams.get("interview");
+
+        setSelectedInterviewId((current) => {
+          if (requested && history.some((item) => getId(item) === requested)) {
+            return requested;
+          }
+
+          if (current && history.some((item) => getId(item) === current)) {
+            return current;
+          }
+
+          return getId(history[0]);
+        });
+
+        setError("");
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err?.response?.data?.message ||
+              err?.message ||
+              "Unable to load your interview history.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams]);
 
   const selectedInterview =
     interviews.find((item) => getId(item) === selectedInterviewId) || null;

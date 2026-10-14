@@ -1184,7 +1184,6 @@ async function finalizeInterviewAndDeductBalance(
 
   interview = completedInterview;
 
-
   if (finalizationLeaseHeartbeat) {
     finalizationLeaseHeartbeat.stop();
     finalizationLeaseHeartbeat = null;
@@ -1409,21 +1408,33 @@ export const startInterview = async (userId, interviewData) => {
 };
 
 export const replaceActiveInterview = async (userId) => {
-  const activeInterview = await Interview.findOneAndDelete({
-    userId,
-    status: {
-      $in: ["created", "in-progress"],
+  const activeInterview = await Interview.findOneAndUpdate(
+    {
+      userId,
+      status: {
+        $in: ["created", "in-progress"],
+      },
+      $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
+      paymentStatus: {
+        $nin: ["deducting", "deducted"],
+      },
     },
-
-    // Never delete an interview that is being finalized.
-    $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
-
-    // Never delete an interview whose payment lifecycle
-    // has already started or completed.
-    paymentStatus: {
-      $nin: ["deducting", "deducted"],
+    {
+      $set: {
+        status: "abandoned",
+        endedAt: new Date(),
+        terminationReason: "quit",
+        finalizationKey: null,
+        finalizationStartedAt: null,
+        finalizationLeaseUntil: null,
+      },
     },
-  });
+    {
+      returnDocument: "after",
+      sort: { createdAt: -1 },
+      runValidators: true,
+    },
+  );
 
   return activeInterview;
 };
@@ -2987,7 +2998,9 @@ export const quitInterview = async (userId, interviewId) => {
 export const getInterviewHistory = async (userId) => {
   return Interview.find({
     userId,
-    status: "completed",
+    status: {
+      $in: ["completed", "abandoned"],
+    },
   }).sort({
     createdAt: -1,
   });
