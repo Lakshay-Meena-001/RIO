@@ -795,10 +795,6 @@ async function getRoadmapForUser({ userId, userRoadmapId }) {
     }
   }
 
-  userRoadmap.lastAccessedAt = new Date();
-
-  await userRoadmap.save();
-
   return { roadmap, userRoadmap };
 }
 

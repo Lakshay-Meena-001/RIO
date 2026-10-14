@@ -574,6 +574,15 @@ export default function RoadmapDetailPage({
 
                 const summary = phase.topicSummary;
 
+                const phaseStatusClass =
+                  phase.savedStatus === STATUS.COMPLETED
+                    ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                    : phase.savedStatus === STATUS.IN_PROGRESS
+                      ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                      : phase.savedStatus === STATUS.SKIPPED
+                        ? "border-rose-400/25 bg-rose-400/10 text-rose-300"
+                        : "border-amber-300/25 bg-amber-300/10 text-amber-200";
+
                 const phaseLabel =
                   phase.savedStatus === STATUS.COMPLETED
                     ? "Completed"
@@ -584,7 +593,7 @@ export default function RoadmapDetailPage({
                         ? `${summary.completed} completed · ${summary.skipped} skipped`
                         : summary.remaining > 0 &&
                             (summary.completed > 0 || summary.skipped > 0)
-                          ? `${summary.remaining} left`
+                          ? `${summary.remaining} LEFT`
                           : phase.savedStatus === STATUS.IN_PROGRESS
                             ? "In progress"
                             : summary.completed > 0
@@ -593,7 +602,12 @@ export default function RoadmapDetailPage({
                 return (
                   <Surface
                     key={phase.id}
-                    className="group overflow-hidden border-white/[0.085] bg-[linear-gradient(145deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))] shadow-[0_10px_35px_rgba(0,0,0,0.08)] transition-colors hover:border-white/[0.14]"
+                    className={cx(
+                      "group overflow-hidden border-white/[0.085] shadow-[0_10px_35px_rgba(0,0,0,0.08)] transition-colors hover:border-white/[0.14]",
+                      phase.savedStatus === STATUS.IN_PROGRESS
+                        ? "bg-[linear-gradient(145deg,rgba(255,255,255,0.055),rgba(255,255,255,0.022))]"
+                        : "bg-[linear-gradient(145deg,rgba(255,255,255,0.035),rgba(255,255,255,0.012))]",
+                    )}
                   >
                     <div className="border-b border-white/[0.07] p-4 sm:p-5">
                       <div className="flex items-start gap-3">
@@ -606,7 +620,14 @@ export default function RoadmapDetailPage({
                               {phase.title}
                             </h3>
                             <span
-                              className={`rounded-full border px-2.5 py-1 text-[9px] font-medium ${ready ? "border-white/[0.10] bg-white/[0.045] text-white/80" : phase.generationStatus === "failed" ? "border-white/[0.12] bg-white/[0.04] text-white/75" : "border-white/[0.09] bg-white/[0.025] text-[#A1A1AA]"}`}
+                              className={cx(
+                                "rounded-full border px-2.5 py-1 text-[9px] font-medium",
+                                ready
+                                  ? phaseStatusClass
+                                  : phase.generationStatus === "failed"
+                                    ? "border-transparent bg-transparent text-white/75"
+                                    : "border-transparent bg-transparent text-[#A1A1AA]",
+                              )}
                             >
                               {ready
                                 ? phaseLabel
@@ -692,18 +713,33 @@ export default function RoadmapDetailPage({
                             {[STATUS.COMPLETED, STATUS.SKIPPED].includes(
                               phase.savedStatus,
                             ) ? (
-                              <button
-                                disabled={Boolean(savingId)}
-                                onClick={() =>
-                                  void changePhaseStatus(
-                                    phase.id,
-                                    STATUS.NOT_STARTED,
-                                  )
-                                }
-                                className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-red-400/40 hover:bg-red-400/[0.06] hover:text-red-200 hover:shadow-[0_0_12px_rgba(248,113,113,0.12)] disabled:opacity-50"
-                              >
-                                Reset phase
-                              </button>
+                              <>
+                                <span
+                                  className={cx(
+                                    "rounded-xl border px-3 py-2 text-[11px] font-medium",
+                                    phase.savedStatus === STATUS.COMPLETED
+                                      ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                                      : "border-rose-400/25 bg-rose-400/10 text-rose-300",
+                                  )}
+                                >
+                                  {phase.savedStatus === STATUS.COMPLETED
+                                    ? "Completed"
+                                    : "Skipped"}
+                                </span>
+
+                                <button
+                                  disabled={Boolean(savingId)}
+                                  onClick={() =>
+                                    void changePhaseStatus(
+                                      phase.id,
+                                      STATUS.NOT_STARTED,
+                                    )
+                                  }
+                                  className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-white/25 hover:bg-white/[0.045] hover:text-white hover:shadow-[0_0_12px_rgba(255,255,255,0.06)] disabled:opacity-50"
+                                >
+                                  Reset phase
+                                </button>
+                              </>
                             ) : (
                               <>
                                 {phase.savedStatus === STATUS.IN_PROGRESS && (
@@ -821,14 +857,7 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving, error }) {
         ? "Skipped"
         : "Not started";
   return (
-    <article
-      id={`roadmap-topic-${topic.id}`}
-      className={cx(
-        "scroll-mt-24",
-        completed && "bg-emerald-400/[0.045]",
-        skipped && "bg-amber-300/[0.035]",
-      )}
-    >
+    <article id={`roadmap-topic-${topic.id}`} className={cx("scroll-mt-24")}>
       <div className="flex items-start gap-3 p-4 sm:p-5">
         <div
           className={cx(
@@ -860,14 +889,14 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving, error }) {
             </h4>
             <span
               className={cx(
-                "rounded-full border px-2 py-0.5 text-[9px]",
+                "inline-flex items-center rounded-xl border px-2 py-1 text-[8px] font-medium",
                 completed
-                  ? "border-white/[0.10] bg-white/[0.045] text-white/80"
+                  ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
                   : inProgress
-                    ? "border-white/15 bg-white/[0.06] text-white/90"
+                    ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
                     : skipped
-                      ? "border-white/[0.08] bg-white/[0.025] text-[#858994]"
-                      : "border-white/[0.06] bg-white/[0.025] text-[#858994]",
+                      ? "border-rose-400/25 bg-rose-400/10 text-rose-300"
+                      : "border-amber-300/25 bg-amber-300/10 text-amber-200",
               )}
             >
               {statusLabel}
@@ -940,13 +969,25 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving, error }) {
             </button>
 
             {completed || skipped ? (
-              <button
-                disabled={saving}
-                onClick={() => onStatus(STATUS.NOT_STARTED)}
-                className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-red-400/40 hover:bg-red-400/[0.06] hover:text-red-200 hover:shadow-[0_0_12px_rgba(248,113,113,0.12)] disabled:opacity-50"
-              >
-                Reset progress
-              </button>
+              <>
+                <span
+                  className={cx(
+                    "inline-flex items-center rounded-xl border px-3 py-2 text-[11px] font-medium",
+                    completed
+                      ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                      : "border-rose-400/25 bg-rose-400/10 text-rose-300",
+                  )}
+                >
+                  {completed ? "Completed" : "Skipped"}
+                </span>
+                <button
+                  disabled={saving}
+                  onClick={() => onStatus(STATUS.NOT_STARTED)}
+                  className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-white/25 hover:bg-white/[0.045] hover:text-white hover:shadow-[0_0_12px_rgba(255,255,255,0.06)] disabled:opacity-50"
+                >
+                  Reset progress
+                </button>
+              </>
             ) : (
               <>
                 <button
