@@ -34,50 +34,52 @@ const calculateProgressFromTopics = (item) => {
   );
 
   if (topics.length) {
-    const resolvedTopics = phases.reduce((total, phase) => {
+    const completedTopics = phases.reduce((total, phase) => {
       const phaseTopics = Array.isArray(phase?.topics) ? phase.topics : [];
 
-      if (["completed", "skipped"].includes(phase?.status)) {
+      if (phase?.status === "completed") {
         return total + phaseTopics.length;
+      }
+
+      if (phase?.status === "skipped") {
+        return total;
       }
 
       return (
         total +
-        phaseTopics.filter((topic) =>
-          ["completed", "skipped"].includes(topic?.status),
-        ).length
+        phaseTopics.filter((topic) => topic?.status === "completed").length
       );
     }, 0);
 
-    return Math.round((resolvedTopics / topics.length) * 100);
+    return Math.round((completedTopics / topics.length) * 100);
   }
 
   if (phases.length) {
-    const resolvedPhases = phases.filter((phase) =>
-      ["completed", "skipped"].includes(phase?.status),
+    const completedPhases = phases.filter(
+      (phase) => phase?.status === "completed",
     ).length;
 
-    return Math.round((resolvedPhases / phases.length) * 100);
+    return Math.round((completedPhases / phases.length) * 100);
   }
 
   return 0;
 };
 
 const getProgress = (item) => {
-  const saved = Number(item?.progressPercentage ?? item?.progress?.percentage);
-  const value = Number.isFinite(saved)
-    ? saved
-    : calculateProgressFromTopics(item);
-  return Math.max(0, Math.min(100, value));
+  const phases = Array.isArray(item?.phaseProgress)
+    ? item.phaseProgress
+    : Object.values(item?.phaseProgress || {});
+
+  const hasPhaseProgress = phases.length > 0;
+
+  const value = hasPhaseProgress
+    ? calculateProgressFromTopics(item)
+    : Number(item?.progress?.percentage ?? item?.progressPercentage ?? 0);
+
+  return Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0;
 };
 
 const normalizeHistoryItem = (item) => {
-  const savedProgress = Number(item?.progressPercentage);
-  const hasSavedProgress =
-    item?.progressPercentage !== null &&
-    item?.progressPercentage !== undefined &&
-    Number.isFinite(savedProgress);
-
   return {
     ...item,
     title: item?.roadmap?.title || item?.title || "Learning roadmap",
@@ -86,10 +88,7 @@ const normalizeHistoryItem = (item) => {
       item?.catalogRoadmapId ||
       "Career path",
     templateId: item?.packageId || item?.roadmap?.packageId || "standard",
-    progressPercentage: hasSavedProgress
-      ? Math.max(0, Math.min(100, savedProgress))
-      : calculateProgressFromTopics(item),
-    status: item?.status || "active",
+    progressPercentage: getProgress(item),
   };
 };
 
@@ -524,12 +523,6 @@ export default function RoadmapHistoryPage() {
             topic.status === "in_progress",
         ).length;
 
-        const resolved = topics.filter(
-          (topic) =>
-            ["completed", "skipped"].includes(topic.phaseStatus) ||
-            ["completed", "skipped"].includes(topic.status),
-        ).length;
-
         const focus =
           topics.find(
             (topic) =>
@@ -556,7 +549,7 @@ export default function RoadmapHistoryPage() {
             completed,
             skipped,
             learning: inProgress,
-            percentage: total ? Math.round((resolved / total) * 100) : 0,
+            percentage: total ? Math.round((completed / total) * 100) : 0,
           },
           currentFocus: focus
             ? {
@@ -588,6 +581,120 @@ export default function RoadmapHistoryPage() {
       cancelled = true;
     };
   }, [selectedId]);
+
+  const handleProgressChange = useCallback((userRoadmap) => {
+    if (!userRoadmap) return;
+
+    const phases = Array.isArray(userRoadmap.phaseProgress)
+      ? userRoadmap.phaseProgress
+      : [];
+
+    const phaseMap = new Map(phases.map((phase) => [phase.phaseId, phase]));
+
+    const roadmapId = getId(userRoadmap);
+
+    setRoadmap((current) => {
+      if (!current || getId(current) !== roadmapId) {
+        return current;
+      }
+
+      const nodes = (current.nodes || []).map((node) => {
+        const phase = phaseMap.get(node.phaseId);
+        const savedTopic = phase?.topics?.find(
+          (topic) => topic.topicId === node.id,
+        );
+
+        let status = savedTopic?.status || "not_started";
+
+        if (phase?.status === "completed") {
+          status = "completed";
+        } else if (phase?.status === "skipped") {
+          status = "skipped";
+        } else if (status === "in_progress") {
+          status = "learning";
+        }
+
+        return {
+          ...node,
+          status,
+          phaseStatus: phase?.status || "not_started",
+        };
+      });
+
+      const total = nodes.length;
+
+      const completed = nodes.filter(
+        (node) =>
+          node.phaseStatus !== "skipped" &&
+          (node.phaseStatus === "completed" || node.status === "completed"),
+      ).length;
+
+      const skipped = nodes.filter(
+        (node) =>
+          node.phaseStatus === "skipped" ||
+          (node.phaseStatus !== "completed" && node.status === "skipped"),
+      ).length;
+
+      const learning = nodes.filter(
+        (node) =>
+          !["completed", "skipped"].includes(node.phaseStatus) &&
+          node.status === "learning",
+      ).length;
+
+      const focus =
+        nodes.find(
+          (node) =>
+            !["completed", "skipped"].includes(node.phaseStatus) &&
+            node.status === "learning",
+        ) ||
+        nodes.find(
+          (node) =>
+            !["completed", "skipped"].includes(node.phaseStatus) &&
+            node.status === "not_started",
+        );
+
+      return {
+        ...current,
+        ...userRoadmap,
+        _id: current._id,
+        title: current.title,
+        nodes,
+        progress: {
+          ...current.progress,
+          total,
+          completed,
+          skipped,
+          learning,
+          percentage: total ? Math.round((completed / total) * 100) : 0,
+        },
+        currentFocus: focus
+          ? {
+              nodeId: focus.id,
+              title: focus.title,
+              reason: focus.description,
+            }
+          : null,
+      };
+    });
+
+    setRoadmaps((current) =>
+      current.map((item) => {
+        if (getId(item) !== roadmapId) return item;
+
+        return {
+          ...item,
+          ...userRoadmap,
+          _id: item._id,
+          title: item.title,
+          phaseProgress: phases,
+          progressPercentage: calculateProgressFromTopics({
+            ...item,
+            phaseProgress: phases,
+          }),
+        };
+      }),
+    );
+  }, []);
 
   const selectRoadmap = (id) => {
     setSelectedId(id);
@@ -734,7 +841,7 @@ export default function RoadmapHistoryPage() {
               </span>
             </div>
 
-            <label className="mt-4 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 focus-within:border-white/20">
+            <label className="mt-4 flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 ">
               <FiSearch size={13} className="shrink-0 text-[#686B74]" />
 
               <input
@@ -923,7 +1030,11 @@ export default function RoadmapHistoryPage() {
                   <div className="mt-3 h-24 animate-pulse rounded-2xl bg-white/[0.04]" />
                 </div>
               ) : selectedId ? (
-                <RoadmapDetailPage roadmapId={selectedId} embedded />
+                <RoadmapDetailPage
+                  roadmapId={selectedId}
+                  embedded
+                  onProgressChange={handleProgressChange}
+                />
               ) : (
                 <section className="flex min-h-[calc(100dvh-13rem)] items-center justify-center px-5 py-10 text-center lg:min-h-[60vh] lg:px-4 lg:py-12">
                   <div className="mx-auto flex w-full max-w-xl flex-col items-center">

@@ -51,6 +51,7 @@ const Surface = ({ children, className = "" }) => (
 export default function RoadmapDetailPage({
   roadmapId: roadmapIdOverride,
   embedded = false,
+  onProgressChange,
 }) {
   const { roadmapId: routeRoadmapId } = useParams();
   const roadmapId = roadmapIdOverride || routeRoadmapId;
@@ -59,43 +60,48 @@ export default function RoadmapDetailPage({
   const [userRoadmap, setUserRoadmap] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [actionErrors, setActionErrors] = useState({});
   const [expandedTopicId, setExpandedTopicId] = useState(null);
   const [savingId, setSavingId] = useState(null);
   const [generatingPhaseId, setGeneratingPhaseId] = useState(null);
 
-  const loadRoadmap = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const loadRoadmap = useCallback(
+    async (showLoader = true) => {
+      if (showLoader) setLoading(true);
+      setError("");
 
-    try {
-      if (!roadmapId) {
-        throw new Error("Roadmap ID is missing.");
+      try {
+        if (!roadmapId) {
+          throw new Error("Roadmap ID is missing.");
+        }
+
+        const response = await getUserRoadmap(roadmapId);
+        const result = response?.data ?? response;
+        const payload = result?.data ?? result;
+
+        if (!payload?.roadmap || !payload?.userRoadmap) {
+          throw new Error("The roadmap response is incomplete.");
+        }
+
+        setCanonical(payload.roadmap);
+        setUserRoadmap(payload.userRoadmap);
+        onProgressChange?.(payload.userRoadmap);
+        return true;
+      } catch (err) {
+        setCanonical(null);
+        setUserRoadmap(null);
+        setError(
+          err?.response?.data?.message ||
+            err?.message ||
+            "We couldn't load this roadmap.",
+        );
+        return false;
+      } finally {
+        if (showLoader) setLoading(false);
       }
-
-      const response = await getUserRoadmap(roadmapId);
-      const result = response?.data ?? response;
-      const payload = result?.data ?? result;
-
-      if (!payload?.roadmap || !payload?.userRoadmap) {
-        throw new Error("The roadmap response is incomplete.");
-      }
-
-      setCanonical(payload.roadmap);
-      setUserRoadmap(payload.userRoadmap);
-      return true;
-    } catch (err) {
-      setCanonical(null);
-      setUserRoadmap(null);
-      setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "We couldn't load this roadmap.",
-      );
-      return false;
-    } finally {
-      setLoading(false);
-    }
-  }, [roadmapId]);
+    },
+    [roadmapId, onProgressChange],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -158,12 +164,6 @@ export default function RoadmapDetailPage({
   );
 
   const stats = useMemo(() => {
-    const resolved = allTopics.filter(
-      (topic) =>
-        ["completed", "skipped"].includes(topic.phaseStatus) ||
-        ["completed", "skipped"].includes(topic.status),
-    ).length;
-
     const completed = allTopics.filter(
       (topic) =>
         topic.phaseStatus === STATUS.COMPLETED ||
@@ -190,13 +190,28 @@ export default function RoadmapDetailPage({
       skipped,
       inProgress,
       percentage: allTopics.length
-        ? Math.round((resolved / allTopics.length) * 100)
+        ? Math.round((completed / allTopics.length) * 100)
         : 0,
     };
   }, [allTopics]);
+
   const currentTopic =
-    allTopics.find((topic) => topic.status === STATUS.IN_PROGRESS) ||
-    allTopics.find((topic) => topic.status === STATUS.NOT_STARTED) ||
+    allTopics.find(
+      (topic) =>
+        topic.id === expandedTopicId &&
+        ![STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.status) &&
+        ![STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.phaseStatus),
+    ) ||
+    allTopics.find(
+      (topic) =>
+        topic.status === STATUS.IN_PROGRESS &&
+        ![STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.phaseStatus),
+    ) ||
+    allTopics.find(
+      (topic) =>
+        topic.status === STATUS.NOT_STARTED &&
+        ![STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.phaseStatus),
+    ) ||
     null;
 
   const refreshFromResult = (response) => {
@@ -207,19 +222,34 @@ export default function RoadmapDetailPage({
 
   const changeTopicStatus = async (phaseId, topicId, status) => {
     if (!roadmapId || savingId) return;
+
+    const errorKey = `topic:${topicId}`;
     setSavingId(topicId);
-    setError("");
+    setActionErrors((current) => ({
+      ...current,
+      [errorKey]: "",
+    }));
+
     try {
-      refreshFromResult(
-        await updateRoadmapTopicStatus(roadmapId, phaseId, topicId, status),
-      );
-      await loadRoadmap();
+      await updateRoadmapTopicStatus(roadmapId, phaseId, topicId, status);
+
+      const loaded = await loadRoadmap(false);
+
+      if (!loaded) {
+        setActionErrors((current) => ({
+          ...current,
+          [errorKey]:
+            "Saved, but the latest progress could not be loaded. Retry refreshing the roadmap.",
+        }));
+      }
     } catch (err) {
-      setError(
-        err?.response?.data?.message ||
+      setActionErrors((current) => ({
+        ...current,
+        [errorKey]:
+          err?.response?.data?.message ||
           err?.message ||
-          "Couldn't save progress. Please try again.",
-      );
+          "Couldn't save topic progress. Please try again.",
+      }));
     } finally {
       setSavingId(null);
     }
@@ -227,19 +257,34 @@ export default function RoadmapDetailPage({
 
   const changePhaseStatus = async (phaseId, status) => {
     if (!roadmapId || savingId) return;
+
+    const errorKey = `phase:${phaseId}`;
     setSavingId(phaseId);
-    setError("");
+    setActionErrors((current) => ({
+      ...current,
+      [errorKey]: "",
+    }));
+
     try {
-      refreshFromResult(
-        await updateRoadmapPhaseStatus(roadmapId, phaseId, status),
-      );
-      await loadRoadmap();
+      await updateRoadmapPhaseStatus(roadmapId, phaseId, status);
+
+      const loaded = await loadRoadmap(false);
+
+      if (!loaded) {
+        setActionErrors((current) => ({
+          ...current,
+          [errorKey]:
+            "Saved, but the latest progress could not be loaded. Retry refreshing the roadmap.",
+        }));
+      }
     } catch (err) {
-      setError(
-        err?.response?.data?.message ||
+      setActionErrors((current) => ({
+        ...current,
+        [errorKey]:
+          err?.response?.data?.message ||
           err?.message ||
-          "Couldn't save phase progress.",
-      );
+          "Couldn't save phase progress. Please try again.",
+      }));
     } finally {
       setSavingId(null);
     }
@@ -251,7 +296,7 @@ export default function RoadmapDetailPage({
     setError("");
     try {
       refreshFromResult(await generateRoadmapPhase(roadmapId, phaseId));
-      await loadRoadmap();
+      await loadRoadmap(false);
     } catch (err) {
       setError(
         err?.response?.data?.message ||
@@ -460,16 +505,17 @@ export default function RoadmapDetailPage({
             </span>
           </div>
           {phases.length ? (
-            <div className="space-y-4">  
+            <div className="space-y-4">
               {phases.map((phase, index) => {
                 const ready = phase.generationStatus === "ready";
-                const phaseDone = [STATUS.COMPLETED, STATUS.SKIPPED].includes(
-  phase.savedStatus,
-)
-  ? phase.topics.length
-  : phase.topics.filter((topic) =>
-      [STATUS.COMPLETED, STATUS.SKIPPED].includes(topic.status),
-    ).length;
+                const phaseDone =
+                  phase.savedStatus === STATUS.COMPLETED
+                    ? phase.topics.length
+                    : phase.savedStatus === STATUS.SKIPPED
+                      ? 0
+                      : phase.topics.filter(
+                          (topic) => topic.status === STATUS.COMPLETED,
+                        ).length;
                 return (
                   <Surface
                     key={phase.id}
@@ -543,6 +589,7 @@ export default function RoadmapDetailPage({
                             topic={{ ...topic, order: topicIndex + 1 }}
                             expanded={expandedTopicId === topic.id}
                             saving={savingId === topic.id}
+                            error={actionErrors[`topic:${topic.id}`]}
                             onExpand={() =>
                               setExpandedTopicId((current) =>
                                 current === topic.id ? null : topic.id,
@@ -555,26 +602,93 @@ export default function RoadmapDetailPage({
                         ))}
                       </div>
                     )}
+
                     {ready && (
-                      <div className="flex flex-wrap gap-2 border-t border-white/[0.06] px-4 py-4 sm:px-5">
-                        <button
-                          disabled={Boolean(savingId)}
-                          onClick={() =>
-                            void changePhaseStatus(phase.id, STATUS.IN_PROGRESS)
-                          }
-                          className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/80 disabled:opacity-50"
-                        >
-                          Mark phase in progress
-                        </button>
-                        <button
-                          disabled={Boolean(savingId)}
-                          onClick={() =>
-                            void changePhaseStatus(phase.id, STATUS.COMPLETED)
-                          }
-                          className="rounded-xl bg-white px-3 py-2 text-[11px] font-semibold text-[#17191C] disabled:opacity-50"
-                        >
-                          Complete phase
-                        </button>
+                      <div className="border-t border-white/[0.06] px-4 py-4 sm:px-5">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {phase.savedStatus === STATUS.COMPLETED ? (
+                              <button
+                                disabled={Boolean(savingId)}
+                                onClick={() =>
+                                  void changePhaseStatus(
+                                    phase.id,
+                                    STATUS.NOT_STARTED,
+                                  )
+                                }
+                                className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 disabled:opacity-50"
+                              >
+                                Reset phase
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  disabled={Boolean(savingId)}
+                                  onClick={() =>
+                                    void changePhaseStatus(
+                                      phase.id,
+                                      STATUS.IN_PROGRESS,
+                                    )
+                                  }
+                                  className={`rounded-xl border px-3 py-2 text-[11px] disabled:opacity-50 ${
+                                    phase.savedStatus === STATUS.IN_PROGRESS
+                                      ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300"
+                                      : "border-white/10 text-white/80"
+                                  }`}
+                                >
+                                  In progress
+                                </button>
+
+                                <button
+                                  disabled={Boolean(savingId)}
+                                  onClick={() =>
+                                    void changePhaseStatus(
+                                      phase.id,
+                                      STATUS.SKIPPED,
+                                    )
+                                  }
+                                  className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-white/25 hover:bg-white/[0.045] hover:text-white hover:shadow-[0_0_12px_rgba(255,255,255,0.06)] disabled:opacity-50"
+                                >
+                                  Skip phase
+                                </button>
+
+                                <button
+                                  disabled={Boolean(savingId)}
+                                  onClick={() =>
+                                    void changePhaseStatus(
+                                      phase.id,
+                                      STATUS.NOT_STARTED,
+                                    )
+                                  }
+                                 className="rounded-xl border border-white/10 px-3 py-2 text-[11px] text-white/70 transition-all duration-200 hover:border-white/25 hover:bg-white/[0.045] hover:text-white hover:shadow-[0_0_12px_rgba(255,255,255,0.06)] disabled:opacity-50"
+                                >
+                                  Reset phase
+                                </button>
+                              </>
+                            )}
+                          </div>
+
+                          {phase.savedStatus !== STATUS.COMPLETED && (
+                            <button
+                              disabled={Boolean(savingId)}
+                              onClick={() =>
+                                void changePhaseStatus(
+                                  phase.id,
+                                  STATUS.COMPLETED,
+                                )
+                              }
+                              className="ml-auto shrink-0 rounded-xl bg-white px-3 py-2 text-[11px] font-semibold text-[#17191C] disabled:opacity-50"
+                            >
+                              Complete phase
+                            </button>
+                          )}
+                        </div>
+
+                        {actionErrors[`phase:${phase.id}`] && (
+                          <p role="alert" className="pt-2 text-xs text-red-300">
+                            {actionErrors[`phase:${phase.id}`]}
+                          </p>
+                        )}
                       </div>
                     )}
                   </Surface>
@@ -607,7 +721,20 @@ function Meta({ label, value }) {
     </div>
   );
 }
-function TopicCard({ topic, expanded, onExpand, onStatus, saving }) {
+function TopicCard({ topic, expanded, onExpand, onStatus, saving, error }) {
+  const startLearning = () => {
+    onStatus(STATUS.IN_PROGRESS);
+
+    const firstResourceUrl = topic.resources?.find(
+      (resource) =>
+        typeof resource.url === "string" && /^https?:\/\//i.test(resource.url),
+    )?.url;
+
+    if (firstResourceUrl) {
+      window.open(firstResourceUrl, "_blank", "noopener,noreferrer");
+    }
+  };
+
   const completed = topic.status === STATUS.COMPLETED;
   const inProgress = topic.status === STATUS.IN_PROGRESS;
   const skipped = topic.status === STATUS.SKIPPED;
@@ -619,7 +746,14 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving }) {
         ? "Skipped"
         : "Not started";
   return (
-    <article id={`roadmap-topic-${topic.id}`} className="scroll-mt-24">
+    <article
+      id={`roadmap-topic-${topic.id}`}
+      className={cx(
+        "scroll-mt-24",
+        completed && "bg-emerald-400/[0.045]",
+        skipped && "bg-amber-300/[0.035]",
+      )}
+    >
       <div className="flex items-start gap-3 p-4 sm:p-5">
         <div
           className={cx(
@@ -725,7 +859,7 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving }) {
             {!inProgress && !completed && (
               <button
                 disabled={saving}
-                onClick={() => onStatus(STATUS.IN_PROGRESS)}
+                onClick={startLearning}
                 className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs font-semibold text-white/80 disabled:opacity-50"
               >
                 <FiPlay size={13} /> Start learning
@@ -760,6 +894,12 @@ function TopicCard({ topic, expanded, onExpand, onStatus, saving }) {
             )}
             {saving && (
               <span className="px-2 text-xs text-[#858994]">Saving…</span>
+            )}
+
+            {error && (
+              <p role="alert" className="basis-full pt-2 text-xs text-red-300">
+                {error}
+              </p>
             )}
           </div>
         </div>

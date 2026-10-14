@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import Roadmap from "../models/roadmap.model.js";
 import UserRoadmap from "../models/userRoadmap.model.js";
+import { getProgress } from "./roadmapProgress.service.js";
 
 import {
   ROADMAP_CACHE_KEY_VERSION,
@@ -113,15 +114,13 @@ function assertCanonicalRoadmapComplete(roadmap) {
     roadmap?.status === ROADMAP_STATUS.READY &&
     Array.isArray(roadmap.phases) &&
     roadmap.phases.length > 0 &&
-    roadmap.phases.every(
-      (phase) => phase.generationStatus === "ready"
-    );
+    roadmap.phases.every((phase) => phase.generationStatus === "ready");
 
   if (!complete) {
     throw createError(
       "Roadmap is not fully generated yet. Please retry.",
       "ROADMAP_NOT_READY",
-      409
+      409,
     );
   }
 }
@@ -775,10 +774,7 @@ async function getRoadmapForUser({ userId, userRoadmapId }) {
     throw createError("Invalid user roadmap ID.", "INVALID_INPUT", 400);
   }
 
-  const userRoadmap = await UserRoadmap.findOne({
-    _id: userRoadmapId,
-    userId: String(userId),
-  });
+  const userRoadmap = await getProgress(userId, userRoadmapId);
 
   if (!userRoadmap) {
     throw createError("Roadmap not found.", "ROADMAP_NOT_FOUND", 404);
@@ -856,8 +852,36 @@ async function getUserRoadmaps({ userId, page = 1, limit = 20 }) {
     UserRoadmap.countDocuments(filter),
   ]);
 
+  const roadmapsWithFreshProgress = roadmaps.map((item) => {
+    const phases = item.phaseProgress || [];
+    const allTopics = phases.flatMap((phase) => phase.topics || []);
+
+    let progressPercentage = 0;
+
+    if (allTopics.length > 0) {
+      const completedTopics = allTopics.filter(
+        (topic) => topic.status === ROADMAP_NODE_STATUS.COMPLETED,
+      ).length;
+
+      progressPercentage = Math.round(
+        (completedTopics / allTopics.length) * 100,
+      );
+    } else if (phases.length > 0) {
+      const completedPhases = phases.filter(
+        (phase) => phase.status === ROADMAP_NODE_STATUS.COMPLETED,
+      ).length;
+
+      progressPercentage = Math.round((completedPhases / phases.length) * 100);
+    }
+
+    return {
+      ...item,
+      progressPercentage,
+    };
+  });
+
   return {
-    roadmaps,
+    roadmaps: roadmapsWithFreshProgress,
     total,
     page: currentPage,
     limit: pageSize,

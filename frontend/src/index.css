@@ -112,10 +112,7 @@ body {
   color: var(--text);
 }
 
-:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 3px;
-}
+
 
 /* Smooth scrolling only where explicitly needed */
 html {

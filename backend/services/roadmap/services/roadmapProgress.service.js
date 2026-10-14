@@ -27,43 +27,29 @@ function getProgressPercentage(userRoadmap) {
   const phases = userRoadmap.phaseProgress || [];
   const allTopics = phases.flatMap((phase) => phase.topics || []);
 
+  // Only completed topics count toward completion percentage.
+  // Skipped topics and skipped phases do not increase progress.
   if (allTopics.length > 0) {
-    let resolvedTopics = 0;
+    const completedTopics = allTopics.filter(
+      (topic) => topic.status === ROADMAP_NODE_STATUS.COMPLETED,
+    ).length;
 
-    for (const phase of phases) {
-      const topics = phase.topics || [];
-
-      // A skipped phase counts as resolved for progress.
-      if (phase.status === ROADMAP_NODE_STATUS.SKIPPED) {
-        resolvedTopics += topics.length;
-        continue;
-      }
-
-      resolvedTopics += topics.filter(
-        (topic) =>
-          topic.status === ROADMAP_NODE_STATUS.COMPLETED ||
-          topic.status === ROADMAP_NODE_STATUS.SKIPPED,
-      ).length;
-    }
-
-    return Math.round((resolvedTopics / allTopics.length) * 100);
+    return Math.round((completedTopics / allTopics.length) * 100);
   }
 
+  // Fallback for phases without topics.
   if (phases.length === 0) {
     return 0;
   }
 
-  const resolvedPhases = phases.filter(
-    (phase) =>
-      phase.status === ROADMAP_NODE_STATUS.COMPLETED ||
-      phase.status === ROADMAP_NODE_STATUS.SKIPPED,
+  const completedPhases = phases.filter(
+    (phase) => phase.status === ROADMAP_NODE_STATUS.COMPLETED,
   ).length;
 
-  return Math.round((resolvedPhases / phases.length) * 100);
+  return Math.round((completedPhases / phases.length) * 100);
 }
-
 function synchronizePhaseStatus(phase) {
-  // Preserve an explicitly skipped phase during synchronization.
+  // Preserve an explicitly skipped phase.
   if (phase.status === ROADMAP_NODE_STATUS.SKIPPED) {
     return;
   }
@@ -91,6 +77,12 @@ function synchronizePhaseStatus(phase) {
   phase.completedAt = null;
 
   if (allUnstarted) {
+    // Preserve an explicit Mark Phase In Progress action.
+    if (phase.status === ROADMAP_NODE_STATUS.IN_PROGRESS) {
+      phase.startedAt = phase.startedAt || new Date();
+      return;
+    }
+
     phase.status = ROADMAP_NODE_STATUS.NOT_STARTED;
     phase.startedAt = null;
     return;
@@ -297,18 +289,10 @@ async function updatePhaseStatus({ userId, userRoadmapId, phaseId, status }) {
   const now = new Date();
 
   if (status === ROADMAP_NODE_STATUS.COMPLETED) {
-    const allTopicsCompleted =
-      phase.topics.length > 0 &&
-      phase.topics.every(
-        (topic) => topic.status === ROADMAP_NODE_STATUS.COMPLETED,
-      );
-
-    if (!allTopicsCompleted) {
-      throw createError(
-        "Complete all topics before completing this phase.",
-        "PHASE_TOPICS_INCOMPLETE",
-        409,
-      );
+    // Completing a phase also completes every topic in that phase.
+    for (const topic of phase.topics) {
+      topic.status = ROADMAP_NODE_STATUS.COMPLETED;
+      topic.completedAt = topic.completedAt || now;
     }
 
     phase.status = ROADMAP_NODE_STATUS.COMPLETED;
@@ -330,6 +314,15 @@ async function updatePhaseStatus({ userId, userRoadmapId, phaseId, status }) {
     phase.status = ROADMAP_NODE_STATUS.IN_PROGRESS;
     phase.startedAt = phase.startedAt || now;
     phase.completedAt = null;
+
+    // Reopen completed topics when reopening a completed phase.
+    // Keep skipped and already in-progress topics unchanged.
+    for (const topic of phase.topics) {
+      if (topic.status === ROADMAP_NODE_STATUS.COMPLETED) {
+        topic.status = ROADMAP_NODE_STATUS.NOT_STARTED;
+        topic.completedAt = null;
+      }
+    }
   }
 
   synchronizeRoadmapStatus(userRoadmap);
