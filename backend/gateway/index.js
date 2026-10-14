@@ -72,11 +72,16 @@ app.use("/api/resumes", isAuth, proxyWithHeaders(RESUME_SERVICE_URL, true));
 // Interview service.
 // preservePath = true because Interview service
 // itself is mounted at /api/interview.
+
 app.use(
   "/api/interview",
   isAuth,
-  proxyWithHeaders(INTERVIEW_SERVICE_URL, true),
+  proxyWithHeaders(INTERVIEW_SERVICE_URL, true, {
+    forwardInternalSecret: true,
+    internalSecretEnv: "INTERVIEW_INTERNAL_SECRET",
+  }),
 );
+
 
 app.use(
   "/api/roadmaps",
