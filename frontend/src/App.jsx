@@ -5,7 +5,6 @@ import { useDispatch } from "react-redux";
 // Existing pages
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
-import Scorer from "./pages/Scorer";
 import ResumeBuilder from "./pages/ResumeBuilder";
 import RoadmapDashboardPage from "./pages/roadmap/RoadmapDashboardPage";
 import RoadmapBuilderPage from "./pages/roadmap/RoadmapBuilderPage";
@@ -27,6 +26,9 @@ import { getResume } from "./api/resume.api";
 // Redux
 import { setResume } from "./redux/resumeSlice";
 import RoadmapHistoryPage from "./pages/roadmap/RoadmapHistoryPage";
+import ScorerDashboard from "./pages/ScorerDashboard";
+import ScorerHistory from "./pages/ScorerHistory";
+import ScorerReport from "./pages/ScorerReport";
 
 function LegacyRoadmapRedirect() {
   const { roadmapId } = useParams();
@@ -140,11 +142,20 @@ const App = () => {
         path="/scorer"
         element={
           isProtected ? (
-            <Scorer user={user} setUser={setUser} />
+            <ScorerDashboard user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
           )
         }
+      />
+
+      <Route
+        path="/scorer/history"
+        element={<ScorerHistory user={user} setUser={setUser} />}
+      />
+      <Route
+        path="/scorer/score-report"
+        element={<ScorerReport user={user} setUser={setUser} />}
       />
       {/* ==================================================
           RESUME BUILDER

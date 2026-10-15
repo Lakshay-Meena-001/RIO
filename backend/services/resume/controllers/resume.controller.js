@@ -212,6 +212,10 @@ export const uploadResume = async (req, res) => {
     try {
       await deductResumeScorerBalance(userId, contentFingerprint);
     } catch (billingError) {
+      console.error("[Resume] Billing failed:", {
+        message: billingError.message,
+        status: billingError.status,
+      });
       // Do not leave an unpaid report accessible.
       await Resume.deleteOne({
         _id: resume._id,

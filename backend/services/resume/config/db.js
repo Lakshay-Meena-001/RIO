@@ -1,4 +1,5 @@
-import mongoose from "mongoose";
+import dns from "node:dns";
+import mongoose from "mongoose"
 
 export const connectDB = async () => {
   const mongoUrl = process.env.MONGODB_URL?.trim();
@@ -11,6 +12,9 @@ export const connectDB = async () => {
   }
 
   try {
+
+    dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
     await mongoose.connect(mongoUrl);
 
     console.log("Resume Service: MongoDB connected successfully.");

@@ -529,7 +529,6 @@ const UploadView = ({
   handleDrop,
   handleUpload,
   balance,
-  onBack,
 }) => {
   return (
     <motion.section
@@ -540,16 +539,6 @@ const UploadView = ({
       transition={{ duration: 0.4 }}
       className="mx-auto w-full max-w-[1180px] min-w-0"
     >
-      {/* BACK TO RESUME SCORER DASHBOARD */}
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-5 flex items-center gap-2 text-xs text-white/35 transition-colors hover:text-white"
-      >
-        <ArrowLeft className="h-3.5 w-3.5" />
-        Resume Scorer
-      </button>
-
       {/* HEADER */}
 
       <motion.div

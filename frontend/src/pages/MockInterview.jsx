@@ -1062,7 +1062,7 @@ const MockInterview = ({ user, setUser }) => {
                   <button
                     type="button"
                     onClick={handleStartInterview}
-                    className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.18] hover:bg-white/[0.07]"
+                    className="group hidden sm:inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.18] hover:bg-white/[0.07]"
                   >
                     Configure another interview
                     <FiArrowRight
