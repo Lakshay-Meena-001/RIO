@@ -57,7 +57,7 @@ Produce a fair final report based ONLY on the completed interview data.
 - Each score must be from 0 to 10.
 
 Possible sections:
-- dsa
+- coding
 - dbms
 - os
 - cn

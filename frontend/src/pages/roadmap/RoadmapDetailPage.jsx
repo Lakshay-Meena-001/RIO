@@ -55,13 +55,18 @@ export default function RoadmapDetailPage({
   roadmapId: roadmapIdOverride,
   embedded = false,
   onProgressChange,
+  initialData = null,
 }) {
   const { roadmapId: routeRoadmapId } = useParams();
   const roadmapId = roadmapIdOverride || routeRoadmapId;
   const navigate = useNavigate();
-  const [canonical, setCanonical] = useState(null);
-  const [userRoadmap, setUserRoadmap] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [canonical, setCanonical] = useState(initialData?.roadmap || null);
+  const [userRoadmap, setUserRoadmap] = useState(
+    initialData?.userRoadmap || null,
+  );
+  const [loading, setLoading] = useState(
+    !(initialData?.roadmap && initialData?.userRoadmap),
+  );
   const [error, setError] = useState("");
   const [actionErrors, setActionErrors] = useState({});
   const [expandedTopicId, setExpandedTopicId] = useState(null);
@@ -107,6 +112,15 @@ export default function RoadmapDetailPage({
   );
 
   useEffect(() => {
+    if (initialData?.roadmap && initialData?.userRoadmap) {
+      setCanonical(initialData.roadmap);
+      setUserRoadmap(initialData.userRoadmap);
+      setError("");
+      setLoading(false);
+      onProgressChange?.(initialData.userRoadmap);
+      return;
+    }
+
     let cancelled = false;
 
     const timer = setTimeout(() => {
@@ -119,7 +133,7 @@ export default function RoadmapDetailPage({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [loadRoadmap]);
+  }, [loadRoadmap, initialData, onProgressChange]);
 
   const phaseProgress = useMemo(
     () =>

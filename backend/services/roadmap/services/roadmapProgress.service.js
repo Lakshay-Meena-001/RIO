@@ -355,129 +355,107 @@ async function updatePhaseStatus({ userId, userRoadmapId, phaseId, status }) {
     throw createError("Invalid phase status.");
   }
 
-  // Validate ownership and confirm that the requested phase exists.
-  // Do not rebuild or save the complete roadmap document here.
-  const userRoadmap = await loadUserRoadmap(userId, userRoadmapId);
+  const session = await mongoose.startSession();
 
-  const phase = (userRoadmap.phaseProgress || []).find(
-    (item) => item.phaseId === phaseId,
-  );
+  try {
+    await session.withTransaction(async () => {
+      const userRoadmap = await loadUserRoadmap(userId, userRoadmapId, session);
 
-  if (!phase) {
-    throw createError(
-      "Phase not found or not generated yet.",
-      "PHASE_NOT_FOUND",
-      404,
-    );
+      const phase = userRoadmap.phaseProgress.find(
+        (item) => item.phaseId === phaseId,
+      );
+
+      if (!phase) {
+        throw createError(
+          "Phase not found or not generated yet.",
+          "PHASE_NOT_FOUND",
+          404,
+        );
+      }
+
+      const now = new Date();
+      const phasePath = "phaseProgress.$[phase]";
+      const update = {};
+      let arrayFilters = [{ "phase.phaseId": phaseId }];
+
+      if (status === ROADMAP_NODE_STATUS.COMPLETED) {
+        update[`${phasePath}.status`] = status;
+        update[`${phasePath}.completedAt`] = phase.completedAt || now;
+        update[`${phasePath}.startedAt`] = phase.startedAt || now;
+        update[`${phasePath}.topics.$[].status`] = status;
+        update[`${phasePath}.topics.$[].completedAt`] = now;
+      } else if (status === ROADMAP_NODE_STATUS.SKIPPED) {
+        update[`${phasePath}.status`] = status;
+        update[`${phasePath}.completedAt`] = null;
+        update[`${phasePath}.topics.$[].status`] = status;
+        update[`${phasePath}.topics.$[].completedAt`] = null;
+      } else if (status === ROADMAP_NODE_STATUS.NOT_STARTED) {
+        update[`${phasePath}.status`] = status;
+        update[`${phasePath}.startedAt`] = null;
+        update[`${phasePath}.completedAt`] = null;
+        update[`${phasePath}.topics.$[].status`] = status;
+        update[`${phasePath}.topics.$[].completedAt`] = null;
+      } else if (status === ROADMAP_NODE_STATUS.IN_PROGRESS) {
+        update[`${phasePath}.status`] = status;
+        update[`${phasePath}.startedAt`] = phase.startedAt || now;
+        update[`${phasePath}.completedAt`] = null;
+      }
+
+      update.lastAccessedAt = now;
+
+      const result = await UserRoadmap.updateOne(
+        {
+          _id: userRoadmapId,
+          userId: String(userId),
+          "phaseProgress.phaseId": phaseId,
+        },
+        { $set: update },
+        {
+          session,
+          arrayFilters,
+          runValidators: true,
+        },
+      );
+
+      if (result.matchedCount === 0) {
+        throw createError(
+          "Phase not found or not generated yet.",
+          "PHASE_NOT_FOUND",
+          404,
+        );
+      }
+
+      const freshRoadmap = await loadUserRoadmap(
+        userId,
+        userRoadmapId,
+        session,
+      );
+
+      synchronizeRoadmapStatus(freshRoadmap);
+
+      const summaryResult = await UserRoadmap.updateOne(
+        {
+          _id: userRoadmapId,
+          userId: String(userId),
+        },
+        {
+          $set: {
+            status: freshRoadmap.status,
+            completedAt: freshRoadmap.completedAt,
+            progressPercentage: freshRoadmap.progressPercentage,
+            lastAccessedAt: now,
+          },
+        },
+        { session },
+      );
+
+      if (summaryResult.matchedCount === 0) {
+        throw createError("Roadmap not found.", "ROADMAP_NOT_FOUND", 404);
+      }
+    });
+  } finally {
+    await session.endSession();
   }
-
-  const now = new Date();
-
-  const filter = {
-    _id: userRoadmapId,
-    userId: String(userId),
-    "phaseProgress.phaseId": phaseId,
-  };
-
-  let update;
-  let arrayFilters = [{ "phase.phaseId": phaseId }];
-
-  if (status === ROADMAP_NODE_STATUS.COMPLETED) {
-    update = {
-      $set: {
-        "phaseProgress.$[phase].status": ROADMAP_NODE_STATUS.COMPLETED,
-        "phaseProgress.$[phase].completedAt": phase.completedAt || now,
-        "phaseProgress.$[phase].startedAt": phase.startedAt || now,
-
-        "phaseProgress.$[phase].topics.$[].status":
-          ROADMAP_NODE_STATUS.COMPLETED,
-        "phaseProgress.$[phase].topics.$[].completedAt": now,
-
-        lastAccessedAt: now,
-      },
-    };
-  } else if (status === ROADMAP_NODE_STATUS.SKIPPED) {
-    update = {
-      $set: {
-        "phaseProgress.$[phase].status": ROADMAP_NODE_STATUS.SKIPPED,
-        "phaseProgress.$[phase].completedAt": null,
-
-        "phaseProgress.$[phase].topics.$[].status": ROADMAP_NODE_STATUS.SKIPPED,
-        "phaseProgress.$[phase].topics.$[].completedAt": null,
-
-        lastAccessedAt: now,
-      },
-    };
-  } else if (status === ROADMAP_NODE_STATUS.NOT_STARTED) {
-    update = {
-      $set: {
-        "phaseProgress.$[phase].status": ROADMAP_NODE_STATUS.NOT_STARTED,
-        "phaseProgress.$[phase].startedAt": null,
-        "phaseProgress.$[phase].completedAt": null,
-
-        "phaseProgress.$[phase].topics.$[].status":
-          ROADMAP_NODE_STATUS.NOT_STARTED,
-        "phaseProgress.$[phase].topics.$[].completedAt": null,
-
-        lastAccessedAt: now,
-      },
-    };
-  } else if (status === ROADMAP_NODE_STATUS.IN_PROGRESS) {
-    update = {
-      $set: {
-        "phaseProgress.$[phase].status": ROADMAP_NODE_STATUS.IN_PROGRESS,
-        "phaseProgress.$[phase].startedAt": phase.startedAt || now,
-        "phaseProgress.$[phase].completedAt": null,
-
-        "phaseProgress.$[phase].topics.$[topic].status":
-          ROADMAP_NODE_STATUS.NOT_STARTED,
-        "phaseProgress.$[phase].topics.$[topic].completedAt": null,
-
-        lastAccessedAt: now,
-      },
-    };
-
-    // Reopen only completed topics in this phase.
-    // Do not modify skipped topics or any other phase.
-    arrayFilters = [
-      { "phase.phaseId": phaseId },
-      { "topic.status": ROADMAP_NODE_STATUS.COMPLETED },
-    ];
-  }
-
-  // Atomic, phase-scoped database update.
-  const result = await UserRoadmap.updateOne(filter, update, {
-    arrayFilters,
-    runValidators: true,
-  });
-
-  if (result.matchedCount === 0) {
-    throw createError(
-      "Phase not found or not generated yet.",
-      "PHASE_NOT_FOUND",
-      404,
-    );
-  }
-
-  // Re-read fresh data and calculate overall roadmap progress.
-  const freshRoadmap = await loadUserRoadmap(userId, userRoadmapId);
-
-  synchronizeRoadmapStatus(freshRoadmap);
-
-  // Update only summary fields. Never save the whole stale document.
-  await UserRoadmap.updateOne(
-    {
-      _id: userRoadmapId,
-      userId: String(userId),
-    },
-    {
-      $set: {
-        status: freshRoadmap.status,
-        completedAt: freshRoadmap.completedAt,
-        progressPercentage: freshRoadmap.progressPercentage,
-      },
-    },
-  );
 
   return loadUserRoadmap(userId, userRoadmapId);
 }

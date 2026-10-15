@@ -212,10 +212,11 @@ function TagInput({ label, values = [], onChange, placeholder, hint }) {
     <div>
       <label className={labelClassName}>{label}</label>
 
-      <div className="
+      <div
+        className="
           w-full rounded-xl border border-white/10 bg-white/[0.04] p-3
-          transition focus-within:border-violet-400/50
-        ">
+          transition"
+      >
         {values.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
             {values.map((value, index) => (
@@ -309,7 +310,9 @@ function EntryHeader({ title, subtitle, onRemove }) {
   return (
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <p className="text-lg font-semibold tracking-[-0.02em] text-white">{title}</p>
+        <p className="text-lg font-semibold tracking-[-0.02em] text-white">
+          {title}
+        </p>
 
         {subtitle && (
           <p className="mt-1 text-xs leading-5 text-white/35">{subtitle}</p>
@@ -466,9 +469,9 @@ export default function ResumeForm({ data, onChange }) {
             </h2>
 
             <p className="mx-auto mt-2.5 max-w-xl text-xs leading-5 text-white/40 sm:mx-0">
-              Start with Profile, Summary, Education, Skills and Projects.
-              Add Experience, Certifications, Achievements and Languages when
-              they are relevant. Nothing is required if it does not apply to you.
+              Start with Profile, Summary, Education, Skills and Projects. Add
+              Experience, Certifications, Achievements and Languages when they
+              are relevant. Nothing is required if it does not apply to you.
             </p>
           </div>
 

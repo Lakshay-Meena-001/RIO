@@ -438,6 +438,8 @@ export default function RoadmapHistoryPage() {
 
   const [confirmDelete, setConfirmDelete] = useState(false);
 
+  const [selectedRoadmapData, setSelectedRoadmapData] = useState(null);
+
   const loadHistory = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -505,6 +507,7 @@ export default function RoadmapHistoryPage() {
       if (!selectedId) {
         setRoadmap(null);
         setTemplate(null);
+        setSelectedRoadmapData(null);
         return;
       }
       try {
@@ -548,6 +551,12 @@ export default function RoadmapHistoryPage() {
             });
           });
         const total = topics.length;
+
+        setSelectedRoadmapData({
+          id: getId(personal),
+          roadmap: canonical,
+          userRoadmap: personal,
+        });
 
         const completed = topics.filter(
           (topic) =>
@@ -623,6 +632,7 @@ export default function RoadmapHistoryPage() {
         );
         setRoadmap(null);
         setTemplate(null);
+        setSelectedRoadmapData(null);
       }
     };
     void loadSelected();
@@ -737,7 +747,7 @@ export default function RoadmapHistoryPage() {
 
   const selectRoadmap = (id) => {
     setSelectedId(id);
-
+    setSelectedRoadmapData(null);
     setMobileHistoryOpen(false);
 
     navigate(
@@ -777,7 +787,7 @@ export default function RoadmapHistoryPage() {
       setTemplate(null);
 
       setSelectedId(nextId);
-
+      setSelectedRoadmapData(null);
       navigate(
         nextId
           ? `/roadmap/history?roadmap=${encodeURIComponent(nextId)}`
@@ -1068,12 +1078,20 @@ export default function RoadmapHistoryPage() {
 
                   <div className="mt-3 h-24 animate-pulse rounded-2xl bg-white/[0.04]" />
                 </div>
-              ) : selectedId ? (
+              ) : selectedId && selectedRoadmapData?.id === selectedId ? (
                 <RoadmapDetailPage
+                  key={selectedId}
                   roadmapId={selectedId}
                   embedded
+                  initialData={selectedRoadmapData}
                   onProgressChange={handleProgressChange}
                 />
+              ) : selectedId ? (
+                <div className="mx-auto max-w-3xl px-6 py-16">
+                  <div className="h-7 w-48 animate-pulse rounded bg-white/[0.06]" />
+                  <div className="mt-5 h-24 animate-pulse rounded-2xl bg-white/[0.04]" />
+                  <div className="mt-3 h-24 animate-pulse rounded-2xl bg-white/[0.04]" />
+                </div>
               ) : (
                 <section className="flex min-h-[calc(100dvh-13rem)] items-center justify-center px-5 py-10 text-center lg:min-h-[60vh] lg:px-4 lg:py-12">
                   <div className="mx-auto flex w-full max-w-xl flex-col items-center">

@@ -555,8 +555,8 @@ const MockInterview = ({ user, setUser }) => {
                             </p>
                           </div>
 
-                          <div className="flex items-end justify-between gap-8 lg:min-w-[360px] lg:justify-end">
-                            <div>
+                          <div className="flex w-full items-center justify-between gap-4 lg:w-auto lg:min-w-[360px] lg:justify-end lg:gap-7">
+                            <div className="min-w-[92px]">
                               <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-[#666870]">
                                 Time left
                               </p>
@@ -564,22 +564,6 @@ const MockInterview = ({ user, setUser }) => {
                                 {activeInterview.status === "created"
                                   ? "Ready"
                                   : formatCountdown(activeTimeLeft)}
-                              </p>
-                            </div>
-
-                            <div className="hidden sm:block">
-                              <p className="text-[9px] font-medium uppercase tracking-[0.16em] text-[#666870]">
-                                Started
-                              </p>
-                              <p className="mt-1 text-sm font-medium text-[#D4D4D8]">
-                                {activeInterview.startedAt
-                                  ? new Date(
-                                      activeInterview.startedAt,
-                                    ).toLocaleTimeString("en-IN", {
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : "Not started"}
                               </p>
                             </div>
 
@@ -599,7 +583,22 @@ const MockInterview = ({ user, setUser }) => {
                                 activeInterview.createdAt,
                             )}
                           </span>
+
                           <span className="text-white/20">•</span>
+
+                          <span>
+                            {activeInterview.startedAt
+                              ? new Date(
+                                  activeInterview.startedAt,
+                                ).toLocaleTimeString("en-IN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "Not started"}
+                          </span>
+
+                          <span className="text-white/20">•</span>
+
                           <span>
                             {activeInterview.status === "created"
                               ? "Configuration saved"

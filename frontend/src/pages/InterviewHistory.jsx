@@ -404,7 +404,7 @@ export default function InterviewHistory() {
                 {interviews.length}
               </span>
             </div>
-            <label className="mt-3 flex items-center gap-2 rounded-xl border border-white/[.08] bg-white/[.025] px-3 py-2.5 focus-within:border-white/20">
+            <label className="mt-3 flex items-center gap-2 rounded-xl border border-white/[.08] bg-white/[.025] px-3 py-2.5 ">
               <FiSearch size={13} className="shrink-0 text-[#686B74]" />
               <input
                 value={search}

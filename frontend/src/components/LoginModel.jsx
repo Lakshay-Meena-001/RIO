@@ -1324,7 +1324,7 @@ const Loginmodel = ({ onClose, setUser, initialAccountSetupUser = null }) => {
                           number.
                         </p>
 
-                        <div className="mt-7 flex h-12 overflow-hidden rounded-xl border border-white/10 bg-white/[0.045] focus-within:border-white/30">
+                        <div className="mt-7 flex h-12 overflow-hidden rounded-xl border border-white/10 bg-white/[0.045] ">
                           <span className="flex items-center border-r border-white/10 px-4 text-sm text-white/35">
                             +91
                           </span>

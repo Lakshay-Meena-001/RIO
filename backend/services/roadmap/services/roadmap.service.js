@@ -779,7 +779,7 @@ async function generateRoadmapPhaseForUser({ userId, userRoadmapId, phaseId }) {
 
     return {
       roadmap: canonicalRoadmap,
-      userRoadmap,
+      userRoadmap: updatedUserRoadmap,
       phase,
     };
   }

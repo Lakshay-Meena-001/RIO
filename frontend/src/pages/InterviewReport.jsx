@@ -173,6 +173,7 @@ export default function InterviewReport({
     if (value >= 4) return "bg-amber-300";
     return "bg-rose-400";
   };
+
   const deleteInterviewNow = async () => {
     if (!interviewId || deleting) return;
     try {
@@ -334,7 +335,15 @@ export default function InterviewReport({
                   cy="64"
                   r="54"
                   fill="none"
-                  stroke="rgba(255,255,255,.9)"
+                  stroke={
+                    !validScore
+                      ? "rgba(255,255,255,.35)"
+                      : overallScore < 5
+                        ? "#FB7185"
+                        : overallScore < 8
+                          ? "#FBBF24"
+                          : "#34D399"
+                  }
                   strokeWidth="7"
                   strokeLinecap="round"
                   strokeDasharray={2 * Math.PI * 54}
@@ -370,11 +379,14 @@ export default function InterviewReport({
                 Your overall result from the evaluations recorded for this
                 round.
               </p>
-              <div className="mt-3 flex items-center gap-2 text-[10px] text-[#858994]">
+              <div className="mt-3">
                 <span
-                  className={`h-1.5 w-1.5 rounded-full ${completed ? "bg-emerald-300" : "bg-amber-300"}`}
-                />
-                <span className="capitalize">
+                  className={`inline-flex items-center rounded-full border px-3 py-1 text-[10px] font-medium capitalize ${
+                    completed
+                      ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-300"
+                      : "border-amber-300/20 bg-amber-300/[0.08] text-amber-200"
+                  }`}
+                >
                   {String(interview.status || "status unavailable").replace(
                     /[-_]/g,
                     " ",

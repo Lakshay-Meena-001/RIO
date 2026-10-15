@@ -1,4 +1,3 @@
-import llm from "../config/llm.js";
 import summaryPrompt from "../prompts/summary.prompt.js";
 import { summarySchema } from "../validators/interview.schema.js";
 import { ChatGroq } from "@langchain/groq";

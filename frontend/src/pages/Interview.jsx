@@ -389,39 +389,48 @@ const Interview = ({ setUser }) => {
 
   const persistDraftAnswer = useCallback(
     async (questionId, value) => {
-      if (!questionId || !interviewId) {
-        return;
-      }
+      if (!questionId || !interviewId) return;
 
-      if (draftSaveControllerRef.current) {
-        draftSaveControllerRef.current.abort();
-      }
+      const previousRequest = draftSaveRequestRef.current;
 
-      const controller = new AbortController();
-      draftSaveControllerRef.current = controller;
+      const request = (async () => {
+        if (previousRequest) {
+          try {
+            await previousRequest;
+          } catch {
+            // Continue even if the previous save failed.
+          }
+        }
 
-      const request = saveDraftAnswer(
-        interviewId,
-        questionId,
-        value,
-        controller.signal,
-      );
+        if (!isMountedRef.current) return;
+        const controller = new AbortController();
+        draftSaveControllerRef.current = controller;
+
+        try {
+          await saveDraftAnswer(
+            interviewId,
+            questionId,
+            value,
+            controller.signal,
+          );
+        } catch (err) {
+          if (err?.code !== "ERR_CANCELED" && err?.name !== "CanceledError") {
+            console.error("Failed to save answer draft:", err);
+          }
+        } finally {
+          if (draftSaveControllerRef.current === controller) {
+            draftSaveControllerRef.current = null;
+          }
+        }
+      })();
 
       draftSaveRequestRef.current = request;
 
       try {
         await request;
-      } catch (err) {
-        if (err?.code !== "ERR_CANCELED" && err?.name !== "CanceledError") {
-          console.error("Failed to save answer draft:", err);
-        }
       } finally {
         if (draftSaveRequestRef.current === request) {
           draftSaveRequestRef.current = null;
-        }
-
-        if (draftSaveControllerRef.current === controller) {
-          draftSaveControllerRef.current = null;
         }
       }
     },
@@ -833,17 +842,12 @@ const Interview = ({ setUser }) => {
         setProcessingStage("evaluating");
         setShowCompletionModal(true);
 
-        if (automatic && draftSaveTimeoutRef.current) {
+        if (draftSaveTimeoutRef.current) {
           window.clearTimeout(draftSaveTimeoutRef.current);
           draftSaveTimeoutRef.current = null;
         }
 
-        if (automatic && draftSaveControllerRef.current) {
-          draftSaveControllerRef.current.abort();
-          draftSaveControllerRef.current = null;
-        }
-
-        if (!automatic && currentQuestion?.questionId) {
+        if (currentQuestion?.questionId) {
           await flushDraftSave(currentQuestion.questionId, answer);
         }
 
@@ -1330,10 +1334,7 @@ const Interview = ({ setUser }) => {
             transition-duration: 0.01ms !important;
           }
         }
-        :focus-visible {
-          outline: 2px solid rgba(255,255,255,0.72);
-          outline-offset: 3px;
-        }
+        
 `}</style>
       {/* =====================================================
           FIXED TOP BAR

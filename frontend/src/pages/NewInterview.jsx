@@ -46,7 +46,9 @@ const CustomSelect = ({ label, value, options, onChange }) => {
     };
   }, []);
 
-  const selectedOption = options.find((option) => option.value === value);
+  const selectedOption = options.find(
+    (option) => Number(option.value) === Number(value),
+  );
 
   return (
     <div ref={dropdownRef} className="relative w-full">
@@ -289,7 +291,7 @@ const NewInterview = ({ user, setUser }) => {
    * ---------------------------------------------------------
    */
 
-  const validateForm = () => {
+  const validateForm = (techStack = form.techStack) => {
     if (form.interviewType === "coding" && !form.codingLanguage) {
       return "Select a programming language for the coding interview.";
     }
@@ -301,7 +303,7 @@ const NewInterview = ({ user, setUser }) => {
       return "Select at least one Core CS subject.";
     }
 
-    if (form.interviewType === "development" && form.techStack.length === 0) {
+    if (form.interviewType === "development" && techStack.length === 0) {
       return "Add at least one technology for the development interview.";
     }
 
@@ -334,7 +336,15 @@ const NewInterview = ({ user, setUser }) => {
       return;
     }
 
-    const validationError = validateForm();
+    const pendingTechnology = techStackInput.trim();
+    const effectiveTechStack =
+      form.interviewType === "development" && pendingTechnology
+        ? form.techStack.includes(pendingTechnology)
+          ? form.techStack
+          : [...form.techStack, pendingTechnology]
+        : form.techStack;
+
+    const validationError = validateForm(effectiveTechStack);
 
     if (validationError) {
       setError(validationError);
@@ -351,7 +361,7 @@ const NewInterview = ({ user, setUser }) => {
         interviewLevel: form.interviewLevel,
         interviewType: form.interviewType,
         subjects: form.subjects,
-        techStack: form.techStack,
+        techStack: effectiveTechStack,
         projectContext:
           form.interviewType === "project" || form.interviewType === "full"
             ? {
@@ -576,14 +586,6 @@ const NewInterview = ({ user, setUser }) => {
                   </div>
                 </div>
               </div>
-
-              {/* Error */}
-              {error && (
-                <div className="mb-5 flex items-start gap-3 rounded-[16px] border border-white/[0.11] bg-[#17191C] px-4 py-3 text-sm text-[#D4D4D8] shadow-[0_12px_35px_rgba(0,0,0,0.14)]">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#F2A97B]" />
-                  <p>{error}</p>
-                </div>
-              )}
 
               <div className="overflow-hidden rounded-[22px] border border-white/[0.12] bg-[#111315] shadow-[0_26px_75px_rgba(0,0,0,0.22)]">
                 {/* Basic configuration */}
@@ -821,6 +823,21 @@ const NewInterview = ({ user, setUser }) => {
                         onChange={(event) =>
                           setTechStackInput(event.target.value)
                         }
+                        onBlur={() => {
+                          const value = techStackInput.trim();
+                          if (!value) return;
+
+                          setTimeout(() => {
+                            setForm((previous) => ({
+                              ...previous,
+                              techStack: previous.techStack.includes(value)
+                                ? previous.techStack
+                                : [...previous.techStack, value],
+                            }));
+                            setTechStackInput("");
+                            setError("");
+                          }, 0);
+                        }}
                         onKeyDown={(event) => {
                           if (event.key === "Enter") {
                             event.preventDefault();
@@ -1126,6 +1143,14 @@ const NewInterview = ({ user, setUser }) => {
                       )}
                     </button>
                   </div>
+                  {error && (
+                    <p
+                      role="alert"
+                      className="hidden mt-3 text-right text-xs leading-5 text-[#F2A97B] sm:block sm:ml-auto"
+                    >
+                      {error}
+                    </p>
+                  )}
                 </section>
               </div>
             </div>
@@ -1158,6 +1183,14 @@ const NewInterview = ({ user, setUser }) => {
             </>
           )}
         </button>
+        {error && (
+          <p
+            role="alert"
+            className="mx-auto mt-2 max-w-3xl text-center text-xs leading-5 text-[#F2A97B]"
+          >
+            {error}
+          </p>
+        )}
       </div>
     </div>
   );
