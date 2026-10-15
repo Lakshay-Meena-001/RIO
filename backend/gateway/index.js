@@ -8,7 +8,6 @@ import { getCurrentUser } from "./controllers/userController.js";
 import { isAuth } from "./middlewares/isAuth.js";
 import { proxyWithHeaders } from "./utils/proxyHeader.js";
 
-
 const app = express();
 
 const PORT = process.env.PORT || 3000;
@@ -66,13 +65,18 @@ app.get("/health", (req, res) => {
 // Auth service.
 app.use("/api/auth", proxy(AUTH_SERVICE_URL));
 
+
 // Resume service.
-app.use("/api/resumes", isAuth, proxyWithHeaders(RESUME_SERVICE_URL, true));
+app.use(
+  "/api/resumes",
+  isAuth,
+  proxyWithHeaders(RESUME_SERVICE_URL, true, {
+    forwardInternalSecret: true,
+    internalSecretEnv: "RESUME_INTERNAL_SECRET",
+  }),
+);
 
 // Interview service.
-// preservePath = true because Interview service
-// itself is mounted at /api/interview.
-
 app.use(
   "/api/interview",
   isAuth,
@@ -83,6 +87,7 @@ app.use(
 );
 
 
+// Roadmap service.
 app.use(
   "/api/roadmaps",
   isAuth,

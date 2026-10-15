@@ -200,6 +200,7 @@ const Scorer = ({ user, setUser }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const inputRef = useRef(null);
+  const balanceTransactionIdRef = useRef(null);
 
   const { resume } = useSelector((state) => state.resume);
 
@@ -281,13 +282,17 @@ const Scorer = ({ user, setUser }) => {
 
     setLoading(true);
 
+    if (!balanceTransactionIdRef.current) {
+      balanceTransactionIdRef.current = crypto.randomUUID();
+    }
+
     try {
       const formData = new FormData();
       formData.append("resume", file);
 
       // 1. Analyze the resume first.
       // balance are NOT deducted if the analysis fails.
-      const response = await api.post("/api/resume/upload", formData);
+      const response = await api.post("/api/resumes/upload", formData);
 
       if (!response?.data?.success) {
         throw new Error(response?.data?.message || "Resume analysis failed.");
@@ -306,6 +311,7 @@ const Scorer = ({ user, setUser }) => {
       const balanceResponse = await deductBalance({
         amount: SCORER_COST,
         action: "resume_scorer",
+        transactionId: balanceTransactionIdRef.current,
       });
 
       if (!balanceResponse?.success) {
@@ -328,6 +334,7 @@ const Scorer = ({ user, setUser }) => {
 
       // 5. Only show the result after both analysis and coin deduction succeed.
       dispatch(setResume(resumeData));
+      balanceTransactionIdRef.current = null;
       setAnalyzingAnother(false);
 
       showBalanceNotification("success", {

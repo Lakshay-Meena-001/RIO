@@ -1,130 +1,173 @@
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+
 import { resumeAgent } from "../agents/resume.agent.js";
 import extractText from "../config/pdf.js";
 import Resume from "../models/resume.model.js";
-import fs from "fs";
 import redis from "../../../shared/redis/redis.js";
 
 const resumeCacheKey = (userId, resumeId) => `resume:${userId}:${resumeId}`;
 
 const legacyResumeCacheKey = (userId) => `resume:${userId}`;
 
-const normalizeResumeText = (value = "") =>
-  String(value).replace(/\r\n/g, "\n").trim();
-
 const isValidObjectId = (value) =>
   typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
 
-const getUserId = (req) => req.headers["x-user-id"];
+const getUserId = (req) => {
+  // Temporary compatibility with the current Gateway contract.
+  // Replace with req.internalUserId only after internal auth is wired.
+  const value = req.internalUserId ?? req.headers["x-user-id"];
 
-const invalidateLegacyCache = async (userId) => {
-  await redis.del(legacyResumeCacheKey(userId));
+  if (typeof value !== "string" || !isValidObjectId(value)) {
+    return null;
+  }
+
+  return value;
+};
+
+const normalizeResumeText = (value = "") =>
+  String(value).replace(/\r\n/g, "\n").trim().replace(/\s+/g, " ");
+
+const getContentFingerprint = (text) =>
+  crypto.createHash("sha256").update(text).digest("hex");
+
+const logError = (operation, error) => {
+  console.error(`[Resume] ${operation}:`, {
+    message: error?.message,
+    code: error?.code,
+  });
+};
+
+const safeCacheGet = async (key) => {
+  try {
+    return await redis.get(key);
+  } catch (error) {
+    logError("Redis read failed", error);
+    return null;
+  }
+};
+
+const safeCacheSet = async (key, value) => {
+  try {
+    await redis.set(key, value);
+  } catch (error) {
+    logError("Redis write failed", error);
+  }
+};
+
+const safeCacheDelete = async (...keys) => {
+  try {
+    if (keys.length) {
+      await redis.del(...keys);
+    }
+  } catch (error) {
+    logError("Redis invalidation failed", error);
+  }
+};
+
+const cacheResume = async (userId, resume) => {
+  const value = JSON.stringify(resume);
+  const resumeId = String(resume._id);
+
+  await Promise.all([
+    safeCacheSet(legacyResumeCacheKey(userId), value),
+    safeCacheSet(resumeCacheKey(userId, resumeId), value),
+  ]);
 };
 
 const deleteTempFile = async (filePath) => {
   if (!filePath) return;
 
   try {
-    await fs.promises.unlink(filePath);
+    await fs.unlink(filePath);
   } catch (error) {
     if (error.code !== "ENOENT") {
-      console.error("Temporary resume cleanup error:", error);
+      logError("Temporary file cleanup failed", error);
     }
   }
 };
 
-// ============================================================
-// UPLOAD RESUME
-// Same extracted text => reuse existing resume without AI call.
-// Different text => create a separate resume.
-// ============================================================
+const sendServerError = (res, operation) => {
+  return res.status(500).json({
+    success: false,
+    message: `Failed to ${operation}. Please try again.`,
+  });
+};
 
+// POST /api/resumes/upload
 export const uploadResume = async (req, res) => {
-  let filePath;
+  const filePath = req.file?.path;
 
   try {
-    const file = req.file;
-    filePath = file?.path;
+    const userId = getUserId(req);
 
-    if (!file) {
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
+    }
+
+    if (!req.file) {
       return res.status(400).json({
         success: false,
         message: "Resume PDF is required",
       });
     }
 
-    const userId = getUserId(req);
-
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: "UserId is required",
-      });
-    }
-
-    const extractedText = await extractText(file.path);
+    const extractedText = await extractText(filePath);
     const normalizedText = normalizeResumeText(extractedText);
 
     if (!normalizedText) {
       return res.status(400).json({
         success: false,
-        message: "Could not extract text from the resume PDF",
+        message: "Could not extract readable text from the resume PDF",
       });
     }
 
-    // Check existing resumes BEFORE calling the AI agent.
-    // This prevents repeat AI analysis when the same extracted text
-    // already exists in MongoDB.
-    const existingResumes = await Resume.find({ userId })
-      .select("_id extractedText updatedAt")
-      .sort({ updatedAt: -1 })
-      .lean();
+    const maxTextLength = Number(process.env.RESUME_MAX_TEXT_LENGTH ?? 50000);
 
-    const existingResume = existingResumes.find(
-      (item) =>
-        normalizeResumeText(item.extractedText || "") === normalizedText,
-    );
+    if (
+      !Number.isInteger(maxTextLength) ||
+      maxTextLength <= 0 ||
+      normalizedText.length > maxTextLength
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Resume text is empty or exceeds the allowed length",
+      });
+    }
+
+    // Indexed fingerprint lookup instead of loading every resume.
+    const contentFingerprint = getContentFingerprint(normalizedText);
+
+    const existingResume = await Resume.findOne({
+      userId,
+      contentFingerprint,
+    }).sort({ updatedAt: -1 });
 
     if (existingResume) {
-      const fullResume = await Resume.findOne({
-        _id: existingResume._id,
-        userId,
+      await cacheResume(userId, existingResume);
+
+      return res.status(200).json({
+        success: true,
+        reused: true,
+        message: "This resume already exists. Existing analysis reused.",
+        data: existingResume,
       });
-
-      if (fullResume) {
-        await Promise.all([
-          redis.set(legacyResumeCacheKey(userId), JSON.stringify(fullResume)),
-          redis.set(
-            resumeCacheKey(userId, String(fullResume._id)),
-            JSON.stringify(fullResume),
-          ),
-        ]);
-
-        return res.status(200).json({
-          success: true,
-          reused: true,
-          message: "This resume already exists. Existing analysis reused.",
-          data: fullResume,
-        });
-      }
     }
 
-    // Only new resume content reaches the AI agent.
+    // AI runs only when no matching resume exists.
     const analyzedResume = await resumeAgent(normalizedText);
 
     const resume = await Resume.create({
+      ...analyzedResume,
       userId,
       extractedText: normalizedText,
-      ...analyzedResume,
+      contentFingerprint,
     });
 
-    await Promise.all([
-      invalidateLegacyCache(userId),
-      redis.set(
-        resumeCacheKey(userId, String(resume._id)),
-        JSON.stringify(resume),
-      ),
-      redis.set(legacyResumeCacheKey(userId), JSON.stringify(resume)),
-    ]);
+    await cacheResume(userId, resume);
 
     return res.status(201).json({
       success: true,
@@ -133,40 +176,37 @@ export const uploadResume = async (req, res) => {
       data: resume,
     });
   } catch (error) {
-    console.error("Resume upload error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to analyze resume",
-    });
+    logError("Upload failed", error);
+    return sendServerError(res, "analyze the resume");
   } finally {
     await deleteTempFile(filePath);
   }
 };
 
-// ============================================================
-// GET LATEST RESUME — BACKWARD COMPATIBILITY
-// Existing GET /get-resume continues to work.
-// ============================================================
-
+// GET /api/resumes/get-resume
+// Backward-compatible endpoint: returns the latest resume.
 export const getResume = async (req, res) => {
   try {
     const userId = getUserId(req);
 
     if (!userId) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: "UserId is required",
+        message: "Authenticated user identity is required",
       });
     }
 
-    const cached = await redis.get(legacyResumeCacheKey(userId));
+    const cacheKey = legacyResumeCacheKey(userId);
+    const cached = await safeCacheGet(cacheKey);
 
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
 
-        if (String(parsed?.userId) === String(userId)) {
+        if (
+          String(parsed?.userId) === userId &&
+          isValidObjectId(String(parsed?._id))
+        ) {
           return res.status(200).json({
             success: true,
             source: "redis",
@@ -174,10 +214,10 @@ export const getResume = async (req, res) => {
           });
         }
       } catch {
-        // Invalid cache: fetch from MongoDB.
+        // Malformed cache: fall through to MongoDB.
       }
 
-      await redis.del(legacyResumeCacheKey(userId));
+      await safeCacheDelete(cacheKey);
     }
 
     const resume = await Resume.findOne({ userId }).sort({
@@ -191,7 +231,7 @@ export const getResume = async (req, res) => {
       });
     }
 
-    await redis.set(legacyResumeCacheKey(userId), JSON.stringify(resume));
+    await cacheResume(userId, resume);
 
     return res.status(200).json({
       success: true,
@@ -199,27 +239,20 @@ export const getResume = async (req, res) => {
       data: resume,
     });
   } catch (error) {
-    console.error("Get resume error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch resume",
-    });
+    logError("Get latest resume failed", error);
+    return sendServerError(res, "fetch the resume");
   }
 };
 
-// ============================================================
-// LIST RESUMES — DROPDOWN
-// ============================================================
-
+// GET /api/resumes/
 export const listResumes = async (req, res) => {
   try {
     const userId = getUserId(req);
 
     if (!userId) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: "UserId is required",
+        message: "Authenticated user identity is required",
       });
     }
 
@@ -235,28 +268,21 @@ export const listResumes = async (req, res) => {
       data: resumes,
     });
   } catch (error) {
-    console.error("List resumes error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to list resumes",
-    });
+    logError("List resumes failed", error);
+    return sendServerError(res, "list resumes");
   }
 };
 
-// ============================================================
-// GET SPECIFIC RESUME BY ID
-// ============================================================
-
+// GET /api/resumes/:resumeId
 export const getResumeById = async (req, res) => {
   try {
     const userId = getUserId(req);
     const { resumeId } = req.params;
 
     if (!userId) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: "UserId is required",
+        message: "Authenticated user identity is required",
       });
     }
 
@@ -268,15 +294,15 @@ export const getResumeById = async (req, res) => {
     }
 
     const cacheKey = resumeCacheKey(userId, resumeId);
-    const cached = await redis.get(cacheKey);
+    const cached = await safeCacheGet(cacheKey);
 
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
 
         if (
-          String(parsed?._id) === String(resumeId) &&
-          String(parsed?.userId) === String(userId)
+          String(parsed?._id) === resumeId &&
+          String(parsed?.userId) === userId
         ) {
           return res.status(200).json({
             success: true,
@@ -285,12 +311,13 @@ export const getResumeById = async (req, res) => {
           });
         }
       } catch {
-        // Invalid cache: fetch from MongoDB.
+        // Malformed cache: fall through to MongoDB.
       }
 
-      await redis.del(cacheKey);
+      await safeCacheDelete(cacheKey);
     }
 
+    // Ownership is enforced in the database query itself.
     const resume = await Resume.findOne({
       _id: resumeId,
       userId,
@@ -303,7 +330,7 @@ export const getResumeById = async (req, res) => {
       });
     }
 
-    await redis.set(cacheKey, JSON.stringify(resume));
+    await safeCacheSet(cacheKey, JSON.stringify(resume));
 
     return res.status(200).json({
       success: true,
@@ -311,29 +338,21 @@ export const getResumeById = async (req, res) => {
       data: resume,
     });
   } catch (error) {
-    console.error("Get resume by ID error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to fetch resume",
-    });
+    logError("Get resume by ID failed", error);
+    return sendServerError(res, "fetch the resume");
   }
 };
 
-// ============================================================
-// UPDATE RESUME
-// New clients send resumeId.
-// Old clients without resumeId update the latest resume.
-// ============================================================
-
+// PATCH /api/resumes/update
+// Supports legacy requests without resumeId.
 export const updateResume = async (req, res) => {
   try {
     const userId = getUserId(req);
 
     if (!userId) {
-      return res.status(400).json({
+      return res.status(401).json({
         success: false,
-        message: "UserId is required",
+        message: "Authenticated user identity is required",
       });
     }
 
@@ -350,14 +369,14 @@ export const updateResume = async (req, res) => {
       languages,
     } = req.body || {};
 
-    if (resumeId && !isValidObjectId(resumeId)) {
+    if (resumeId !== undefined && !isValidObjectId(resumeId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid resume ID",
       });
     }
 
-    const updateData = {
+    const editableFields = {
       profile,
       summary,
       education,
@@ -369,11 +388,9 @@ export const updateResume = async (req, res) => {
       languages,
     };
 
-    Object.keys(updateData).forEach((key) => {
-      if (updateData[key] === undefined) {
-        delete updateData[key];
-      }
-    });
+    const updateData = Object.fromEntries(
+      Object.entries(editableFields).filter(([, value]) => value !== undefined),
+    );
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({
@@ -382,6 +399,7 @@ export const updateResume = async (req, res) => {
       });
     }
 
+    // Never accept userId or extractedText from the request body.
     const filter = resumeId ? { _id: resumeId, userId } : { userId };
 
     const resume = await Resume.findOneAndUpdate(
@@ -401,14 +419,16 @@ export const updateResume = async (req, res) => {
       });
     }
 
-    await Promise.all([
-      invalidateLegacyCache(userId),
-      redis.set(
-        resumeCacheKey(userId, String(resume._id)),
-        JSON.stringify(resume),
-      ),
-      redis.set(legacyResumeCacheKey(userId), JSON.stringify(resume)),
-    ]);
+    // Update the specific cache and replace the legacy latest-resume cache.
+    // Redis failures must not turn a successful MongoDB update into a 500.
+    await safeCacheDelete(legacyResumeCacheKey(userId));
+
+    await safeCacheSet(
+      resumeCacheKey(userId, String(resume._id)),
+      JSON.stringify(resume),
+    );
+
+    await safeCacheSet(legacyResumeCacheKey(userId), JSON.stringify(resume));
 
     return res.status(200).json({
       success: true,
@@ -416,11 +436,7 @@ export const updateResume = async (req, res) => {
       data: resume,
     });
   } catch (error) {
-    console.error("Update resume error:", error);
-
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to update resume",
-    });
+    logError("Update resume failed", error);
+    return sendServerError(res, "update the resume");
   }
 };

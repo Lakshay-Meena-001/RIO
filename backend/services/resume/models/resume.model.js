@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import crypto from "crypto";
+import crypto from "node:crypto";
 
 // ============================================================
 // SUB-SCHEMAS
@@ -44,7 +44,7 @@ const projectSchema = new mongoose.Schema(
 );
 
 // ============================================================
-// FINGERPRINT HELPER
+// FINGERPRINT HELPERS
 // ============================================================
 
 const normalizeResumeText = (text = "") =>
@@ -59,24 +59,22 @@ const createResumeFingerprint = (text = "") =>
 
 const resumeSchema = new mongoose.Schema(
   {
-    // Multiple resumes can belong to the same user.
+    // A user can own multiple resumes.
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       required: true,
-      index: true,
     },
 
-    // Original extracted resume text.
+    // Extracted source text used for analysis and duplicate detection.
     extractedText: {
       type: String,
       default: "",
     },
 
-    // Stable hash to identify duplicate resume content.
+    // SHA-256 fingerprint of normalized extracted text.
     contentFingerprint: {
       type: String,
       default: "",
-      index: true,
     },
 
     // Archive/soft-delete support.
@@ -156,30 +154,11 @@ const resumeSchema = new mongoose.Schema(
         max: 100,
       },
 
-      strengths: {
-        type: [String],
-        default: [],
-      },
-
-      weaknesses: {
-        type: [String],
-        default: [],
-      },
-
-      missingSkills: {
-        type: [String],
-        default: [],
-      },
-
-      suggestedRoles: {
-        type: [String],
-        default: [],
-      },
-
-      recommendations: {
-        type: [String],
-        default: [],
-      },
+      strengths: { type: [String], default: [] },
+      weaknesses: { type: [String], default: [] },
+      missingSkills: { type: [String], default: [] },
+      suggestedRoles: { type: [String], default: [] },
+      recommendations: { type: [String], default: [] },
     },
 
     processing: {
@@ -189,20 +168,9 @@ const resumeSchema = new mongoose.Schema(
         default: "pending",
       },
 
-      parser: {
-        type: String,
-        default: "",
-      },
-
-      analyzedAt: {
-        type: Date,
-        default: null,
-      },
-
-      error: {
-        type: String,
-        default: "",
-      },
+      parser: { type: String, default: "" },
+      analyzedAt: { type: Date, default: null },
+      error: { type: String, default: "" },
     },
   },
   {
@@ -226,15 +194,15 @@ resumeSchema.pre("validate", function () {
 // INDEXES
 // ============================================================
 
-// Efficient lookup for a user's resumes.
+// Supports user resume listing sorted by latest update.
 resumeSchema.index({ userId: 1, updatedAt: -1 });
 
-// Efficient duplicate lookup.
+// Supports duplicate lookup by user and fingerprint.
+// Intentionally non-unique until existing data and duplicate behavior
+// have been checked and a safe migration has been planned.
 resumeSchema.index({ userId: 1, contentFingerprint: 1 });
 
-// IMPORTANT:
-// Do not add unique: true to userId.
-// One user must be able to store multiple resumes.
+// Preserve the existing archive index from isArchived: true.
 
 const Resume = mongoose.models.Resume || mongoose.model("Resume", resumeSchema);
 

@@ -278,24 +278,29 @@ const RoadmapDashboardPage = ({
       </div>
 
       <div className="relative z-10">
-        <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-2xl border border-white/[0.1] bg-[#17191C]/70 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
+        <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-full border border-white/[0.1] bg-[#17191C]/70 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] text-white transition duration-200 hover:bg-white/[0.1]"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition duration-200 hover:bg-white/[0.1]"
             aria-label="Open navigation"
           >
             <span className="text-lg">☰</span>
           </button>
 
-          <span
-            className="text-[16px] tracking-tight text-white"
-            style={{ fontFamily: '"Zen Dots", sans-serif' }}
-          >
-            RIO
-          </span>
+          <div className="flex flex-col items-center justify-center leading-none">
+            <span
+              className="text-[16px] tracking-tight text-white"
+              style={{ fontFamily: '"Zen Dots", sans-serif' }}
+            >
+              RIO
+            </span>
+            <span className="mt-1 text-[7px] font-medium tracking-[0.12em] text-white/55">
+              CAREER INTELLIGENCE
+            </span>
+          </div>
 
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] text-xs font-semibold">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-xs font-semibold">
             {firstName.charAt(0).toUpperCase()}
           </div>
         </header>
@@ -357,7 +362,7 @@ const RoadmapDashboardPage = ({
                   <button
                     type="button"
                     onClick={history}
-                    className="group inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white sm:px-5"
+                    className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white sm:px-5"
                   >
                     <FiClock size={14} />
                     View history
@@ -366,7 +371,7 @@ const RoadmapDashboardPage = ({
                   <button
                     type="button"
                     onClick={build}
-                    className="group inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] sm:px-5"
+                    className="group inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] sm:px-5"
                   >
                     <FiPlay size={14} />
                     Build roadmap
@@ -392,7 +397,7 @@ const RoadmapDashboardPage = ({
                 }}
                 className="mb-12"
               >
-                <div className="mb-6">
+                <div className="mb-6 text-center sm:text-left">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#666870]">
                     Continue learning
                   </p>
@@ -438,8 +443,8 @@ const RoadmapDashboardPage = ({
                   <Surface className="group transition duration-300 hover:border-white/[0.2]">
                     <div className="p-5 sm:p-7">
                       <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
-                        <div className="max-w-2xl">
-                          <div className="flex items-center gap-2">
+                        <div className="max-w-2xl text-center sm:text-left">
+                          <div className="flex items-center justify-center gap-2 sm:justify-start">
                             <span className="h-1.5 w-1.5 rounded-full bg-white" />
 
                             <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#A1A1AA]">
@@ -467,12 +472,12 @@ const RoadmapDashboardPage = ({
                               {progressOf(currentRoadmap)}%
                             </p>
                           </div>
-                      
+
                           {progressOf(currentRoadmap) >= 100 ? (
                             <button
                               type="button"
                               onClick={continueRoadmap}
-                              className="group/button inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5 sm:px-5"
+                              className="group/button inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5 sm:px-5"
                             >
                               <FiCheckCircle size={14} />
                               Completed
@@ -481,7 +486,7 @@ const RoadmapDashboardPage = ({
                             <button
                               type="button"
                               onClick={continueRoadmap}
-                              className="group/button inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5 sm:px-5"
+                              className="group/button inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5 sm:px-5"
                             >
                               Continue
                               <FiArrowRight
@@ -490,10 +495,8 @@ const RoadmapDashboardPage = ({
                               />
                             </button>
                           )}
-                      
                         </div>
                       </div>
-
                       <div className="mt-7 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
                         <motion.div
                           initial={{ width: 0 }}
@@ -502,8 +505,8 @@ const RoadmapDashboardPage = ({
                           className="h-full rounded-full bg-white"
                         />
                       </div>
-
-                      <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 border-t border-white/[0.08] pt-4 text-[11px] text-[#71747C]">
+                      
+                      <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-white/[0.08] pt-4 text-center text-[11px] text-[#71747C] sm:justify-start sm:text-left">
                         <span>
                           {currentRoadmap.category || "Learning path"}
                         </span>
@@ -524,6 +527,7 @@ const RoadmapDashboardPage = ({
                           )}
                         </span>
                       </div>
+                    
                     </div>
                   </Surface>
                 ) : (
@@ -571,7 +575,7 @@ const RoadmapDashboardPage = ({
 
                   ease: [0.22, 1, 0.36, 1],
                 }}
-                className="mb-14"
+                className="mb-8"
               >
                 <div className="mb-6 flex flex-col items-center gap-4 text-center sm:flex-row sm:items-end sm:justify-between sm:text-left">
                   <div>
@@ -665,7 +669,7 @@ const RoadmapDashboardPage = ({
 
                   ease: [0.22, 1, 0.36, 1],
                 }}
-                className="mb-14"
+                className="mb-8"
               >
                 <div className="mb-6 flex items-end justify-between gap-4 text-center sm:text-left">
                   <div>
@@ -744,7 +748,7 @@ const RoadmapDashboardPage = ({
                         <button
                           type="button"
                           onClick={build}
-                          className="group mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5"
+                          className="group mt-6 inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5"
                         >
                           Build your first roadmap{" "}
                           <FiArrowRight
@@ -858,7 +862,7 @@ const RoadmapDashboardPage = ({
                   <button
                     type="button"
                     onClick={build}
-                    className="group inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.18] hover:bg-white/[0.07]"
+                    className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.18] hover:bg-white/[0.07]"
                   >
                     Build another roadmap{" "}
                     <FiArrowRight
@@ -880,7 +884,7 @@ const RoadmapDashboardPage = ({
           <button
             type="button"
             onClick={history}
-            className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white"
+            className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white"
           >
             <FiClock size={14} />
 
@@ -890,7 +894,7 @@ const RoadmapDashboardPage = ({
           <button
             type="button"
             onClick={build}
-            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 active:scale-[0.99]"
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 active:scale-[0.99]"
           >
             <FiPlay size={14} />
 

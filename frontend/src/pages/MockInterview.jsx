@@ -406,24 +406,29 @@ const MockInterview = ({ user, setUser }) => {
 
       <div className="relative z-10">
         {/* Mobile navigation */}
-        <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-2xl border border-white/[0.1] bg-[#17191C]/70 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
+        <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-full border border-white/[0.1] bg-[#17191C]/70 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] text-white transition duration-200 hover:bg-white/[0.1] focus:outline-none focus:ring-2 focus:ring-white/20"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition duration-200 hover:bg-white/[0.1] focus:outline-none focus:ring-2 focus:ring-white/20"
             aria-label="Open navigation"
           >
             <FiMenu size={18} />
           </button>
 
-          <span
-            className="text-[16px] tracking-tight text-white"
-            style={{ fontFamily: '"Zen Dots", sans-serif' }}
-          >
-            RIO
-          </span>
+          <div className="flex flex-col items-center justify-center leading-none">
+            <span
+              className="text-[16px] tracking-tight text-white"
+              style={{ fontFamily: '"Zen Dots", sans-serif' }}
+            >
+              RIO
+            </span>
+            <span className="mt-1 text-[7px] font-medium tracking-[0.12em] text-white/55">
+              CAREER INTELLIGENCE
+            </span>
+          </div>
 
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] text-xs font-semibold">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-xs font-semibold">
             {firstName.charAt(0).toUpperCase()}
           </div>
         </header>
@@ -483,7 +488,7 @@ const MockInterview = ({ user, setUser }) => {
                   <button
                     type="button"
                     onClick={() => navigate("/mock-interview/history")}
-                    className="group inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20 sm:px-5"
+                    className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20 sm:px-5"
                   >
                     <FiClock size={14} />
                     View history
@@ -492,7 +497,7 @@ const MockInterview = ({ user, setUser }) => {
                   <button
                     type="button"
                     onClick={handleStartInterview}
-                    className="group inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-5"
+                    className="group inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-5"
                   >
                     <FiPlay size={14} />
                     Start interview
@@ -932,7 +937,7 @@ const MockInterview = ({ user, setUser }) => {
                         <button
                           type="button"
                           onClick={handleStartInterview}
-                          className="group mt-6 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5"
+                          className="group mt-6 inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5"
                         >
                           Start your first interview
                           <FiArrowRight
@@ -1057,7 +1062,7 @@ const MockInterview = ({ user, setUser }) => {
                   <button
                     type="button"
                     onClick={handleStartInterview}
-                    className="group inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.18] hover:bg-white/[0.07]"
+                    className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-xs font-semibold text-white transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.18] hover:bg-white/[0.07]"
                   >
                     Configure another interview
                     <FiArrowRight
@@ -1114,7 +1119,7 @@ const MockInterview = ({ user, setUser }) => {
                 type="button"
                 onClick={() => setShowReplaceInterviewModal(false)}
                 disabled={replacingInterview}
-                className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-[#D4D4D8] transition duration-200 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-[#D4D4D8] transition duration-200 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -1123,7 +1128,7 @@ const MockInterview = ({ user, setUser }) => {
                 type="button"
                 onClick={handleStartNewInterview}
                 disabled={replacingInterview}
-                className="rounded-xl bg-white px-4 py-3 text-sm font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-full bg-white px-4 py-3 text-sm font-semibold text-[#17191C] transition duration-200 hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {replacingInterview ? "Starting..." : "Start New Interview"}
               </button>
@@ -1138,7 +1143,7 @@ const MockInterview = ({ user, setUser }) => {
           <button
             type="button"
             onClick={() => navigate("/mock-interview/history")}
-            className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20"
+            className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20"
           >
             <FiClock size={14} />
             <span>View history</span>
@@ -1147,7 +1152,7 @@ const MockInterview = ({ user, setUser }) => {
           <button
             type="button"
             onClick={handleStartInterview}
-            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 active:scale-[0.99]"
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 active:scale-[0.99]"
           >
             <FiPlay size={14} />
             <span>Start interview</span>
