@@ -1,5 +1,6 @@
 import express from "express";
 import { upload } from "../middlewares/multer.js";
+import internalAuth from "../middlewares/internalAuth.js";
 
 import {
   getResume,
@@ -11,12 +12,12 @@ import {
 
 const resumeRouter = express.Router();
 
-resumeRouter.post("/upload", upload.single("resume"), uploadResume);
+resumeRouter.use(internalAuth);
 
+resumeRouter.post("/upload", upload.single("resume"), uploadResume);
 resumeRouter.get("/get-resume", getResume);
 resumeRouter.get("/", listResumes);
 resumeRouter.get("/:resumeId", getResumeById);
-
 resumeRouter.patch("/update", updateResume);
 
 export default resumeRouter;

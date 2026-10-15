@@ -5,6 +5,11 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 const DEFAULT_TEMPERATURE = 0.2;
 const DEFAULT_MAX_TOKENS = 8000;
 const DEFAULT_MAX_RETRIES = 2;
+const DEFAULT_TIMEOUT_MS = 90000;
+
+const timeoutMs = Number(
+  process.env.RESUME_LLM_TIMEOUT_MS ?? DEFAULT_TIMEOUT_MS,
+);
 
 const provider = (process.env.RESUME_LLM_PROVIDER || "gemini")
   .trim()
@@ -28,10 +33,15 @@ const maxRetries = Number(
 );
 
 function validateConfig() {
+  
   if (!["gemini", "groq"].includes(provider)) {
     throw new Error(
       `Unsupported Resume LLM provider: ${provider}. Use "gemini" or "groq".`,
     );
+  }
+
+  if (!Number.isInteger(timeoutMs) || timeoutMs <= 0) {
+    throw new Error("RESUME_LLM_TIMEOUT_MS must be a positive integer.");
   }
 
   if (provider === "gemini" && !process.env.GEMINI_API_KEY?.trim()) {
@@ -91,6 +101,7 @@ export const getLLMConfig = () => ({
   temperature,
   maxTokens,
   maxRetries,
+  timeoutMs,
 });
 
 export default llm;

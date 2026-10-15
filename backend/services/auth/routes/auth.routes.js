@@ -6,6 +6,7 @@ import {
   logout,
   useBalance,
   deductBalanceInternal,
+  deductResumeScorerBalanceInternal,
   getUserBalanceInternal,
   getCurrentUser,
 } from "../controllers/auth.controller.js";
@@ -30,6 +31,12 @@ authRouter.post(
   "/internal/deduct-balance",
   internalAuthMiddleware,
   deductBalanceInternal,
+);
+
+authRouter.post(
+  "/internal/deduct-resume-scorer",
+  internalAuthMiddleware,
+  deductResumeScorerBalanceInternal,
 );
 
 authRouter.post(

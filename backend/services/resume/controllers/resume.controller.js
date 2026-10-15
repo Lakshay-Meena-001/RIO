@@ -1,10 +1,53 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
-
 import { resumeAgent } from "../agents/resume.agent.js";
 import extractText from "../config/pdf.js";
 import Resume from "../models/resume.model.js";
 import redis from "../../../shared/redis/redis.js";
+
+const RESUME_SCORER_PRICE = 100;
+
+const deductResumeScorerBalance = async (userId, fingerprint) => {
+  const authServiceUrl = process.env.AUTH_SERVICE_URL;
+  const internalSecret = process.env.RESUME_INTERNAL_SECRET;
+
+  if (!authServiceUrl || !internalSecret?.trim()) {
+    throw new Error("Resume billing configuration is missing.");
+  }
+
+  // Stable ID: retry of the same user's same resume reuses
+  // the original transaction instead of charging twice.
+  const transactionId = `resume-scorer:${userId}:${fingerprint}`;
+
+  const response = await fetch(
+    `${authServiceUrl.replace(/\/+$/, "")}/api/auth/internal/deduct-resume-scorer`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-user-id": userId,
+        "x-internal-service-secret": internalSecret,
+      },
+      body: JSON.stringify({
+        amount: RESUME_SCORER_PRICE,
+        action: "resume-scorer",
+        transactionId,
+      }),
+      signal: AbortSignal.timeout(15000),
+    },
+  );
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok || result.success !== true) {
+    const error = new Error(result.message || "Resume Scorer billing failed.");
+
+    error.status = response.status || 503;
+    throw error;
+  }
+
+  return result;
+};
 
 const resumeCacheKey = (userId, resumeId) => `resume:${userId}:${resumeId}`;
 
@@ -14,9 +57,7 @@ const isValidObjectId = (value) =>
   typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
 
 const getUserId = (req) => {
-  // Temporary compatibility with the current Gateway contract.
-  // Replace with req.internalUserId only after internal auth is wired.
-  const value = req.internalUserId ?? req.headers["x-user-id"];
+  const value = req.internalUserId;
 
   if (typeof value !== "string" || !isValidObjectId(value)) {
     return null;
@@ -160,12 +201,36 @@ export const uploadResume = async (req, res) => {
     // AI runs only when no matching resume exists.
     const analyzedResume = await resumeAgent(normalizedText);
 
+    // Create the report only after AI analysis succeeds.
     const resume = await Resume.create({
       ...analyzedResume,
       userId,
       extractedText: normalizedText,
       contentFingerprint,
     });
+
+    try {
+      await deductResumeScorerBalance(userId, contentFingerprint);
+    } catch (billingError) {
+      // Do not leave an unpaid report accessible.
+      await Resume.deleteOne({
+        _id: resume._id,
+        userId,
+      });
+
+      await safeCacheDelete(
+        legacyResumeCacheKey(userId),
+        resumeCacheKey(userId, String(resume._id)),
+      );
+
+      return res.status(billingError.status === 400 ? 400 : 503).json({
+        success: false,
+        message:
+          billingError.status === 400
+            ? billingError.message
+            : "Billing could not be confirmed. Please retry safely.",
+      });
+    }
 
     await cacheResume(userId, resume);
 
@@ -177,7 +242,14 @@ export const uploadResume = async (req, res) => {
     });
   } catch (error) {
     logError("Upload failed", error);
-    return sendServerError(res, "analyze the resume");
+
+    return res.status(error.status || 500).json({
+      success: false,
+      message:
+        error.status && error.status < 500
+          ? error.message
+          : "Failed to analyze the resume. Please try again.",
+    });
   } finally {
     await deleteTempFile(filePath);
   }

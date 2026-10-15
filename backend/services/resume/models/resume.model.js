@@ -172,6 +172,31 @@ const resumeSchema = new mongoose.Schema(
       analyzedAt: { type: Date, default: null },
       error: { type: String, default: "" },
     },
+    billing: {
+      status: {
+        type: String,
+        enum: ["not_required", "pending", "charged", "failed"],
+        default: "pending",
+        index: false,
+      },
+
+      transactionId: {
+        type: String,
+        default: "",
+        trim: true,
+      },
+
+      amount: {
+        type: Number,
+        default: 100,
+        min: 0,
+      },
+
+      chargedAt: {
+        type: Date,
+        default: null,
+      },
+    },
   },
   {
     timestamps: true,

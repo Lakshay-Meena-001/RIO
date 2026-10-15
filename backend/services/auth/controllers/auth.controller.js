@@ -89,6 +89,38 @@ const saveSession = async (sessionId, user) => {
   await redis.expire(getUserSessionsKey(userId), SESSION_TTL);
 };
 
+const createExclusiveSession = async (sessionId, user) => {
+  const userId = user._id.toString();
+  const sessionData = JSON.stringify(buildSessionData(user));
+
+  // Atomically invalidate previous sessions and create the new one.
+  const script = `
+    local oldSessions = redis.call("SMEMBERS", KEYS[1])
+
+    for _, oldSessionId in ipairs(oldSessions) do
+      redis.call("DEL", ARGV[1] .. oldSessionId)
+    end
+
+    redis.call("DEL", KEYS[1])
+    redis.call("SET", KEYS[2], ARGV[2], "EX", ARGV[3])
+    redis.call("SADD", KEYS[1], ARGV[4])
+    redis.call("EXPIRE", KEYS[1], ARGV[3])
+
+    return 1
+  `;
+
+  await redis.eval(
+    script,
+    2,
+    getUserSessionsKey(userId),
+    getSessionKey(sessionId),
+    "session:",
+    sessionData,
+    String(SESSION_TTL),
+    sessionId,
+  );
+};
+
 const syncUserSessions = async (sessionId, user) => {
   const userId = user._id.toString();
 
@@ -313,7 +345,7 @@ export const googleAuth = async (req, res) => {
     const sessionId = crypto.randomUUID();
 
     // Store the current MongoDB user state in Redis.
-    await syncUserSessions(sessionId, user);
+    await createExclusiveSession(sessionId, user);
 
     // HTTP-only cookie prevents client-side JavaScript from reading
     // the session ID, reducing the impact of XSS attacks.
@@ -615,6 +647,13 @@ export const useBalance = async (req, res) => {
       });
     }
 
+    if (normalizedAction === "resume-scorer") {
+      return res.status(403).json({
+        success: false,
+        message: "Resume Scorer billing must use the internal billing service.",
+      });
+    }
+
     let outcome;
 
     mongoSession = await mongoose.startSession();
@@ -887,6 +926,16 @@ export const deductBalanceInternal = async (req, res) => {
       });
     }
 
+    if (
+      normalizedAction === "resume-scorer" &&
+      (!req.isResumeScorerBilling || balanceAmount !== 100)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Use the dedicated Resume Scorer billing endpoint.",
+      });
+    }
+
     let outcome;
 
     mongoSession = await mongoose.startSession();
@@ -1112,6 +1161,18 @@ export const deductBalanceInternal = async (req, res) => {
       await mongoSession.endSession();
     }
   }
+};
+
+export const deductResumeScorerBalanceInternal = async (req, res) => {
+  req.isResumeScorerBilling = true;
+
+  req.body = {
+    ...req.body,
+    amount: 100,
+    action: "resume-scorer",
+  };
+
+  return deductBalanceInternal(req, res);
 };
 
 export const getUserBalanceInternal = async (req, res) => {
