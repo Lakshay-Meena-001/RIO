@@ -157,6 +157,12 @@ const App = () => {
         path="/scorer/score-report"
         element={<ScorerReport user={user} setUser={setUser} />}
       />
+
+      <Route
+        path="/scorer/report"
+        element={<ScorerReport user={user} setUser={setUser} />}
+      />
+     
       {/* ==================================================
           RESUME BUILDER
       ================================================== */}

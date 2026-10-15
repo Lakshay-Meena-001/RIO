@@ -324,9 +324,7 @@ export default function ScorerHistory() {
                       <span className="text-[10px] text-[#55575E]">
                         {dateLabel(getDate(item))}
                       </span>
-                      <span className="text-[10px] font-semibold tabular-nums text-[#D4D4D8]">
-                        {score == null ? "— / 100" : `${score}/100`}
-                      </span>
+                      
                     </span>
                   </span>
                   <FiArrowRight

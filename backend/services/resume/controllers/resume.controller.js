@@ -20,7 +20,7 @@ const deductResumeScorerBalance = async (userId, fingerprint) => {
   const transactionId = `resume-scorer:${userId}:${fingerprint}`;
 
   const response = await fetch(
-    `${authServiceUrl.replace(/\/+$/, "")}/api/auth/internal/deduct-resume-scorer`,
+    `${authServiceUrl.replace(/\/+$/, "")}/internal/deduct-resume-scorer`,
     {
       method: "POST",
       headers: {

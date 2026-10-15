@@ -4,8 +4,6 @@ import {
   Mail,
   MapPin,
   Phone,
-  Github,
-  Linkedin,
   CheckCircle2,
   AlertTriangle,
   Target,
@@ -152,12 +150,12 @@ export default function ScorerReport({ resume, onBackToScorer }) {
       href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(profile.location)}`,
     },
     profile.linkedIn && {
-      icon: Linkedin,
+      icon: ExternalLink,
       label: "LinkedIn profile",
       href: urlFor(profile.linkedIn),
     },
     profile.github && {
-      icon: Github,
+      icon: ExternalLink,
       label: "GitHub profile",
       href: urlFor(profile.github),
     },
@@ -182,8 +180,8 @@ export default function ScorerReport({ resume, onBackToScorer }) {
       : "Saved assessment";
 
   return (
-    <div className="mx-auto w-full max-w-[1120px] space-y-5 text-white">
-      <div className="flex flex-col justify-between gap-4 border-b border-white/[0.08] pb-6 sm:flex-row sm:items-end">
+    <div className="mx-auto w-full max-w-[1440px] space-y-4 px-1 text-white sm:space-y-5 sm:px-0">
+      <div className="flex flex-col justify-between gap-3 border-b border-white/[0.08] pb-4 sm:gap-4 sm:pb-6 sm:flex-row sm:items-end">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#858994]">
             <span className="h-1.5 w-1.5 rounded-full bg-white/75" /> Resume
@@ -201,7 +199,7 @@ export default function ScorerReport({ resume, onBackToScorer }) {
           <button
             type="button"
             onClick={onBackToScorer}
-            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-start rounded-xl border border-white/[0.10] bg-white/[0.035] px-4 py-2.5 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
+            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-center rounded-xl sm:self-start border border-white/[0.10] bg-white/[0.035] px-4 py-2.5 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
           >
             <ArrowLeft size={14} /> New analysis
           </button>
@@ -209,8 +207,8 @@ export default function ScorerReport({ resume, onBackToScorer }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <Surface className="p-5 sm:p-7">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+        <Surface className="p-4 sm:p-7">
+          <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:gap-5 sm:text-left">
             <div className="relative h-[116px] w-[116px] shrink-0">
               <svg viewBox="0 0 116 116" className="h-full w-full -rotate-90">
                 <circle
@@ -242,20 +240,20 @@ export default function ScorerReport({ resume, onBackToScorer }) {
                 </span>
               </div>
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 w-full sm:w-auto">
               <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#858994]">
                 Overall resume score
               </p>
               <h2 className="mt-2 text-xl font-semibold tracking-[-0.03em] sm:text-2xl">
                 {scoreLabel}
               </h2>
-              <p className="mt-2 text-[13px] leading-6 text-[#92949B]">
+              <p className="mx-auto mt-2 max-w-xl text-[13px] leading-6 text-[#92949B] sm:mx-0">
                 {text(analysis.summary) ||
                   "Review the insights below to understand what is working and what to improve next."}
               </p>
             </div>
           </div>
-          <div className="mt-6 h-1 overflow-hidden rounded-full bg-white/[0.07]">
+          <div className="mx-auto mt-5 h-1 w-full max-w-[520px] overflow-hidden rounded-full bg-white/[0.07] sm:mx-0 sm:mt-6 sm:max-w-none">
             <div
               className="h-full rounded-full bg-white/80 transition-all"
               style={{ width: `${score}%` }}
@@ -268,8 +266,8 @@ export default function ScorerReport({ resume, onBackToScorer }) {
           </div>
         </Surface>
 
-        <Surface className="p-5 sm:p-6">
-          <div className="flex items-start gap-3">
+        <Surface className="p-4 sm:p-6">
+          <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:text-left">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-[#D4D4D8]">
               <FileText size={17} />
             </div>
@@ -288,14 +286,14 @@ export default function ScorerReport({ resume, onBackToScorer }) {
             </div>
           </div>
           {contact.length > 0 && (
-            <div className="mt-5 flex flex-wrap gap-x-4 gap-y-3 border-t border-white/[0.08] pt-4">
+            <div className="mt-4 flex flex-wrap justify-center gap-2 border-t border-white/[0.08] pt-4 sm:mt-5 sm:justify-start">
               {contact.map(({ icon: Icon, label, href }) => (
                 <a
                   key={label}
                   href={href}
                   target={href.startsWith("http") ? "_blank" : undefined}
                   rel={href.startsWith("http") ? "noreferrer" : undefined}
-                  className="inline-flex max-w-full items-center gap-2 text-xs text-[#92949B] transition hover:text-white"
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/[0.10] bg-white/[0.035] px-3 py-2 text-[11px] text-[#C4C6CC] transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white"
                 >
                   <Icon size={13} />
                   <span className="truncate">{label}</span>
@@ -305,7 +303,7 @@ export default function ScorerReport({ resume, onBackToScorer }) {
             </div>
           )}
           {text(profile.headline || profile.title || profile.currentRole) && (
-            <div className="mt-5 border-t border-white/[0.07] pt-4">
+            <div className="mt-4 border-t border-white/[0.07] pt-4 text-center sm:mt-5 sm:text-left">
               <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-[#71747C]">
                 Professional focus
               </p>
