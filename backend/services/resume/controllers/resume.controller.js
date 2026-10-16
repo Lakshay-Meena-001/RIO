@@ -8,11 +8,13 @@ import redis from "../../../shared/redis/redis.js";
 const RESUME_SCORER_PRICE = 100;
 
 const deductResumeScorerBalance = async (userId, fingerprint) => {
-  const authServiceUrl = process.env.AUTH_SERVICE_URL;
-  const internalSecret = process.env.RESUME_INTERNAL_SECRET;
+  const authServiceUrl =
+    process.env.AUTH_SERVICE_URL?.trim() || "http://localhost:8001";
 
-  if (!authServiceUrl || !internalSecret?.trim()) {
-    throw new Error("Resume billing configuration is missing.");
+  const internalSecret = process.env.AUTH_INTERNAL_SECRET;
+
+  if (!internalSecret?.trim()) {
+    throw new Error("AUTH_INTERNAL_SECRET is missing in Resume service.");
   }
 
   // Stable ID: retry of the same user's same resume reuses
