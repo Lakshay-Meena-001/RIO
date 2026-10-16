@@ -162,7 +162,7 @@ function Dashboard({ user, setUser }) {
 
       <div className="relative z-10">
         {/* Mobile top bar */}
-        <header className="fixed top-3 left-3 right-3 z-40 mx-3 flex h-14 items-center justify-between rounded-full border border-white/[0.12] bg-[#17191C]/55 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:hidden">
+        <header className="fixed top-3 left-3 right-3 z-0 mx-3 flex h-14 items-center justify-between rounded-full border border-white/[0.12] bg-[#17191C]/55 px-3 shadow-[0_12px_40px_rgba(0,0,0,0.22)] backdrop-blur-2xl md:hidden">
           <button
             type="button"
             onClick={() => setMobileOpen(true)}

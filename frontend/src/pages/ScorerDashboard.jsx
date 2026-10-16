@@ -13,6 +13,7 @@ import {
   FiBriefcase,
   FiBarChart2,
   FiX,
+  FiMenu,
   FiAlertCircle,
 } from "react-icons/fi";
 
@@ -228,14 +229,14 @@ export default function ScorerDashboard({ user, setUser }) {
         />
       </div>
 
-      <header className="fixed left-3 right-3 top-3 z-[9999] flex h-14 items-center justify-between rounded-full border border-white/[0.10] bg-[#17191C]/85 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
+      <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-full border border-white/[0.10] bg-[#17191C]/85 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(true)}
           aria-label="Open navigation"
           className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white"
         >
-          <span className="text-lg">☰</span>
+         <FiMenu size={18} />
         </button>
         <div className="flex flex-col items-center leading-none">
           <span
@@ -591,11 +592,10 @@ export default function ScorerDashboard({ user, setUser }) {
             </section>
           </div>
         </main>
-      </div>
 
-      <nav
-        aria-label="Resume scorer quick actions"
-        className="fixed inset-x-0 bottom-0 z-[9998] border-t border-white/[0.10] bg-[#111315]/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:hidden"
+        <nav
+          aria-label="Resume scorer quick actions"
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.10] bg-[#111315]/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:hidden"
       >
         <div className="mx-auto flex max-w-md items-center gap-3">
           <button
@@ -616,7 +616,8 @@ export default function ScorerDashboard({ user, setUser }) {
             {file ? "Replace PDF" : "Upload PDF"}
           </button>
         </div>
-      </nav>
+        </nav>
+      </div>
     </div>
   );
 }

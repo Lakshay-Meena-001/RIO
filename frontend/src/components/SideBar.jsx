@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { logoutUser } from "../api/user.api.js";
 import { FiPlusCircle } from "react-icons/fi";
@@ -522,7 +523,7 @@ function Sidebar({
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-50 hidden h-screen shrink-0 overflow-hidden border-r border-white/[0.08] bg-[#111315] transition-[width] duration-300 md:block ${
+        className={`fixed left-0 top-0 z-[9999] hidden h-screen shrink-0 overflow-hidden border-r border-white/[0.08] bg-[#111315] transition-[width] duration-300 md:block ${
           sidebarOpen ? "w-[250px]" : "w-[76px]"
         }`}
       >
@@ -534,55 +535,58 @@ function Sidebar({
         <div
           onTouchStart={handleEdgeTouchStart}
           onTouchEnd={handleEdgeTouchEnd}
-          className="fixed left-0 top-0 z-40 h-full w-6 md:hidden"
+          className="fixed left-0 top-0 z-30 h-full w-6 md:hidden"
           aria-hidden="true"
         />
       )}
 
-      {/* Mobile sidebar */}
-      <AnimatePresence>
-        {mobileOpen && (
-          <>
-            <motion.button
-              type="button"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setMobileOpen(false)}
-              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden"
-              aria-label="Close navigation"
-            />
+      {/* Mobile sidebar: portal escapes dashboard stacking contexts */}
+      {createPortal(
+        <AnimatePresence>
+          {mobileOpen && (
+            <>
+              <motion.button
+                type="button"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setMobileOpen(false)}
+                className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm md:hidden"
+                aria-label="Close navigation"
+              />
 
-            <motion.aside
-              initial={{ x: -290 }}
-              animate={{ x: 0 }}
-              exit={{ x: -290 }}
-              transition={{
-                duration: 0.25,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-              onTouchStart={handleSidebarTouchStart}
-              onTouchEnd={handleSidebarTouchEnd}
-              data-mobile-sidebar="true"
-              className="fixed inset-y-0 left-0 z-[60] w-[285px] border-r border-white/[0.1] bg-[#111315] shadow-2xl md:hidden"
-            >
-              <div className="relative h-full">
-                {/* Mobile close */}
-                <button
-                  type="button"
-                  onClick={() => setMobileOpen(false)}
-                  className="absolute right-3 top-5 z-10 flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-[#A1A1AA] transition-colors hover:text-white"
-                  aria-label="Close navigation"
-                >
-                  <FiX size={17} />
-                </button>
+              <motion.aside
+                initial={{ x: -290 }}
+                animate={{ x: 0 }}
+                exit={{ x: -290 }}
+                transition={{
+                  duration: 0.25,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+                onTouchStart={handleSidebarTouchStart}
+                onTouchEnd={handleSidebarTouchEnd}
+                data-mobile-sidebar="true"
+                className="fixed inset-y-0 left-0 z-[9999] w-[285px] border-r border-white/[0.1] bg-[#111315] shadow-2xl md:hidden"
+              >
+                <div className="relative h-full">
+                  {/* Mobile close */}
+                  <button
+                    type="button"
+                    onClick={() => setMobileOpen(false)}
+                    className="absolute right-3 top-5 z-[9999] flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-[#A1A1AA] transition-colors hover:text-white"
+                    aria-label="Close navigation"
+                  >
+                    <FiX size={17} />
+                  </button>
 
-                {sidebarContent(true, false, false)}
-              </div>
-            </motion.aside>
-          </>
-        )}
-      </AnimatePresence>
+                  {sidebarContent(true, false, false)}
+                </div>
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </>
   );
 }

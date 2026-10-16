@@ -14,9 +14,9 @@ import RoadmapBuilderPage from "./pages/roadmap/RoadmapBuilderPage";
 // import RoadmapDetailPage from "./pages/roadmap/RoadmapDetailPage";
 
 // Mock Interview pages
-import MockInterview from "./pages/MockInterview";
+import InterviewDashboard from "./pages/InterviewDashboard";
 import NewInterview from "./pages/NewInterview";
-import Interview from "./pages/Interview";
+import LiveInterview from "./pages/LiveInterview";
 import InterviewHistory from "./pages/InterviewHistory";
 
 // APIs
@@ -162,7 +162,7 @@ const App = () => {
         path="/scorer/report"
         element={<ScorerReport user={user} setUser={setUser} />}
       />
-     
+
       {/* ==================================================
           RESUME BUILDER
       ================================================== */}
@@ -226,7 +226,7 @@ const App = () => {
         path="/mock-interview"
         element={
           isProtected ? (
-            <MockInterview user={user} setUser={setUser} />
+            <InterviewDashboard user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
           )
@@ -252,7 +252,7 @@ const App = () => {
         path="/mock-interview/:interviewId"
         element={
           isProtected ? (
-            <Interview user={user} setUser={setUser} />
+            <LiveInterview user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
           )
