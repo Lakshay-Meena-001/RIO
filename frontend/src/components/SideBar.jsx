@@ -10,7 +10,7 @@ import {
   FiCreditCard,
   FiFileText,
   FiHome,
-  FiPlus ,
+  FiPlus,
   FiLogOut,
   FiMap,
   FiSettings,
@@ -85,7 +85,7 @@ function Sidebar({
     {
       label: "Resume Builder",
       icon: FiFileText,
-      path: "/builder",
+      path: "/builder/dashboard",
     },
     {
       label: "Resume Scorer",
@@ -108,7 +108,6 @@ function Sidebar({
       path: "/progress",
     },
   ];
-
   const accountItems = [
     {
       label: "Profile",
@@ -127,7 +126,16 @@ function Sidebar({
       return location.pathname === "/dashboard";
     }
 
-    return location.pathname.startsWith(path);
+    if (path === "/builder/dashboard") {
+      return (
+        location.pathname === "/builder/dashboard" ||
+        location.pathname === "/builder"
+      );
+    }
+
+    return (
+      location.pathname === path || location.pathname.startsWith(`${path}/`)
+    );
   };
 
   const handleNavigation = (path) => {
@@ -340,7 +348,7 @@ function Sidebar({
             type="button"
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.06] text-white/80 transition-colors hover:bg-white/[0.12]"
           >
-            <FiPlus  size={18} strokeWidth={2.5} />
+            <FiPlus size={18} strokeWidth={2.5} />
           </button>
         </div>
       ) : (

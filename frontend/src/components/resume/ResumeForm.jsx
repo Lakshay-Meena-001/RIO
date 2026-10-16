@@ -5,10 +5,10 @@ import { useEffect, useRef, useState } from "react";
 /* -------------------------------------------------------------------------- */
 
 const inputClassName =
-  "w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:bg-white/[0.06]";
+  "w-full rounded-lg border border-white/[.11] bg-white/[.035] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:bg-white/[0.06]";
 
 const textareaClassName =
-  "w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:bg-white/[0.06]";
+  "w-full rounded-lg border border-white/[.11] bg-white/[.035] px-3.5 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:bg-white/[0.06]";
 
 const labelClassName = "mb-2 block text-xs font-medium text-white/65";
 
@@ -214,7 +214,7 @@ function TagInput({ label, values = [], onChange, placeholder, hint }) {
 
       <div
         className="
-          w-full rounded-xl border border-white/10 bg-white/[0.04] p-3
+          w-full rounded-lg border border-white/[.09] bg-transparent p-3
           transition"
       >
         {values.length > 0 && (
@@ -266,37 +266,20 @@ function TagInput({ label, values = [], onChange, placeholder, hint }) {
 
 function FormSection({ title, description, children, action }) {
   return (
-    <section
-      className="
-        w-full min-w-0
-        rounded-2xl
-        border border-white/10
-        bg-transparent
-        p-4
-        sm:bg-white/[0.035]
-        sm:p-6
-      "
-    >
-      <div className="mb-7 w-full">
-        <div className="text-center sm:text-left">
-          <h2 className="mt-1 text-2xl font-semibold tracking-[-0.025em] text-white sm:mt-0 sm:text-xl">
+    <section className="w-full min-w-0 border-b border-white/[.10] pb-7 last:border-b-0">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold tracking-[-.03em] text-white sm:text-[22px]">
             {title}
           </h2>
-
           {description && (
-            <p className="mx-auto mt-1.5 max-w-2xl text-xs leading-5 text-white/40 sm:mx-0">
+            <p className="mt-1.5 text-xs leading-5 text-white/40">
               {description}
             </p>
           )}
         </div>
-
-        {action && (
-          <div className="mt-4 w-full sm:mt-0 sm:flex sm:justify-end">
-            {action}
-          </div>
-        )}
+        {action && <div className="shrink-0">{action}</div>}
       </div>
-
       <div className="w-full min-w-0">{children}</div>
     </section>
   );
@@ -443,49 +426,9 @@ export default function ResumeForm({ data, onChange }) {
 
   /* ------------------------------------------------------------------------ */
 
-  const totalSections = 9;
-  const completedSections = [
-    Boolean(data.profile?.name || data.profile?.email),
-    Boolean(data.summary?.trim()),
-    (data.experience || []).length > 0,
-    (data.projects || []).length > 0,
-    (data.education || []).length > 0,
-    (data.skills || []).length > 0,
-    (data.certifications || []).length > 0,
-    (data.achievements || []).length > 0,
-    (data.languages || []).length > 0,
-  ].filter(Boolean).length;
-
   return (
-    <div className="w-full min-w-0 space-y-5">
-      {/* ------------------------------------------------------------------ */}
-      {/* Form guidance                                                     */}
-      {/* ------------------------------------------------------------------ */}
-      <div className="w-full border-0 bg-transparent px-0 py-2">
-        <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
-          <div className="min-w-0">
-            <h2 className="text-lg font-semibold tracking-[-0.02em] text-white sm:text-xl">
-              Build a complete resume
-            </h2>
-
-            <p className="mx-auto mt-2.5 max-w-xl text-xs leading-5 text-white/40 sm:mx-0">
-              Start with Profile, Summary, Education, Skills and Projects. Add
-              Experience, Certifications, Achievements and Languages when they
-              are relevant. Nothing is required if it does not apply to you.
-            </p>
-          </div>
-
-          <div className="shrink-0 rounded-xl border border-white/10 bg-white/[0.04] px-5 py-2.5 text-center">
-            <p className="text-sm font-semibold text-white">
-              {completedSections}/{totalSections}
-            </p>
-            <p className="mt-0.5 text-[10px] text-white/45">sections started</p>
-          </div>
-        </div>
-      </div>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Profile                                                           */}
+    <div className="w-full min-w-0 space-y-7">
+      {/* Profile */}
       {/* ------------------------------------------------------------------ */}
 
       <FormSection
@@ -586,7 +529,7 @@ export default function ResumeForm({ data, onChange }) {
           <button
             type="button"
             onClick={addExperience}
-            className="w-full rounded-xl border border-violet-400/20 bg-violet-400/10 px-4 py-3 text-xs font-medium text-violet-200 transition hover:bg-violet-400/15 sm:w-auto"
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-violet-400/15 sm:w-auto"
           >
             + Add Experience
           </button>
@@ -598,12 +541,9 @@ export default function ResumeForm({ data, onChange }) {
               key={index}
               className="
                 w-full min-w-0
-                rounded-xl
-                border border-white/[0.08]
+                border-b border-white/[.09]
                 bg-transparent
-                p-4
-                sm:bg-white/[0.02]
-                sm:p-5
+                py-5 last:border-b-0
               "
             >
               <EntryHeader
@@ -710,13 +650,123 @@ export default function ResumeForm({ data, onChange }) {
       {/* ------------------------------------------------------------------ */}
 
       <FormSection
+        title="Education"
+        description="Add your academic background."
+        action={
+          <button
+            type="button"
+            onClick={addEducation}
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-violet-400/15 sm:w-auto"
+          >
+            + Add Education
+          </button>
+        }
+      >
+        <div className="space-y-4">
+          {(data.education || []).map((education, index) => (
+            <div
+              key={index}
+              className="
+                w-full min-w-0
+                border-b border-white/[.09]
+                bg-transparent
+                py-5 last:border-b-0
+              "
+            >
+              <EntryHeader
+                title={`Education ${index + 1}`}
+                subtitle="Institution, degree and academic details"
+                onRemove={() => removeEducation(index)}
+              />
+
+              <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+                <Field
+                  label="Institution"
+                  value={education.institution}
+                  onChange={(value) =>
+                    updateEducation(index, "institution", value)
+                  }
+                  placeholder="University / College"
+                />
+
+                <Field
+                  label="Degree"
+                  value={education.degree}
+                  onChange={(value) => updateEducation(index, "degree", value)}
+                  placeholder="B.Tech"
+                />
+
+                <Field
+                  label="Field of Study"
+                  value={education.field}
+                  onChange={(value) => updateEducation(index, "field", value)}
+                  placeholder="Computer Science"
+                />
+
+                <div className="grid grid-cols-2 gap-3 min-w-0">
+                  <Field
+                    label="Start Date"
+                    value={education.startDate}
+                    onChange={(value) =>
+                      updateEducation(index, "startDate", value)
+                    }
+                    placeholder="2020"
+                  />
+
+                  <Field
+                    label="End Date"
+                    value={education.endDate}
+                    onChange={(value) =>
+                      updateEducation(index, "endDate", value)
+                    }
+                    placeholder="2024"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <TextField
+                  label="Description"
+                  value={education.description}
+                  onChange={(value) =>
+                    updateEducation(index, "description", value)
+                  }
+                  placeholder="Optional: relevant coursework, academic achievements or additional details..."
+                  rows={5}
+                  recommended={500}
+                  hint="Optional. Leave empty if the degree details already provide enough information."
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => removeEducation(index)}
+                className="mt-5 w-full rounded-lg border border-red-400/10 bg-red-400/[0.04] px-3 py-2.5 text-xs font-medium text-red-300/80 transition hover:border-red-400/20 hover:bg-red-400/[0.08] sm:hidden"
+              >
+                Remove Education
+              </button>
+            </div>
+          ))}
+
+          {(!data.education || data.education.length === 0) && (
+            <EmptyState
+              title="No education added"
+              description="Add your degree or other relevant academic qualifications."
+              actionLabel="Add Education"
+              onClick={addEducation}
+            />
+          )}
+        </div>
+      </FormSection>
+
+      <FormSection
         title="Projects"
         description="Showcase projects that demonstrate your technical skills and impact."
         action={
           <button
             type="button"
             onClick={addProject}
-            className="w-full rounded-xl border border-violet-400/20 bg-violet-400/10 px-4 py-3 text-xs font-medium text-violet-200 transition hover:bg-violet-400/15 sm:w-auto"
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-violet-400/15 sm:w-auto"
           >
             + Add Project
           </button>
@@ -728,12 +778,9 @@ export default function ResumeForm({ data, onChange }) {
               key={index}
               className="
                 w-full min-w-0
-                rounded-xl
-                border border-white/[0.08]
+                border-b border-white/[.09]
                 bg-transparent
-                p-4
-                sm:bg-white/[0.02]
-                sm:p-5
+                py-5 last:border-b-0
               "
             >
               <EntryHeader
@@ -824,123 +871,6 @@ export default function ResumeForm({ data, onChange }) {
               description="Add projects that are relevant to the role you are targeting."
               actionLabel="Add Project"
               onClick={addProject}
-            />
-          )}
-        </div>
-      </FormSection>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Education                                                         */}
-      {/* ------------------------------------------------------------------ */}
-
-      <FormSection
-        title="Education"
-        description="Add your academic background."
-        action={
-          <button
-            type="button"
-            onClick={addEducation}
-            className="w-full rounded-xl border border-violet-400/20 bg-violet-400/10 px-4 py-3 text-xs font-medium text-violet-200 transition hover:bg-violet-400/15 sm:w-auto"
-          >
-            + Add Education
-          </button>
-        }
-      >
-        <div className="space-y-4">
-          {(data.education || []).map((education, index) => (
-            <div
-              key={index}
-              className="
-                w-full min-w-0
-                rounded-xl
-                border border-white/[0.08]
-                bg-transparent
-                p-4
-                sm:bg-white/[0.02]
-                sm:p-5
-              "
-            >
-              <EntryHeader
-                title={`Education ${index + 1}`}
-                subtitle="Institution, degree and academic details"
-                onRemove={() => removeEducation(index)}
-              />
-
-              <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
-                <Field
-                  label="Institution"
-                  value={education.institution}
-                  onChange={(value) =>
-                    updateEducation(index, "institution", value)
-                  }
-                  placeholder="University / College"
-                />
-
-                <Field
-                  label="Degree"
-                  value={education.degree}
-                  onChange={(value) => updateEducation(index, "degree", value)}
-                  placeholder="B.Tech"
-                />
-
-                <Field
-                  label="Field of Study"
-                  value={education.field}
-                  onChange={(value) => updateEducation(index, "field", value)}
-                  placeholder="Computer Science"
-                />
-
-                <div className="grid grid-cols-2 gap-3 min-w-0">
-                  <Field
-                    label="Start Date"
-                    value={education.startDate}
-                    onChange={(value) =>
-                      updateEducation(index, "startDate", value)
-                    }
-                    placeholder="2020"
-                  />
-
-                  <Field
-                    label="End Date"
-                    value={education.endDate}
-                    onChange={(value) =>
-                      updateEducation(index, "endDate", value)
-                    }
-                    placeholder="2024"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <TextField
-                  label="Description"
-                  value={education.description}
-                  onChange={(value) =>
-                    updateEducation(index, "description", value)
-                  }
-                  placeholder="Optional: relevant coursework, academic achievements or additional details..."
-                  rows={5}
-                  recommended={500}
-                  hint="Optional. Leave empty if the degree details already provide enough information."
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => removeEducation(index)}
-                className="mt-5 w-full rounded-lg border border-red-400/10 bg-red-400/[0.04] px-3 py-2.5 text-xs font-medium text-red-300/80 transition hover:border-red-400/20 hover:bg-red-400/[0.08] sm:hidden"
-              >
-                Remove Education
-              </button>
-            </div>
-          ))}
-
-          {(!data.education || data.education.length === 0) && (
-            <EmptyState
-              title="No education added"
-              description="Add your degree or other relevant academic qualifications."
-              actionLabel="Add Education"
-              onClick={addEducation}
             />
           )}
         </div>

@@ -29,6 +29,7 @@ import ScorerDashboard from "./pages/ScorerDashboard";
 import ScorerHistory from "./pages/ScorerHistory";
 import ScorerReport from "./pages/ScorerReport";
 import ResumeBuilderDashboard from "./pages/ResumeBuilderDashboard";
+import ResumeBuilder from "./pages/ResumeBuilder";
 
 function LegacyRoadmapRedirect() {
   const { roadmapId } = useParams();
@@ -123,7 +124,7 @@ const App = () => {
         }
       />
       {/* ==================================================
-          DASHBOARD
+          GENERAL DASHBOARD
       ================================================== */}
       <Route
         path="/dashboard"
@@ -148,7 +149,6 @@ const App = () => {
           )
         }
       />
-
       <Route
         path="/scorer/history"
         element={<ScorerHistory user={user} setUser={setUser} />}
@@ -157,20 +157,29 @@ const App = () => {
         path="/scorer/score-report"
         element={<ScorerReport user={user} setUser={setUser} />}
       />
-
       <Route
         path="/scorer/report"
         element={<ScorerReport user={user} setUser={setUser} />}
       />
 
       {/* ==================================================
-          RESUME BUILDER
+          RESUME BUILDER DASHBOARD + EDITOR
       ================================================== */}
+      <Route
+        path="/builder/dashboard"
+        element={
+          isProtected ? (
+            <ResumeBuilderDashboard user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
       <Route
         path="/builder"
         element={
           isProtected ? (
-            <ResumeBuilderDashboard user={user} setUser={setUser} />
+            <ResumeBuilder user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
           )
