@@ -20,7 +20,9 @@ import {
 import api from "../utils/axios";
 import Sidebar from "../components/SideBar";
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024;
+import { getCurrentUser } from "../api/user.api";
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const SCORER_COST = 100;
 
 const unwrap = (response) => response?.data ?? response ?? {};
@@ -90,6 +92,9 @@ export default function ScorerDashboard({ user, setUser }) {
   const [success, setSuccess] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [balanceDeductionDetails, setBalanceDeductionDetails] = useState(null);
+  const [pendingReport, setPendingReport] = useState(null);
+  const [leavingForHistory, setLeavingForHistory] = useState(false);
 
   const firstName = user?.name?.trim()?.split(/\s+/)?.[0] || "there";
   const balance = Number(
@@ -147,7 +152,7 @@ export default function ScorerDashboard({ user, setUser }) {
     }
     if (candidate.size > MAX_FILE_SIZE) {
       setFile(null);
-      setError("The PDF must be 20 MB or smaller.");
+      setError("The PDF must be 10 MB or smaller.");
       return;
     }
     setFile(candidate);
@@ -184,14 +189,45 @@ export default function ScorerDashboard({ user, setUser }) {
         );
       }
 
+      const reused = Boolean(payload?.reused);
+      const deduction = payload?.balanceDeduction ?? null;
+
+      // Update the shared user state with the latest server balance.
+      try {
+        const currentUserResponse = await getCurrentUser();
+
+        if (currentUserResponse?.user) {
+          setUser(currentUserResponse.user);
+        }
+      } catch (balanceError) {
+        console.error(
+          "Failed to refresh balance after resume upload:",
+          balanceError,
+        );
+      }
+
+      await loadRecent();
+
+      if (!reused && deduction) {
+        setPendingReport({
+          resume,
+          resumeId,
+          reused: false,
+        });
+
+        setBalanceDeductionDetails(deduction);
+        setSuccess("");
+        return;
+      }
+
       setSuccess(
-        payload?.reused
+        reused
           ? "Existing analysis found. No new charge was made."
           : "Analysis completed.",
       );
-      await loadRecent();
+
       navigate(`/scorer/report/${resumeId}`, {
-        state: { resume, reused: Boolean(payload?.reused) },
+        state: { resume, reused },
       });
     } catch (uploadError) {
       const status = uploadError?.response?.status;
@@ -214,11 +250,28 @@ export default function ScorerDashboard({ user, setUser }) {
 
   const openReport = (item) => {
     const id = getResumeId(item);
-    if (id) navigate(`/scorer/report/${id}`);
+    if (id) navigate(`/scorer/history?resume=${id}`);
+  };
+
+  const openHistorySmooth = () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      navigate("/scorer/history");
+      return;
+    }
+
+    setLeavingForHistory(true);
+
+    window.setTimeout(() => {
+      navigate("/scorer/history");
+    }, 160);
   };
 
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-[#17191C] text-white">
+    <div
+      className={`relative min-h-screen overflow-x-clip bg-[#17191C] text-white transition-opacity duration-150 ease-out motion-reduce:transition-none ${
+        leavingForHistory ? "opacity-0" : "opacity-100"
+      }`}
+    >
       <div className="pointer-events-none fixed inset-0" aria-hidden="true">
         <div
           className="absolute inset-0"
@@ -236,7 +289,7 @@ export default function ScorerDashboard({ user, setUser }) {
           aria-label="Open navigation"
           className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white"
         >
-         <FiMenu size={18} />
+          <FiMenu size={18} />
         </button>
         <div className="flex flex-col items-center leading-none">
           <span
@@ -287,10 +340,21 @@ export default function ScorerDashboard({ user, setUser }) {
                   strengths, identify gaps, and discover the roles it supports.
                 </p>
               </div>
-              <div className="flex w-full justify-center lg:w-auto lg:justify-end">
+
+              <div className="flex w-full items-center justify-center gap-3 lg:w-auto lg:justify-end">
                 <span className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-medium text-[#D4D4D8]">
                   <FiShield size={14} /> Private resume analysis
                 </span>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/scorer/history")}
+                  className="hidden shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white sm:inline-flex"
+                >
+                  <FiClock size={14} />
+                  View History
+                  <FiArrowRight size={14} />
+                </button>
               </div>
             </section>
 
@@ -417,7 +481,7 @@ export default function ScorerDashboard({ user, setUser }) {
                       </div>
                     )}
                     <p className="mt-4 text-[10px] text-[#666870]">
-                      PDF only · Maximum 20 MB
+                      PDF only · Maximum 10 MB
                     </p>
                     <p className="mt-1 text-[10px] text-[#666870]">
                       Analysis cost: {SCORER_COST} · Balance: {balanceLabel}
@@ -565,7 +629,7 @@ export default function ScorerDashboard({ user, setUser }) {
               <div className="flex shrink-0 flex-wrap items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => navigate("/scorer/history")}
+                  onClick={openHistorySmooth}
                   className="group hidden sm:inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white"
                 >
                   View scorer history{" "}
@@ -595,28 +659,124 @@ export default function ScorerDashboard({ user, setUser }) {
 
         <nav
           aria-label="Resume scorer quick actions"
-        className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.10] bg-[#111315]/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:hidden"
-      >
-        <div className="mx-auto flex max-w-md items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate("/scorer/history")}
-            className="inline-flex px-3 py-3 flex-1 items-center justify-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.045] px-4 text-xs font-semibold text-[#E4E4E7] transition active:scale-[0.98]"
-          >
-            <FiClock size={15} />
-            History
-          </button>
-          <button
-            type="button"
-            onClick={() => inputRef.current?.click()}
-            disabled={analyzing}
-            className="inline-flex px-3 py-3 flex-1 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-semibold text-[#17191C] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <FiUploadCloud size={15} />
-            {file ? "Replace PDF" : "Upload PDF"}
-          </button>
-        </div>
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.10] bg-[#111315]/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:hidden"
+        >
+          <div className="mx-auto flex max-w-md items-center gap-3">
+            <button
+              type="button"
+              onClick={() => navigate("/scorer/history")}
+              className="inline-flex px-3 py-3 flex-1 items-center justify-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.045] px-4 text-xs font-semibold text-[#E4E4E7] transition active:scale-[0.98]"
+            >
+              <FiClock size={15} />
+              History
+            </button>
+            <button
+              type="button"
+              onClick={() => inputRef.current?.click()}
+              disabled={analyzing}
+              className="inline-flex px-3 py-3 flex-1 items-center justify-center gap-2 rounded-full bg-white px-4 text-xs font-semibold text-[#17191C] transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <FiUploadCloud size={15} />
+              {file ? "Replace PDF" : "Upload PDF"}
+            </button>
+          </div>
         </nav>
+
+        {balanceDeductionDetails && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 px-4 backdrop-blur-md">
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="scorer-balance-title"
+              className="w-full max-w-md rounded-3xl border border-white/10 bg-[#191B1E] p-6 text-white shadow-2xl"
+            >
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/10 text-emerald-400">
+                <FiCheckCircle size={26} />
+              </div>
+
+              <h2
+                id="scorer-balance-title"
+                className="mt-4 text-center text-xl font-semibold"
+              >
+                Resume Scorer Completed
+              </h2>
+
+              <p className="mt-2 text-center text-sm text-[#A1A1AA]">
+                Your balance deduction is confirmed.
+              </p>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-[#A1A1AA]">Service</span>
+                  <span className="text-sm font-medium">
+                    {balanceDeductionDetails.service || "Resume Scorer"}
+                  </span>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-4">
+                  <span className="text-sm text-[#A1A1AA]">
+                    Amount deducted
+                  </span>
+                  <span className="font-semibold">
+                    -
+                    {Number(
+                      balanceDeductionDetails.deductedAmount,
+                    ).toLocaleString("en-IN")}{" "}
+                    INR
+                  </span>
+                </div>
+
+                <div className="my-4 border-t border-white/10" />
+
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-[#A1A1AA]">
+                    Previous balance
+                  </span>
+                  <span>
+                    {Number(
+                      balanceDeductionDetails.previousBalance,
+                    ).toLocaleString("en-IN")}{" "}
+                    INR
+                  </span>
+                </div>
+
+                <div className="mt-3 flex items-center justify-between gap-4">
+                  <span className="text-sm text-[#A1A1AA]">
+                    Remaining balance
+                  </span>
+                  <span className="font-semibold text-emerald-400">
+                    {Number(balanceDeductionDetails.balance).toLocaleString(
+                      "en-IN",
+                    )}{" "}
+                    INR
+                  </span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const report = pendingReport;
+
+                  setBalanceDeductionDetails(null);
+                  setPendingReport(null);
+
+                  if (report?.resumeId) {
+                    navigate(`/scorer/history?resume=${report.resumeId}`, {
+                      state: {
+                        resume: report.resume,
+                        reused: report.reused,
+                      },
+                    });
+                  }
+                }}
+                className="mt-5 w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-[#17191C] transition hover:bg-white/90"
+              >
+                Continue to Report
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

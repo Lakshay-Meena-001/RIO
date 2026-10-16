@@ -28,3 +28,8 @@ export const updateResume = async (resumeData) => {
   const response = await api.patch("/api/resumes/update", resumeData);
   return response.data;
 };
+
+export const deleteResume = async (resumeId) => {
+  const response = await api.delete(`/api/resumes/${resumeId}`);
+  return response.data;
+};

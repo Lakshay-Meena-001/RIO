@@ -2122,7 +2122,14 @@ const Interview = ({ setUser }) => {
 
             <button
               type="button"
-              onClick={() => setBalanceDeductionDetails(null)}
+              onClick={() => {
+                setBalanceDeductionDetails(null);
+                setShowCompletionModal(false);
+
+                navigate(`/mock-interview/history?interview=${interviewId}`, {
+                  replace: true,
+                });
+              }}
               className="mt-5 w-full rounded-xl bg-white px-4 py-3 text-sm font-semibold text-[#17191C] transition hover:bg-white/90"
             >
               Continue to Report

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   FiArrowLeft,
@@ -9,19 +10,13 @@ import {
   FiSearch,
   FiX,
 } from "react-icons/fi";
-import { getResumes, getResumeById } from "../api/resume.api";
+import { getResumes, getResumeById, deleteResume } from "../api/resume.api";
 import ScorerReport from "./ScorerReport";
 
 const getId = (item) => String(item?._id || item?.id || item?.resumeId || "");
 const getDate = (item) =>
   item?.analyzedAt || item?.createdAt || item?.updatedAt || null;
-const getScore = (item) => {
-  const raw = item?.analysis?.score ?? item?.score;
-  const score = Number(raw);
-  return Number.isFinite(score)
-    ? Math.max(0, Math.min(100, Math.round(score)))
-    : null;
-};
+
 const getTitle = (item) =>
   item?.profile?.name ||
   item?.analysis?.candidateName ||
@@ -61,6 +56,9 @@ export default function ScorerHistory() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const selectedId = searchParams.get("resume") || "";
 
   const loadHistory = useCallback(async () => {
@@ -99,8 +97,21 @@ export default function ScorerHistory() {
   }, []);
 
   useEffect(() => {
-    void loadHistory();
+    const timer = setTimeout(() => {
+      void loadHistory();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadHistory]);
+  useEffect(() => {
+    if (loading || selectedId || reports.length === 0) return;
+
+    const latestId = getId(reports[0]);
+
+    if (latestId) {
+      setSearchParams({ resume: latestId }, { replace: true });
+    }
+  }, [loading, selectedId, reports, setSearchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,6 +191,65 @@ export default function ScorerHistory() {
   const clearSelection = () => {
     setSelectedReport(null);
     setSearchParams({});
+  };
+
+  const handleDeleteHistory = () => {
+    if (!getId(selectedReport) || deleting) return;
+    setDeleteError("");
+    setShowDeleteModal(true);
+  };
+
+  const deleteResumeNow = async () => {
+    const resumeId = getId(selectedReport);
+
+    if (!resumeId || deleting) {
+      setDeleteError("Unable to identify this resume report.");
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      setDeleteError("");
+
+      const result = await deleteResume(resumeId);
+      if (result?.success === false) {
+        throw new Error(
+          result?.message || "Unable to delete this resume report.",
+        );
+      }
+
+      const remainingReports = reports.filter(
+        (report) => getId(report) !== resumeId,
+      );
+
+      setReports(remainingReports);
+      setSelectedReport(null);
+      setShowDeleteModal(false);
+      setDeleteError("");
+
+      if (remainingReports.length > 0) {
+        setSearchParams(
+          { resume: getId(remainingReports[0]) },
+          { replace: true },
+        );
+      } else {
+        setSearchParams({}, { replace: true });
+      }
+    } catch (err) {
+      setDeleteError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Failed to delete this resume report.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const closeDelete = () => {
+    if (deleting) return;
+    setShowDeleteModal(false);
+    setDeleteError("");
   };
 
   return (
@@ -296,7 +366,6 @@ export default function ScorerHistory() {
             filteredReports.map((item, index) => {
               const id = getId(item);
               const active = id === selectedId;
-              const score = getScore(item);
               return (
                 <button
                   key={id || `${getTitle(item)}-${index}`}
@@ -324,7 +393,6 @@ export default function ScorerHistory() {
                       <span className="text-[10px] text-[#55575E]">
                         {dateLabel(getDate(item))}
                       </span>
-                      
                     </span>
                   </span>
                   <FiArrowRight
@@ -407,6 +475,7 @@ export default function ScorerHistory() {
               key={getId(selectedReport)}
               resume={selectedReport}
               onBackToScorer={() => navigate("/scorer")}
+              onDeleteHistory={handleDeleteHistory}
             />
           ) : selectedId && error ? (
             <div className="mx-auto mt-12 max-w-lg rounded-[22px] border border-white/[0.10] bg-[#111315]/80 p-8 text-center">
@@ -471,6 +540,70 @@ export default function ScorerHistory() {
           </button>
         </div>
       </div>
+
+      {showDeleteModal &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-resume-title"
+          >
+            <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#191B1E]/95 p-6 shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2
+                    id="delete-resume-title"
+                    className="text-base font-semibold"
+                  >
+                    Delete resume report?
+                  </h2>
+                  <p className="mt-2 text-xs leading-5 text-[#858994]">
+                    This action cannot be undone. This resume report and its
+                    saved analysis will be permanently deleted from your
+                    history. Other reports will remain untouched.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={closeDelete}
+                  disabled={deleting}
+                  aria-label="Close"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 text-[#858994] transition hover:bg-white/[.08] disabled:opacity-50"
+                >
+                  <FiX size={15} />
+                </button>
+              </div>
+              {deleteError && (
+                <p
+                  role="alert"
+                  className="mt-4 rounded-xl border border-white/[.08] px-3 py-2.5 text-xs leading-5 text-[#D4D4D8]"
+                >
+                  {deleteError}
+                </p>
+              )}
+              <div className="mt-6 flex gap-3">
+                <button
+                  type="button"
+                  onClick={closeDelete}
+                  disabled={deleting}
+                  className="flex-1 rounded-xl border border-white/10 bg-white/[.04] px-4 py-3 text-xs font-medium hover:bg-white/[.08] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={deleteResumeNow}
+                  disabled={deleting}
+                  className="flex-1 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#111214] hover:bg-[#EDEDEF] disabled:opacity-50"
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

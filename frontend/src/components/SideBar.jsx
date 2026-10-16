@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { logoutUser } from "../api/user.api.js";
-import { FiPlusCircle } from "react-icons/fi";
+
 import {
   FiBarChart2,
   FiChevronLeft,
@@ -10,6 +10,7 @@ import {
   FiCreditCard,
   FiFileText,
   FiHome,
+  FiPlus ,
   FiLogOut,
   FiMap,
   FiSettings,
@@ -327,7 +328,7 @@ function Sidebar({
 
             <div className=" min-w-0 flex-1 ">
               <span className="block text-[10px] uppercase tracking-[0.16em] text-[#71717A]">
-                Balance
+                Current Balance
               </span>
 
               <span className="mt-0.5 block text-[13px] font-semibold text-[#E4E4E7]">
@@ -339,7 +340,7 @@ function Sidebar({
             type="button"
             className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.06] text-white/80 transition-colors hover:bg-white/[0.12]"
           >
-            <FiPlusCircle size={18} strokeWidth={2.5} />
+            <FiPlus  size={18} strokeWidth={2.5} />
           </button>
         </div>
       ) : (

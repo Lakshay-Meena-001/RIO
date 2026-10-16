@@ -120,7 +120,11 @@ function Meta({ label, value }) {
   );
 }
 
-export default function ScorerReport({ resume, onBackToScorer }) {
+export default function ScorerReport({
+  resume,
+  onBackToScorer,
+  onDeleteHistory,
+}) {
   const profile = resume?.profile || {};
   const analysis = resume?.analysis || {};
   const rawScore = Number(analysis.score ?? resume?.score);
@@ -195,15 +199,27 @@ export default function ScorerReport({ resume, onBackToScorer }) {
             where to focus next.
           </p>
         </div>
-        {onBackToScorer && (
-          <button
-            type="button"
-            onClick={onBackToScorer}
-            className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 self-center rounded-xl sm:self-start border border-white/[0.10] bg-white/[0.035] px-4 py-2.5 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
-          >
-            <ArrowLeft size={14} /> New analysis
-          </button>
-        )}
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+          {onDeleteHistory && (
+            <button
+              type="button"
+              onClick={onDeleteHistory}
+              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/[0.07] px-4 py-2.5 text-xs font-semibold text-red-300 transition hover:border-red-500/40 hover:bg-red-500/[0.12]"
+            >
+              Delete History
+            </button>
+          )}
+
+          {onBackToScorer && (
+            <button
+              type="button"
+              onClick={onBackToScorer}
+              className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.035] px-4 py-2.5 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
+            >
+              <ArrowLeft size={14} /> New analysis
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">

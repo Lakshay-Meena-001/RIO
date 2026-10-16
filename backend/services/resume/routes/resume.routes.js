@@ -8,6 +8,7 @@ import {
   getResumeById,
   uploadResume,
   updateResume,
+  deleteResume,
 } from "../controllers/resume.controller.js";
 
 const resumeRouter = express.Router();
@@ -19,5 +20,6 @@ resumeRouter.get("/get-resume", getResume);
 resumeRouter.get("/", listResumes);
 resumeRouter.get("/:resumeId", getResumeById);
 resumeRouter.patch("/update", updateResume);
+resumeRouter.delete("/:resumeId", deleteResume);
 
 export default resumeRouter;

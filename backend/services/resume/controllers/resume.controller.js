@@ -140,6 +140,7 @@ const sendServerError = (res, operation) => {
 // POST /api/resumes/upload
 export const uploadResume = async (req, res) => {
   const filePath = req.file?.path;
+  let billingResult = null;
 
   try {
     const userId = getUserId(req);
@@ -197,6 +198,7 @@ export const uploadResume = async (req, res) => {
         reused: true,
         message: "This resume already exists. Existing analysis reused.",
         data: existingResume,
+        balanceDeduction: null,
       });
     }
 
@@ -212,7 +214,10 @@ export const uploadResume = async (req, res) => {
     });
 
     try {
-      await deductResumeScorerBalance(userId, contentFingerprint);
+      billingResult = await deductResumeScorerBalance(
+        userId,
+        contentFingerprint,
+      );
     } catch (billingError) {
       console.error("[Resume] Billing failed:", {
         message: billingError.message,
@@ -245,6 +250,15 @@ export const uploadResume = async (req, res) => {
       reused: false,
       message: "Resume analyzed and saved successfully",
       data: resume,
+      balanceDeduction:
+        billingResult && billingResult.alreadyProcessed !== true
+          ? {
+              service: "Resume Scorer",
+              previousBalance: billingResult.previousBalance,
+              deductedAmount: billingResult.deductedAmount,
+              balance: billingResult.balance,
+            }
+          : null,
     });
   } catch (error) {
     logError("Upload failed", error);
@@ -516,5 +530,54 @@ export const updateResume = async (req, res) => {
   } catch (error) {
     logError("Update resume failed", error);
     return sendServerError(res, "update the resume");
+  }
+};
+
+export const deleteResume = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { resumeId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    // Validate ID without using an unimported mongoose variable.
+    if (!isValidObjectId(resumeId)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid resume ID",
+      });
+    }
+
+    // Delete only the resume owned by the authenticated user.
+    const deletedResume = await Resume.findOneAndDelete({
+      _id: resumeId,
+      userId,
+    });
+
+    if (!deletedResume) {
+      return res.status(404).json({
+        success: false,
+        message: "Resume not found",
+      });
+    }
+
+    // Clear the corresponding cache entries.
+    await safeCacheDelete(
+      resumeCacheKey(userId, resumeId),
+      legacyResumeCacheKey(userId),
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Resume deleted successfully",
+    });
+  } catch (error) {
+    logError("Delete resume failed", error);
+    return sendServerError(res, "delete resume");
   }
 };
