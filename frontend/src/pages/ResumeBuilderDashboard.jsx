@@ -231,7 +231,7 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
 
   const openBuilder = () => navigate("/builder");
 
-  const openHistory = () => navigate("/resume-history");
+  const openHistory = () => navigate("/builder/history");
 
   const openResume = (resume) => {
     const id = resume?._id || resume?.id;
@@ -451,10 +451,7 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
                                 : "Resume in progress"}
                             </span>
 
-                            {/* Hidden on mobile; shown on desktop */}
-                            <span className="hidden text-[10px] text-[#777A82] sm:inline">
-                              Personal resume
-                            </span>
+                      
                           </div>
 
                           <h3 className="break-words text-center text-[27px] font-semibold tracking-[-0.045em] sm:text-left sm:text-[34px]">

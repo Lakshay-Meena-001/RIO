@@ -1013,7 +1013,7 @@ export default function RoadmapHistoryPage() {
           deleteLoading={deleteLoading}
         />
 
-        <main className="min-w-0 flex-1 overflow-hidden pb-[env(safe-area-inset-bottom)] lg:pl-[302px] lg:pr-[302px]">
+        <main className="min-w-0 flex-1 overflow-hidden pb-[env(safe-area-inset-bottom)] lg:mx-[302px] lg:px-0">
           <div className="flex h-full min-h-0 flex-col">
             <div className="mt-6 mx-6 hidden border-b border-white/[0.08] pb-5 lg:block">
               <button

@@ -86,10 +86,7 @@ function IconText({ icon, children, href }) {
 
   const content = (
     <span className="rio-modern-social-item">
-      <span
-        className="rio-modern-social-icon"
-        aria-hidden="true"
-      >
+      <span className="rio-modern-social-icon" aria-hidden="true">
         {icon}
       </span>
 
@@ -98,12 +95,7 @@ function IconText({ icon, children, href }) {
   );
 
   return href ? (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className="rio-modern-link"
-    >
+    <a href={href} target="_blank" rel="noreferrer" className="rio-modern-link">
       {content}
     </a>
   ) : (
@@ -146,7 +138,7 @@ function Header({ profile }) {
           href: normalizeUrl(
             profile.github.startsWith("http")
               ? profile.github
-              : `github.com/${profile.github.replace(/^@/, "")}`
+              : `github.com/${profile.github.replace(/^@/, "")}`,
           ),
         }
       : null,
@@ -158,7 +150,7 @@ function Header({ profile }) {
           href: normalizeUrl(
             profile.linkedin.startsWith("http")
               ? profile.linkedin
-              : `linkedin.com/in/${profile.linkedin.replace(/^@/, "")}`
+              : `linkedin.com/in/${profile.linkedin.replace(/^@/, "")}`,
           ),
         }
       : null,
@@ -177,36 +169,21 @@ function Header({ profile }) {
   return (
     <header className="rio-modern-header">
       <div className="rio-modern-name">
-        <span className="rio-modern-first-name">
-          {first}
-        </span>
+        <span className="rio-modern-first-name">{first}</span>
 
-        {last ? (
-          <span className="rio-modern-last-name">
-            {" "}
-            {last}
-          </span>
-        ) : null}
+        {last ? <span className="rio-modern-last-name"> {last}</span> : null}
       </div>
 
-      {position ? (
-        <div className="rio-modern-position">
-          {position}
-        </div>
-      ) : null}
+      {position ? <div className="rio-modern-position">{position}</div> : null}
 
       {profile?.location ? (
-        <div className="rio-modern-address">
-          {profile.location}
-        </div>
+        <div className="rio-modern-address">{profile.location}</div>
       ) : null}
 
       {socials.length > 0 ? (
         <div className="rio-modern-social-row">
           {socials.map((item, index) => (
-            <React.Fragment
-              key={`${item.value}-${index}`}
-            >
+            <React.Fragment key={`${item.value}-${index}`}>
               {index > 0 ? (
                 <span
                   className="rio-modern-social-separator"
@@ -216,10 +193,7 @@ function Header({ profile }) {
                 </span>
               ) : null}
 
-              <IconText
-                icon={item.icon}
-                href={item.href}
-              >
+              <IconText icon={item.icon} href={item.href}>
                 {item.value}
               </IconText>
             </React.Fragment>
@@ -238,15 +212,10 @@ function Section({ title, children }) {
       <div className="rio-modern-section-heading">
         <h2>{title}</h2>
 
-        <span
-          className="rio-modern-section-rule"
-          aria-hidden="true"
-        />
+        <span className="rio-modern-section-rule" aria-hidden="true" />
       </div>
 
-      <div className="rio-modern-section-content">
-        {children}
-      </div>
+      <div className="rio-modern-section-content">{children}</div>
     </section>
   );
 }
@@ -257,40 +226,27 @@ function ExperienceEntry({ item }) {
   const company = safe(item.company);
   const role = safe(item.role);
   const location = safe(item.location);
-  const dates = formatDateRange(
-    item.startDate,
-    item.endDate
-  );
+  const dates = formatDateRange(item.startDate, item.endDate);
 
   return (
     <article className="rio-modern-entry">
       <div className="rio-modern-entry-top">
         <div className="rio-modern-entry-left">
           {company ? (
-            <div className="rio-modern-entry-title">
-              {company}
-            </div>
+            <div className="rio-modern-entry-title">{company}</div>
           ) : null}
 
           {role ? (
-            <div className="rio-modern-entry-position">
-              {role}
-            </div>
+            <div className="rio-modern-entry-position">{role}</div>
           ) : null}
         </div>
 
         <div className="rio-modern-entry-right">
           {location ? (
-            <div className="rio-modern-entry-location">
-              {location}
-            </div>
+            <div className="rio-modern-entry-location">{location}</div>
           ) : null}
 
-          {dates ? (
-            <div className="rio-modern-entry-date">
-              {dates}
-            </div>
-          ) : null}
+          {dates ? <div className="rio-modern-entry-date">{dates}</div> : null}
         </div>
       </div>
 
@@ -300,29 +256,19 @@ function ExperienceEntry({ item }) {
             .split(/\n+/)
             .filter(Boolean)
             .map((line, index) => (
-              <div
-                className="rio-modern-bullet"
-                key={index}
-              >
-                <span aria-hidden="true">
-                  •
-                </span>
+              <div className="rio-modern-bullet" key={index}>
+                <span aria-hidden="true">•</span>
 
-                <span>
-                  {line.replace(/^[•*-]\s*/, "")}
-                </span>
+                <span>{line.replace(/^[•*-]\s*/, "")}</span>
               </div>
             ))}
         </div>
       ) : null}
 
-      {Array.isArray(item.technologies) &&
-      item.technologies.length > 0 ? (
+      {Array.isArray(item.technologies) && item.technologies.length > 0 ? (
         <div className="rio-modern-entry-technologies">
           <strong>Technologies:</strong>{" "}
-          {item.technologies
-            .filter(Boolean)
-            .join(", ")}
+          {item.technologies.filter(Boolean).join(", ")}
         </div>
       ) : null}
     </article>
@@ -334,17 +280,10 @@ function ProjectEntry({ item }) {
 
   const title = safe(item.title);
 
-  const dates = formatDateRange(
-    item.startDate,
-    item.endDate
-  );
+  const dates = formatDateRange(item.startDate, item.endDate);
 
-  const technologies = Array.isArray(
-    item.technologies
-  )
-    ? item.technologies
-        .filter(Boolean)
-        .join(", ")
+  const technologies = Array.isArray(item.technologies)
+    ? item.technologies.filter(Boolean).join(", ")
     : safe(item.technologies);
 
   const links = [
@@ -367,32 +306,20 @@ function ProjectEntry({ item }) {
     <article className="rio-modern-entry">
       <div className="rio-modern-entry-top">
         <div className="rio-modern-entry-left">
-          {title ? (
-            <div className="rio-modern-entry-title">
-              {title}
-            </div>
-          ) : null}
+          {title ? <div className="rio-modern-entry-title">{title}</div> : null}
 
           {technologies ? (
-            <div className="rio-modern-entry-position">
-              {technologies}
-            </div>
+            <div className="rio-modern-entry-position">{technologies}</div>
           ) : null}
         </div>
 
         <div className="rio-modern-entry-right">
-          {dates ? (
-            <div className="rio-modern-entry-date">
-              {dates}
-            </div>
-          ) : null}
+          {dates ? <div className="rio-modern-entry-date">{dates}</div> : null}
 
           {links.length > 0 ? (
             <div className="rio-modern-project-links">
               {links.map((link, index) => (
-                <React.Fragment
-                  key={link.label}
-                >
+                <React.Fragment key={link.label}>
                   {index > 0 ? " · " : ""}
 
                   <a
@@ -415,17 +342,10 @@ function ProjectEntry({ item }) {
             .split(/\n+/)
             .filter(Boolean)
             .map((line, index) => (
-              <div
-                className="rio-modern-bullet"
-                key={index}
-              >
-                <span aria-hidden="true">
-                  •
-                </span>
+              <div className="rio-modern-bullet" key={index}>
+                <span aria-hidden="true">•</span>
 
-                <span>
-                  {line.replace(/^[•*-]\s*/, "")}
-                </span>
+                <span>{line.replace(/^[•*-]\s*/, "")}</span>
               </div>
             ))}
         </div>
@@ -437,62 +357,41 @@ function ProjectEntry({ item }) {
 function EducationEntry({ item }) {
   if (!item) return null;
 
-  const degree = joinNonEmpty(
-    [item.degree, item.field],
-    " in "
-  );
+  const degree = joinNonEmpty([item.degree, item.field], " in ");
 
-  const dates = formatDateRange(
-    item.startDate,
-    item.endDate
-  );
+  const dates = formatDateRange(item.startDate, item.endDate);
 
   return (
     <article className="rio-modern-entry">
       <div className="rio-modern-entry-top">
         <div className="rio-modern-entry-left">
           {item.institution ? (
-            <div className="rio-modern-entry-title">
-              {item.institution}
-            </div>
+            <div className="rio-modern-entry-title">{item.institution}</div>
           ) : null}
 
           {degree ? (
-            <div className="rio-modern-entry-position">
-              {degree}
-            </div>
+            <div className="rio-modern-entry-position">{degree}</div>
           ) : null}
         </div>
 
         <div className="rio-modern-entry-right">
           {item.location ? (
-            <div className="rio-modern-entry-location">
-              {item.location}
-            </div>
+            <div className="rio-modern-entry-location">{item.location}</div>
           ) : null}
 
-          {dates ? (
-            <div className="rio-modern-entry-date">
-              {dates}
-            </div>
-          ) : null}
+          {dates ? <div className="rio-modern-entry-date">{dates}</div> : null}
         </div>
       </div>
 
       {item.description ? (
-        <div className="rio-modern-description">
-          {item.description}
-        </div>
+        <div className="rio-modern-description">{item.description}</div>
       ) : null}
     </article>
   );
 }
 
 function SkillsSection({ skills }) {
-  if (
-    !Array.isArray(skills) ||
-    skills.length === 0
-  ) {
+  if (!Array.isArray(skills) || skills.length === 0) {
     return null;
   }
 
@@ -518,25 +417,15 @@ function SkillsSection({ skills }) {
 
   return (
     <div className="rio-modern-skills-row">
-      <div className="rio-modern-skill-label">
-        Skills
-      </div>
+      <div className="rio-modern-skill-label">Skills</div>
 
-      <div className="rio-modern-skill-value">
-        {values.join(", ")}
-      </div>
+      <div className="rio-modern-skill-value">{values.join(", ")}</div>
     </div>
   );
 }
 
-function SimpleListSection({
-  items,
-  className = "",
-}) {
-  if (
-    !Array.isArray(items) ||
-    items.length === 0
-  ) {
+function SimpleListSection({ items, className = "" }) {
+  if (!Array.isArray(items) || items.length === 0) {
     return null;
   }
 
@@ -565,17 +454,10 @@ function SimpleListSection({
   if (!values.length) return null;
 
   return (
-    <div
-      className={`rio-modern-simple-list ${className}`}
-    >
+    <div className={`rio-modern-simple-list ${className}`}>
       {values.map((value, index) => (
-        <div
-          className="rio-modern-bullet"
-          key={index}
-        >
-          <span aria-hidden="true">
-            •
-          </span>
+        <div className="rio-modern-bullet" key={index}>
+          <span aria-hidden="true">•</span>
 
           <span>{value}</span>
         </div>
@@ -584,47 +466,25 @@ function SimpleListSection({
   );
 }
 
-export default function ModernTemplate({
-  data = {},
-}) {
+export default function ModernTemplate({ data = {}, theme = "light" }) {
   const resume = data || {};
   const profile = resume.profile || {};
 
-  const experience = Array.isArray(
-    resume.experience
-  )
-    ? resume.experience
-    : [];
+  const experience = Array.isArray(resume.experience) ? resume.experience : [];
 
-  const projects = Array.isArray(
-    resume.projects
-  )
-    ? resume.projects
-    : [];
+  const projects = Array.isArray(resume.projects) ? resume.projects : [];
 
-  const education = Array.isArray(
-    resume.education
-  )
-    ? resume.education
-    : [];
+  const education = Array.isArray(resume.education) ? resume.education : [];
 
-  const certifications = Array.isArray(
-    resume.certifications
-  )
+  const certifications = Array.isArray(resume.certifications)
     ? resume.certifications
     : [];
 
-  const achievements = Array.isArray(
-    resume.achievements
-  )
+  const achievements = Array.isArray(resume.achievements)
     ? resume.achievements
     : [];
 
-  const languages = Array.isArray(
-    resume.languages
-  )
-    ? resume.languages
-    : [];
+  const languages = Array.isArray(resume.languages) ? resume.languages : [];
 
   return (
     <>
@@ -1129,26 +989,33 @@ export default function ModernTemplate({
             transform-origin: top left;
           }
         }
+
+        .rio-modern-page.resume-theme-dark,
+        .rio-modern-page.resume-theme-dark * {
+          color: #e5e7eb !important;
+          border-color: #59616b !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .rio-modern-page.resume-theme-dark { background: #17191c !important; }
+        .rio-modern-page.resume-theme-dark * { background-color: transparent !important; }
       `}</style>
 
-      <div className="rio-modern-page">
+      <div
+        className={`rio-modern-page ${theme === "dark" ? "resume-theme-dark" : ""}`}
+      >
         <Header profile={profile} />
 
         {resume.summary ? (
           <Section title="Summary">
-            <div className="rio-modern-summary">
-              {resume.summary}
-            </div>
+            <div className="rio-modern-summary">{resume.summary}</div>
           </Section>
         ) : null}
 
         {experience.length > 0 ? (
           <Section title="Experience">
             {experience.map((item, index) => (
-              <ExperienceEntry
-                item={item}
-                key={item?._id || index}
-              />
+              <ExperienceEntry item={item} key={item?._id || index} />
             ))}
           </Section>
         ) : null}
@@ -1156,10 +1023,7 @@ export default function ModernTemplate({
         {projects.length > 0 ? (
           <Section title="Projects">
             {projects.map((item, index) => (
-              <ProjectEntry
-                item={item}
-                key={item?._id || index}
-              />
+              <ProjectEntry item={item} key={item?._id || index} />
             ))}
           </Section>
         ) : null}
@@ -1167,43 +1031,32 @@ export default function ModernTemplate({
         {education.length > 0 ? (
           <Section title="Education">
             {education.map((item, index) => (
-              <EducationEntry
-                item={item}
-                key={item?._id || index}
-              />
+              <EducationEntry item={item} key={item?._id || index} />
             ))}
           </Section>
         ) : null}
 
         {resume.skills?.length > 0 ? (
           <Section title="Skills">
-            <SkillsSection
-              skills={resume.skills}
-            />
+            <SkillsSection skills={resume.skills} />
           </Section>
         ) : null}
 
         {certifications.length > 0 ? (
           <Section title="Certifications">
-            <SimpleListSection
-              items={certifications}
-            />
+            <SimpleListSection items={certifications} />
           </Section>
         ) : null}
 
         {achievements.length > 0 ? (
           <Section title="Achievements">
-            <SimpleListSection
-              items={achievements}
-            />
+            <SimpleListSection items={achievements} />
           </Section>
         ) : null}
 
         {languages.length > 0 ? (
           <Section title="Languages">
-            <SimpleListSection
-              items={languages}
-            />
+            <SimpleListSection items={languages} />
           </Section>
         ) : null}
       </div>

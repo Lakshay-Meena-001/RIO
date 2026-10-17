@@ -12,13 +12,16 @@ import {
   Languages,
   LoaderCircle,
   Save,
+  Sun,
+  Moon,
+  Plus,
   Sparkles,
   Target,
   UserRound,
   Wrench,
   X,
 } from "lucide-react";
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 
 import ResumeForm from "../components/resume/ResumeForm";
@@ -27,7 +30,7 @@ import BasicTemplate from "../components/resume/templates/BasicTemplate";
 import ModernTemplate from "../components/resume/templates/ModernTemplate";
 import ProfessionalTemplate from "../components/resume/templates/ProfessionalTemplate";
 import initialResumeData from "../components/resume/initialData";
-import { getResume, updateResume } from "../api/resume.api";
+import { updateResume } from "../api/resume.api";
 import { setResume } from "../redux/resumeSlice";
 
 const TEMPLATES = [
@@ -101,9 +104,27 @@ function clone(value) {
   }
 }
 
+function createBlankResume() {
+  const blank = clone(initialResumeData);
+  const blankProfile = Object.fromEntries(
+    Object.keys(blank.profile || {}).map((key) => [key, ""]),
+  );
+  return {
+    ...blank,
+    profile: blankProfile,
+    summary: "",
+    education: [],
+    experience: [],
+    projects: [],
+    skills: [],
+    certifications: [],
+    achievements: [],
+    languages: [],
+  };
+}
+
 function normalizeResume(resume) {
   if (!resume) return clone(initialResumeData);
-
   return {
     ...clone(initialResumeData),
     ...resume,
@@ -153,17 +174,16 @@ function getCompletion(data) {
 export default function ResumeBuilder() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const reduxResume = useSelector((state) => state.resume?.resume);
 
-  const [data, setData] = useState(() => normalizeResume(reduxResume));
-  const [savedData, setSavedData] = useState(() =>
-    normalizeResume(reduxResume),
-  );
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(() => createBlankResume());
+  const [savedData, setSavedData] = useState(() => createBlankResume());
+  const [showCreateNew, setShowCreateNew] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [selectedTemplate, setSelectedTemplate] = useState("basic");
+  const [resumeTheme, setResumeTheme] = useState("light");
   const [showPreview, setShowPreview] = useState(false);
   const [activeSection, setActiveSection] = useState("Personal details");
   const [previewScale, setPreviewScale] = useState(0.3);
@@ -179,43 +199,6 @@ export default function ResumeBuilder() {
     [data, savedData],
   );
   const previewName = data?.profile?.name?.trim() || "Your resume";
-
-  useEffect(() => {
-    let alive = true;
-
-    async function load() {
-      try {
-        const response = await getResume();
-        if (!alive) return;
-        const result = unwrapResume(response);
-        const normalized = normalizeResume(
-          result || reduxResume || initialResumeData,
-        );
-        setData(normalized);
-        setSavedData(clone(normalized));
-        if (result) dispatch(setResume(result));
-      } catch (err) {
-        if (!alive) return;
-        // A user without a saved resume should still be able to start editing.
-        const normalized = normalizeResume(reduxResume || initialResumeData);
-        setData(normalized);
-        setSavedData(clone(normalized));
-        if (err?.response?.status !== 404) {
-          setError(
-            err?.response?.data?.message ||
-              "Resume could not be loaded. You can still edit and save.",
-          );
-        }
-      } finally {
-        if (alive) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      alive = false;
-    };
-  }, [dispatch]); // reduxResume is intentionally used as a fallback on initial load.
 
   useEffect(() => {
     const viewport = previewViewportRef.current;
@@ -277,19 +260,34 @@ export default function ResumeBuilder() {
 
   const jumpToSection = useCallback((section) => {
     setActiveSection(section.label);
+
     const root = editorRef.current;
     if (!root) return;
 
-    const headings = [...root.querySelectorAll("h1,h2,h3,h4,[role='heading']")];
+    const headings = [
+      ...root.querySelectorAll("h1, h2, h3, h4, [role='heading']"),
+    ];
+
     const target = headings.find((heading) => {
       const text = (heading.textContent || "").toLowerCase();
       return section.terms.some((term) => text.includes(term));
     });
 
     if (target) {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
+      const rootRect = root.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+
+      const scrollTop = root.scrollTop + targetRect.top - rootRect.top - 16;
+
+      root.scrollTo({
+        top: Math.max(0, scrollTop),
+        behavior: "smooth",
+      });
     } else {
-      root.scrollTo({ top: 0, behavior: "smooth" });
+      root.scrollTo({
+        top: 0,
+        behavior: "smooth",
+      });
     }
   }, []);
 
@@ -329,12 +327,30 @@ export default function ResumeBuilder() {
       (tab) => tab.dataset.sectionTab === activeSection,
     );
 
-    activeTab?.scrollIntoView({
+    if (!activeTab) return;
+
+    const targetLeft =
+      activeTab.offsetLeft - (tabs.clientWidth - activeTab.offsetWidth) / 2;
+
+    tabs.scrollTo({
+      left: Math.max(0, targetLeft),
       behavior: "smooth",
-      block: "nearest",
-      inline: "center",
     });
   }, [activeSection]);
+
+  const openCreateNew = useCallback(() => setShowCreateNew(true), []);
+
+  const confirmCreateNew = useCallback(() => {
+    const blank = createBlankResume();
+    setData(blank);
+    setSavedData(clone(blank));
+    setError("");
+    setNotice("");
+    setActiveSection("Personal details");
+    setSelectedTemplate("basic");
+    setShowCreateNew(false);
+    editorRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   const openPreview = () => setShowPreview(true);
   const closePreview = useCallback(() => setShowPreview(false), []);
@@ -347,15 +363,16 @@ export default function ResumeBuilder() {
     );
   }
 
-  const renderTemplate = () => {
-    if (selectedTemplate === "modern") return <ModernTemplate data={data} />;
+  const renderTemplate = (theme = resumeTheme) => {
+    if (selectedTemplate === "modern")
+      return <ModernTemplate data={data} theme={theme} />;
     if (selectedTemplate === "professional")
-      return <ProfessionalTemplate data={data} />;
-    return <BasicTemplate data={data} />;
+      return <ProfessionalTemplate data={data} theme={theme} />;
+    return <BasicTemplate data={data} theme={theme} />;
   };
 
   return (
-    <div className="rio-resume-workspace relative h-[100dvh] w-full overflow-hidden bg-[#121416] text-white lg:flex lg:items-center lg:justify-center lg:p-4">
+    <div className="rio-resume-workspace relative h-[100dvh] w-full overflow-hidden bg-[#101113] text-white lg:flex lg:items-center lg:justify-center lg:p-5">
       <style>{`
         .rio-resume-scroll { scrollbar-width: none; -ms-overflow-style: none; }
         .rio-resume-scroll::-webkit-scrollbar { display: none; }
@@ -366,26 +383,26 @@ export default function ResumeBuilder() {
       `}</style>
 
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,.055),transparent_55%),linear-gradient(125deg,#191b1e,#17191c_55%,#141619)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_48%_0%,rgba(255,255,255,0.055),transparent_38%),#101113]" />
       </div>
 
-      <div className="relative z-10 grid h-full min-h-0 w-full grid-cols-1 overflow-hidden border-white/[.12] lg:h-[calc(100dvh-32px)] lg:max-h-[980px] lg:max-w-[1760px] lg:grid-cols-[20%_60%_20%] lg:rounded-[28px] lg:p-2">
+      <div className="relative z-10 grid h-full min-h-0 w-full grid-cols-1 overflow-hidden border-white/[.12] lg:h-[calc(100dvh-40px)] lg:max-h-[1000px] lg:max-w-[1820px] lg:grid-cols-[minmax(230px,24%)_minmax(0,1fr)_minmax(270px,25%)] lg:gap-3 lg:rounded-[30px] lg:border lg:border-white/[.09] lg:bg-[#111315]/85 lg:p-3 lg:shadow-[0_24px_80px_rgba(0,0,0,.30)]">
         {/* One left container: section navigation only. */}
-        <aside className="hidden min-h-0 flex-col border border-white/[.10] bg-[#08090B]/25 px-3 py-4 xl:px-4 lg:flex lg:rounded-[20px]">
+        <aside className="hidden min-h-0 flex-col overflow-hidden border border-white/[.09] bg-[#111315]/90 px-3.5 py-4 shadow-[0_22px_60px_rgba(0,0,0,.18)] xl:px-4 lg:flex lg:rounded-[23px]">
           <div className="flex shrink-0 items-center gap-2.5 px-1 pb-4">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[.10] bg-white/[.04]">
+            <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-white/[.10] bg-white/[.045]">
               <FileText className="h-4 w-4 text-white/75" />
             </span>
             <div>
               <p className="text-[9px] font-semibold uppercase tracking-[.18em] text-white/35">
-                RIO Resume 
+                RIO Resume
               </p>
               <h2 className="mt-1 text-xs font-semibold text-white/90">
                 Resume sections
               </h2>
             </div>
           </div>
-          <div className="mb-3 h-px shrink-0 bg-white/[.10]" />
+          <div className="mb-3 h-px shrink-0 bg-gradient-to-r from-white/20 via-white/[.10] to-transparent" />
           <nav className="flex min-h-0 flex-1 flex-col justify-between gap-1 py-1">
             {SECTIONS.map(({ label, hint, Icon, terms }) => (
               <button
@@ -419,22 +436,24 @@ export default function ResumeBuilder() {
         </aside>
 
         {/* Center: one continuous scroll area; the form itself owns its fields. */}
-        <main className="relative flex min-h-0 min-w-0 flex-col bg-[#191b1e]/35 lg:mx-2 lg:border lg:border-white/[.07] lg:rounded-[20px] lg:!bg-transparent">
-          <div className="sticky top-0 z-30 shrink-0 border-b border-white/[.10] bg-[#17191c]/95 pt-1 backdrop-blur-xl sm:px-6 lg:static lg:border-0 lg:bg-transparent lg:px-5 lg:!bg-transparent lg:rounded-[20px]">
+        <main className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#111315]/25 lg:rounded-[23px] lg:border lg:border-white/[.08] lg:bg-transparent lg:shadow-none">
+          <div className="sticky top-0 z-30 shrink-0 border-b border-white/[.08] bg-[#111319]/95 pt-1 backdrop-blur-2xl sm:px-6 lg:static lg:border-0 lg:bg-transparent lg:px-6 lg:rounded-[23px] lg:!bg-transparent">
             {/* Desktop header: keep the back link transparent so it doesn't cover the workspace border. */}
-            <div className="hidden h-16 items-center border-b-3 border-white/[.08] bg-transparent lg:flex lg:!bg-transparent">
+            <div className="hidden h-[68px] items-center border-b border-white/[.09] bg-transparent lg:flex lg:!bg-transparent">
               <button
                 type="button"
                 onClick={() => navigate("/builder/dashboard")}
-                className="inline-flex items-center gap-2 border-0 bg-transparent px-0 text-sm text-white/70 transition hover:text-white"
+                className="group inline-flex items-center gap-2.5 border-0 bg-transparent px-0 text-[13px] font-medium text-white/55 transition hover:text-white"
               >
-                <ArrowLeft className="h-4 w-4" />
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/[.09] bg-white/[.025] transition group-hover:border-white/[.10] group-hover:bg-white/[.06]">
+                  <ArrowLeft className="h-4 w-4" />
+                </span>
                 <span>Back to Resume Dashboard</span>
               </button>
             </div>
 
             {/* Mobile app bar: separate from the desktop header, following the RIO workspace pattern. */}
-            <div className="flex h-16 shrink-0 items-center border-b border-white/[.07] bg-[#111214]/75 px-4 backdrop-blur-xl lg:hidden">
+            <div className="flex h-16 shrink-0 items-center border-b border-white/[.07] bg-[#111214]/75 p-4 backdrop-blur-xl lg:hidden">
               <button
                 type="button"
                 onClick={() => navigate("/builder/dashboard")}
@@ -445,7 +464,9 @@ export default function ResumeBuilder() {
                 <ArrowLeft className="h-4 w-4" />
               </button>
               <div className="ml-3 min-w-0 border-l border-white/[.09] pl-3">
-                <p className="truncate text-xs font-semibold text-white">Resume Builder</p>
+                <p className="truncate text-xs font-semibold text-white">
+                  Resume Builder
+                </p>
                 <p className="mt-0.5 text-[9px] uppercase tracking-[.14em] text-[#858994]">
                   Build your professional resume
                 </p>
@@ -475,7 +496,7 @@ export default function ResumeBuilder() {
           <div
             id="resume-form-scroll"
             ref={editorRef}
-            className="rio-resume-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-16 pt-5 sm:px-6 lg:px-5 lg:pb-6"
+            className="rio-resume-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-24 pt-5 sm:px-6 lg:px-6 lg:pb-8 lg:pt-6"
           >
             {error && (
               <div
@@ -503,26 +524,26 @@ export default function ResumeBuilder() {
               </div>
             )}
             <div className="rio-resume-fieldset min-w-0">
-              <ResumeForm data={data} onChange={handleChange} />
+              <ResumeForm
+                data={data}
+                onChange={handleChange}
+                onCreateNew={openCreateNew}
+              />
             </div>
           </div>
         </main>
 
         {/* Right: one panel, three internal regions. */}
-        <aside className="hidden min-h-0 min-w-0 flex-col  lg:flex ">
-          <div className=" bg-[#111315]/25  border border-white/[.10] px-2.5 py-3 shrink-0 pb-3 lg:rounded-[20px]">
+        <aside className="hidden min-h-0 min-w-0 flex-col gap-3 lg:flex ">
+          <div className=" rounded-[22px] border border-white/[.10] bg-white/[.025] px-3.5 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,.025)]">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div>
-                
                 <h2 className="mt-1 text-[13px] font-semibold">
                   Template preview
                 </h2>
               </div>
-              <span className="rounded-full border border-white/[.08] px-2 py-1 text-[8px] text-white/40">
-                3 styles
-              </span>
             </div>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-3 gap-2">
               {TEMPLATES.map((template) => {
                 const selected = selectedTemplate === template.id;
                 return (
@@ -531,10 +552,10 @@ export default function ResumeBuilder() {
                     type="button"
                     onClick={() => setSelectedTemplate(template.id)}
                     aria-pressed={selected}
-                    className={`min-w-0 rounded-lg border px-1.5 py-2 text-center transition ${selected ? "border-white/25 bg-white/[.085]" : "border-white/[.07] bg-white/[.018] hover:border-white/[.14] hover:bg-white/[.04]"}`}
+                    className={`min-w-0 rounded-xl border px-1.5 py-3 text-center transition duration-200 ${selected ? "border-white/[.15] bg-white/[.065] shadow-[inset_0_1px_0_rgba(255,255,255,.06)]" : "border-white/[.075] bg-black/10 hover:border-white/[.16] hover:bg-white/[.035]"}`}
                   >
                     <span
-                      className={`mx-auto mb-2 block h-[2px] w-8 rounded-full ${selected ? "bg-white" : "bg-white/20"}`}
+                      className={`mx-auto mb-2.5 block h-[3px] w-8 rounded-full ${selected ? "bg-white/80" : "bg-white/20"}`}
                     />
                     <span
                       className={`block truncate text-[9px] font-semibold ${selected ? "text-white" : "text-white/50"}`}
@@ -550,24 +571,45 @@ export default function ResumeBuilder() {
             </div>
           </div>
 
-          <div className="mb-2 flex shrink-0 items-center justify-between  pt-3">
+          <div className="flex shrink-0 items-center justify-between px-1 pt-1">
             <div className="min-w-0">
-              <p className="text-[8px] uppercase tracking-[.17em] text-white/30">
+              <p className="text-[9px] font-semibold uppercase tracking-[.2em] text-white/35">
                 Live document
               </p>
-              <p className="mt-0.5 truncate text-[10px] font-medium text-white/65">
-               
-              </p>
+              <p className="mt-0.5 truncate text-[10px] font-medium text-white/65"></p>
             </div>
-            <span className="truncate text-[10px] font-medium text-white/65"> {previewName}</span>
+            <span className="truncate text-[10px] font-medium text-white/65">
+              {" "}
+              {previewName}
+            </span>
           </div>
 
           <div
             ref={previewViewportRef}
-            className="rio-resume-scroll relative flex min-h-0 flex-1 items-center justify-center overflow-hidden "
+            className="rio-resume-scroll relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-[22px] border border-white/[.075] bg-[radial-gradient(ellipse_at_center,rgba(255,255,255,0.025),transparent_68%),#111315] px-2 py-4"
           >
+            <div className="absolute right-3 top-3 z-20 flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() =>
+                  setResumeTheme((theme) =>
+                    theme === "light" ? "dark" : "light",
+                  )
+                }
+                aria-label={`Switch resume preview to ${
+                  resumeTheme === "light" ? "dark" : "light"
+                } theme`}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-[#222529] text-white/80 hover:bg-[#30343a]"
+              >
+                {resumeTheme === "light" ? (
+                  <Moon className="h-4 w-4" />
+                ) : (
+                  <Sun className="h-4 w-4" />
+                )}
+              </button>
+            </div>
             <div
-              className="shrink-0 overflow-hidden bg-white text-black shadow-[0_18px_48px_rgba(0,0,0,.35)]"
+              className={`shrink-0 overflow-hidden shadow-[0_24px_70px_rgba(0,0,0,.58)] ring-1 ring-white/15 ${resumeTheme === "dark" ? "bg-[#17191c] text-[#e5e7eb]" : "bg-white text-black"}`}
               style={{
                 width: 794,
                 height: 1123,
@@ -575,19 +617,18 @@ export default function ResumeBuilder() {
                 transformOrigin: "center center",
               }}
             >
-              {renderTemplate()}
+              {renderTemplate(resumeTheme)}
             </div>
-            
           </div>
 
-          <div className="bg-[#111315]/25  border border-white/[.10] px-2.5 py-3 shrink-0 pb-3 lg:rounded-[20px]">
+          <div className="shrink-0 rounded-[22px] border border-white/[.10] bg-white/[.025] px-3.5 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,.025)]">
             <div className="mb-2.5 flex items-center justify-between">
               <span className="text-[9px] text-white/35">Resume readiness</span>
               <span className="text-[10px] font-semibold tabular-nums text-white/70">
                 {completion}%
               </span>
             </div>
-            <div className="mb-3 h-1 overflow-hidden rounded-full bg-white/[.08]">
+            <div className="mb-3 h-1.5 overflow-hidden rounded-full bg-white/[.08]">
               <motion.div
                 className="h-full rounded-full bg-white/75"
                 animate={{ width: `${completion}%` }}
@@ -616,13 +657,12 @@ export default function ResumeBuilder() {
                 {saving ? "Saving" : "Save"}
               </button>
             </div>
-           
           </div>
         </aside>
       </div>
 
       {/* Mobile actions are kept outside the scrollable editor. */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[.08] bg-[#111315]/95 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5 backdrop-blur-xl lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[.09] bg-[#111315]/90 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5 shadow-none backdrop-blur-2xl lg:hidden">
         <div className="mx-auto flex max-w-xl items-center gap-2">
           <button
             type="button"
@@ -648,12 +688,71 @@ export default function ResumeBuilder() {
       </div>
 
       <AnimatePresence>
+        {showCreateNew && (
+          <motion.div
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowCreateNew(false);
+            }}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-new-title"
+              className="w-full max-w-md overflow-hidden rounded-2xl border border-white/[.12] bg-[#17191C] shadow-[0_24px_80px_rgba(0,0,0,.55)]"
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            >
+              <div className="border-b border-white/[.08] px-5 py-4">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-white/[.10] bg-white/[.04] text-[#D4D4D8]">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <h2
+                  id="create-new-title"
+                  className="text-base font-semibold text-white"
+                >
+                  Create a new resume?
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-white/55">
+                  This will clear the current form and start a fresh resume. Any
+                  changes that haven’t been saved will be lost. Save your work
+                  before continuing if you want to keep it.
+                </p>
+              </div>
+              <div className="flex justify-end gap-2.5 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setShowCreateNew(false)}
+                  className="min-h-10 rounded-xl border border-white/[.12] bg-white/[.035] px-4 text-sm font-medium text-white/75 transition hover:bg-white/[.08]"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmCreateNew}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-[#17191c] transition hover:bg-white/90"
+                >
+                  <Plus className="h-4 w-4" /> Create new
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {showPreview && (
           <PreviewResume
             data={data}
             selectedTemplate={selectedTemplate}
             onTemplateChange={setSelectedTemplate}
             onClose={closePreview}
+            resumeTheme={resumeTheme}
+            onThemeChange={setResumeTheme}
             resumeRef={previewRef}
           />
         )}

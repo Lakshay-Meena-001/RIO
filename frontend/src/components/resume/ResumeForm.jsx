@@ -5,12 +5,13 @@ import { useEffect, useRef, useState } from "react";
 /* -------------------------------------------------------------------------- */
 
 const inputClassName =
-  "w-full rounded-lg border border-white/[.11] bg-white/[.035] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:bg-white/[0.06]";
+  "w-full rounded-xl border border-white/[.105] bg-[#0e1015]/75 px-3.5 py-3 text-[13px] text-white shadow-[inset_0_1px_2px_rgba(0,0,0,.18)] outline-none transition duration-200 placeholder:text-white/25 hover:border-white/[.17] focus:border-white/25 focus:bg-[#17191C] focus:ring-4 focus:ring-white/[.035]";
 
 const textareaClassName =
-  "w-full rounded-lg border border-white/[.11] bg-white/[.035] px-3.5 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:bg-white/[0.06]";
+  "w-full rounded-xl border border-white/[.105] bg-[#0e1015]/75 px-3.5 py-3 text-[13px] leading-6 text-white shadow-[inset_0_1px_2px_rgba(0,0,0,.18)] outline-none transition duration-200 placeholder:text-white/25 hover:border-white/[.17] focus:border-white/25 focus:bg-[#17191C] focus:ring-4 focus:ring-white/[.035]";
 
-const labelClassName = "mb-2 block text-xs font-medium text-white/65";
+const labelClassName =
+  "mb-2 block text-[11px] font-semibold tracking-[.015em] text-white/70";
 
 const emptyEducation = {
   institution: "",
@@ -214,8 +215,8 @@ function TagInput({ label, values = [], onChange, placeholder, hint }) {
 
       <div
         className="
-          w-full rounded-lg border border-white/[.09] bg-transparent p-3
-          transition"
+          w-full rounded-xl border border-white/[.09] bg-[#0e1015]/70 p-3
+          shadow-[inset_0_1px_2px_rgba(0,0,0,.16)] transition focus-within:border-white/20 focus-within:ring-4 focus-within:ring-white/[.03]"
       >
         {values.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
@@ -267,13 +268,13 @@ function TagInput({ label, values = [], onChange, placeholder, hint }) {
 function FormSection({ title, description, children, action }) {
   return (
     <section className="w-full min-w-0 border-b border-white/[.10] pb-7 last:border-b-0">
-      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="mb-5 flex flex-col gap-3 border-b border-white/[.075] pb-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h2 className="text-xl font-semibold tracking-[-.03em] text-white sm:text-[22px]">
+          <h2 className="relative pl-3 text-[19px] font-semibold tracking-[-.035em] text-white before:absolute before:bottom-1 before:left-0 before:top-1 before:w-[3px] before:rounded-full before:bg-gradient-to-b before:from-white/80 before:to-white/25 sm:text-[21px]">
             {title}
           </h2>
           {description && (
-            <p className="mt-1.5 text-xs leading-5 text-white/40">
+            <p className="mt-1.5 pl-3 text-[11px] leading-5 text-white/45 sm:text-xs">
               {description}
             </p>
           )}
@@ -293,12 +294,12 @@ function EntryHeader({ title, subtitle, onRemove }) {
   return (
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <p className="text-lg font-semibold tracking-[-0.02em] text-white">
+        <p className="text-[15px] font-semibold tracking-[-0.02em] text-white">
           {title}
         </p>
 
         {subtitle && (
-          <p className="mt-1 text-xs leading-5 text-white/35">{subtitle}</p>
+          <p className="mt-1 text-[11px] leading-5 text-white/40">{subtitle}</p>
         )}
       </div>
 
@@ -325,7 +326,7 @@ function EntryHeader({ title, subtitle, onRemove }) {
 /*                              Resume Form                                   */
 /* -------------------------------------------------------------------------- */
 
-export default function ResumeForm({ data, onChange }) {
+export default function ResumeForm({ data, onChange, onCreateNew }) {
   const updateProfile = (field, value) => {
     onChange({
       ...data,
@@ -427,13 +428,23 @@ export default function ResumeForm({ data, onChange }) {
   /* ------------------------------------------------------------------------ */
 
   return (
-    <div className="w-full min-w-0 space-y-7">
+    <div className="w-full min-w-0 space-y-5">
       {/* Profile */}
       {/* ------------------------------------------------------------------ */}
 
       <FormSection
         title="Profile"
         description="Your core identity and professional links."
+        action={
+          <button
+            type="button"
+            onClick={onCreateNew}
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/[.12] bg-white/[.045] px-3.5 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/[.18] hover:bg-white/[.08] focus:outline-none focus:ring-2 focus:ring-white/20"
+          >
+            <span className="text-sm leading-none">+</span>
+            Create new
+          </button>
+        }
       >
         <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
           <Field
@@ -529,7 +540,7 @@ export default function ResumeForm({ data, onChange }) {
           <button
             type="button"
             onClick={addExperience}
-            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-violet-400/15 sm:w-auto"
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-white/[.075] sm:w-auto"
           >
             + Add Experience
           </button>
@@ -540,10 +551,7 @@ export default function ResumeForm({ data, onChange }) {
             <div
               key={index}
               className="
-                w-full min-w-0
-                border-b border-white/[.09]
-                bg-transparent
-                py-5 last:border-b-0
+                w-full min-w-0 rounded-2xl border border-white/[.075] bg-black/[.12] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.02)] sm:p-5
               "
             >
               <EntryHeader
@@ -656,7 +664,7 @@ export default function ResumeForm({ data, onChange }) {
           <button
             type="button"
             onClick={addEducation}
-            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-violet-400/15 sm:w-auto"
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-white/[.075] sm:w-auto"
           >
             + Add Education
           </button>
@@ -667,10 +675,7 @@ export default function ResumeForm({ data, onChange }) {
             <div
               key={index}
               className="
-                w-full min-w-0
-                border-b border-white/[.09]
-                bg-transparent
-                py-5 last:border-b-0
+                w-full min-w-0 rounded-2xl border border-white/[.075] bg-black/[.12] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.02)] sm:p-5
               "
             >
               <EntryHeader
@@ -766,7 +771,7 @@ export default function ResumeForm({ data, onChange }) {
           <button
             type="button"
             onClick={addProject}
-            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-violet-400/15 sm:w-auto"
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-white/[.075] sm:w-auto"
           >
             + Add Project
           </button>
@@ -777,10 +782,7 @@ export default function ResumeForm({ data, onChange }) {
             <div
               key={index}
               className="
-                w-full min-w-0
-                border-b border-white/[.09]
-                bg-transparent
-                py-5 last:border-b-0
+                w-full min-w-0 rounded-2xl border border-white/[.075] bg-black/[.12] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.02)] sm:p-5
               "
             >
               <EntryHeader
@@ -951,7 +953,7 @@ export default function ResumeForm({ data, onChange }) {
 
 function EmptyState({ title, description, actionLabel, onClick }) {
   return (
-    <div className="w-full rounded-xl border border-dashed border-white/10 bg-white/[0.015] px-4 py-8 text-center sm:px-5">
+    <div className="w-full rounded-2xl border border-dashed border-white/[.12] bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,.025),transparent_65%),rgba(0,0,0,.12)] px-4 py-9 text-center sm:px-5">
       <p className="text-sm font-medium text-white/70">{title}</p>
 
       <p className="mx-auto mt-1.5 max-w-md text-xs leading-5 text-white/35">
@@ -961,7 +963,7 @@ function EmptyState({ title, description, actionLabel, onClick }) {
       <button
         type="button"
         onClick={onClick}
-        className="mt-4 rounded-lg border border-white/10 bg-white/[0.05] px-3.5 py-2 text-xs font-medium text-white/75 transition hover:bg-white/[0.08]"
+        className="mt-4 rounded-xl border border-white/[.12] bg-white/[.045] px-4 py-2.5 text-xs font-semibold text-white/80 shadow-[0_4px_12px_rgba(0,0,0,.12)] transition hover:border-white/[.16] hover:bg-white/[.06] hover:text-white"
       >
         {actionLabel}
       </button>

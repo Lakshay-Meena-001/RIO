@@ -189,18 +189,14 @@ function EducationSection({ education }) {
     <Section title="Education">
       <div>
         {education.map((item, index) => {
-          const dateRange = formatDateRange(
-            item.startDate,
-            item.endDate
-          );
+          const dateRange = formatDateRange(item.startDate, item.endDate);
 
           return (
             <div
               key={index}
               className="break-inside-avoid"
               style={{
-                marginBottom:
-                  index === education.length - 1 ? 0 : "5px",
+                marginBottom: index === education.length - 1 ? 0 : "5px",
               }}
             >
               <div
@@ -224,9 +220,7 @@ function EducationSection({ education }) {
                         lineHeight: 1.2,
                       }}
                     >
-                      {[item.degree, item.field]
-                        .filter(hasValue)
-                        .join(" in ")}
+                      {[item.degree, item.field].filter(hasValue).join(" in ")}
                     </div>
                   ) : null}
 
@@ -289,8 +283,7 @@ function ProjectsSection({ projects }) {
             key={index}
             className="break-inside-avoid"
             style={{
-              marginBottom:
-                index === projects.length - 1 ? 0 : "6px",
+              marginBottom: index === projects.length - 1 ? 0 : "6px",
             }}
           >
             {hasValue(project.title) && (
@@ -321,17 +314,12 @@ function ProjectsSection({ projects }) {
             <BulletList
               items={[
                 ...(hasItems(project.technologies)
-                  ? [
-                      `Technology Used: ${project.technologies.join(
-                        ", "
-                      )}`,
-                    ]
+                  ? [`Technology Used: ${project.technologies.join(", ")}`]
                   : []),
               ]}
             />
 
-            {(hasValue(project.url) ||
-              hasValue(project.githubUrl)) && (
+            {(hasValue(project.url) || hasValue(project.githubUrl)) && (
               <div
                 style={{
                   marginTop: "1px",
@@ -358,18 +346,14 @@ function ExperienceSection({ experience }) {
     <Section title="Experience">
       <div>
         {experience.map((item, index) => {
-          const dateRange = formatDateRange(
-            item.startDate,
-            item.endDate
-          );
+          const dateRange = formatDateRange(item.startDate, item.endDate);
 
           return (
             <div
               key={index}
               className="break-inside-avoid"
               style={{
-                marginBottom:
-                  index === experience.length - 1 ? 0 : "6px",
+                marginBottom: index === experience.length - 1 ? 0 : "6px",
               }}
             >
               <div
@@ -388,9 +372,7 @@ function ExperienceSection({ experience }) {
                   }}
                 >
                   {hasValue(item.role) && (
-                    <span style={{ fontWeight: 700 }}>
-                      {item.role}
-                    </span>
+                    <span style={{ fontWeight: 700 }}>{item.role}</span>
                   )}
 
                   {hasValue(item.company) && (
@@ -438,9 +420,7 @@ function ExperienceSection({ experience }) {
                     lineHeight: 1.28,
                   }}
                 >
-                  <BulletList
-                    items={item.description.split(/\n+/)}
-                  />
+                  <BulletList items={item.description.split(/\n+/)} />
                 </div>
               )}
 
@@ -483,7 +463,7 @@ function SkillsSection({ skills }) {
   );
 }
 
-export default function BasicTemplate({ data }) {
+export default function BasicTemplate({ data, theme = "light" }) {
   const profile = data?.profile || {};
   const education = data?.education || [];
   const experience = data?.experience || [];
@@ -491,45 +471,66 @@ export default function BasicTemplate({ data }) {
   const skills = data?.skills || [];
 
   return (
-    <article
-      className="resume-page mx-auto bg-white text-black"
-      style={pageStyle}
-    >
-      <Header profile={profile} />
+    <>
+      <style>{`
+        .resume-page.resume-theme-dark,
+        .resume-page.resume-theme-dark * {
+          color: #e5e7eb !important;
+          border-color: #59616b !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .resume-page.resume-theme-dark {
+          background: #17191c !important;
+        }
+        .resume-page.resume-theme-dark * {
+          background-color: transparent !important;
+        }
+      `}</style>
+      <article
+        className={`resume-page mx-auto ${theme === "dark" ? "resume-theme-dark" : "bg-white text-black"}`}
+        style={{
+          ...pageStyle,
+          background: theme === "dark" ? "#17191c" : "#fff",
+          color: theme === "dark" ? "#e5e7eb" : "#000",
+        }}
+      >
+        <Header profile={profile} />
 
-      <EducationSection education={education} />
+        <EducationSection education={education} />
 
-      <ProjectsSection projects={projects} />
+        <ProjectsSection projects={projects} />
 
-      <ExperienceSection experience={experience} />
+        <ExperienceSection experience={experience} />
 
-      <SkillsSection skills={skills} />
+        <SkillsSection skills={skills} />
 
-      {hasItems(data?.certifications) && (
-        <Section title="Certifications">
-          <BulletList items={data.certifications} />
-        </Section>
-      )}
+        {hasItems(data?.certifications) && (
+          <Section title="Certifications">
+            <BulletList items={data.certifications} />
+          </Section>
+        )}
 
-      {hasItems(data?.achievements) && (
-        <Section title="Achievements">
-          <BulletList items={data.achievements} />
-        </Section>
-      )}
+        {hasItems(data?.achievements) && (
+          <Section title="Achievements">
+            <BulletList items={data.achievements} />
+          </Section>
+        )}
 
-      {hasItems(data?.languages) && (
-        <Section title="Languages">
-          <p
-            style={{
-              margin: 0,
-              fontSize: "10.3pt",
-              lineHeight: 1.3,
-            }}
-          >
-            {data.languages.join(", ")}
-          </p>
-        </Section>
-      )}
-    </article>
+        {hasItems(data?.languages) && (
+          <Section title="Languages">
+            <p
+              style={{
+                margin: 0,
+                fontSize: "10.3pt",
+                lineHeight: 1.3,
+              }}
+            >
+              {data.languages.join(", ")}
+            </p>
+          </Section>
+        )}
+      </article>
+    </>
   );
 }

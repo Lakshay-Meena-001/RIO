@@ -28,6 +28,8 @@ export default function PreviewResume({
   onTemplateChange,
   onClose,
   onDownload,
+  resumeTheme = "light",
+  onThemeChange,
 }) {
   const activeTemplate = templates[selectedTemplate] || templates.basic;
   const TemplateComponent = activeTemplate.component;
@@ -76,6 +78,60 @@ export default function PreviewResume({
   }, []);
 
   useEffect(() => {
+    const viewport = previewViewportRef.current;
+    if (!viewport) return;
+
+    let pinchStartDistance = 0;
+    let pinchStartZoom = zoom;
+    const getDistance = (touches) => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.hypot(dx, dy);
+    };
+
+    const onTouchStart = (event) => {
+      if (event.touches.length === 2) {
+        pinchStartDistance = getDistance(event.touches);
+        pinchStartZoom = zoom;
+      }
+    };
+    const onTouchMove = (event) => {
+      if (event.touches.length !== 2 || !pinchStartDistance) return;
+      if (event.cancelable) event.preventDefault();
+      const ratio =
+        getDistance(event.touches) / Math.max(1, pinchStartDistance);
+      setZoom(Math.min(2.5, Math.max(0.5, pinchStartZoom * ratio)));
+    };
+    const onTouchEnd = (event) => {
+      if (event.touches.length < 2) pinchStartDistance = 0;
+    };
+    const onWheel = (event) => {
+      if (!event.ctrlKey && !event.metaKey) return;
+      if (event.cancelable) event.preventDefault();
+      setZoom((current) =>
+        Math.min(
+          2.5,
+          Math.max(0.5, current + (event.deltaY < 0 ? 0.05 : -0.05)),
+        ),
+      );
+    };
+
+    viewport.addEventListener("touchstart", onTouchStart, { passive: true });
+    viewport.addEventListener("touchmove", onTouchMove, { passive: false });
+    viewport.addEventListener("touchend", onTouchEnd, { passive: true });
+    viewport.addEventListener("touchcancel", onTouchEnd, { passive: true });
+    viewport.addEventListener("wheel", onWheel, { passive: false });
+
+    return () => {
+      viewport.removeEventListener("touchstart", onTouchStart);
+      viewport.removeEventListener("touchmove", onTouchMove);
+      viewport.removeEventListener("touchend", onTouchEnd);
+      viewport.removeEventListener("touchcancel", onTouchEnd);
+      viewport.removeEventListener("wheel", onWheel);
+    };
+  }, [zoom]);
+
+  useEffect(() => {
     const paper = resumeRef.current;
     if (!paper) return;
 
@@ -97,7 +153,8 @@ export default function PreviewResume({
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.key === "Escape") {
-        onClose?.();
+        event.preventDefault();
+        if (typeof onClose === "function") onClose();
       }
     };
 
@@ -110,7 +167,7 @@ export default function PreviewResume({
 
   const changeZoom = (amount) => {
     setZoom((current) =>
-      Math.min(2.5, Math.max(1, Number((current + amount).toFixed(2))))
+      Math.min(2.5, Math.max(1, Number((current + amount).toFixed(2)))),
     );
   };
 
@@ -227,6 +284,11 @@ export default function PreviewResume({
       // Clone ONLY the A4 resume, never the preview bars or dashboard.
       const clone = resumeElement.cloneNode(true);
 
+      // The on-screen theme must never affect the exported PDF.
+      clone.querySelectorAll(".resume-theme-dark").forEach((node) => {
+        node.classList.remove("resume-theme-dark");
+      });
+
       clone.removeAttribute("style");
       clone.style.width = "210mm";
       clone.style.maxWidth = "210mm";
@@ -249,21 +311,20 @@ export default function PreviewResume({
         const images = Array.from(printDocument.images);
 
         await Promise.all(
-          images.map(
-            (image) =>
-              image.complete
-                ? Promise.resolve()
-                : new Promise((resolve) => {
-                    image.onload = resolve;
-                    image.onerror = resolve;
-                  })
-          )
+          images.map((image) =>
+            image.complete
+              ? Promise.resolve()
+              : new Promise((resolve) => {
+                  image.onload = resolve;
+                  image.onerror = resolve;
+                }),
+          ),
         );
 
         await new Promise((resolve) =>
           printWindow.requestAnimationFrame(() =>
-            printWindow.requestAnimationFrame(resolve)
-          )
+            printWindow.requestAnimationFrame(resolve),
+          ),
         );
       };
 
@@ -352,15 +413,15 @@ export default function PreviewResume({
         }
       `}</style>
 
-    <div
-      className="resume-preview-overlay fixed inset-0 z-[100] flex w-screen max-w-none min-w-0 flex-col bg-black/70 backdrop-blur-md"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Resume preview"
-    >
-      {/* ============================ TOP BAR ============================== */}
       <div
-        className="
+        className="resume-preview-overlay fixed inset-0 z-[100] flex w-screen max-w-none min-w-0 flex-col bg-black/70 backdrop-blur-md"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Resume preview"
+      >
+        {/* ============================ TOP BAR ============================== */}
+        <div
+          className="
           relative z-[105] flex shrink-0 items-center
           border-b border-white/[0.12]
           bg-white/[0.055]
@@ -369,21 +430,45 @@ export default function PreviewResume({
           backdrop-blur-2xl
           sm:px-5 sm:py-3.5
         "
-      >
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold tracking-[-0.01em] text-white sm:text-[15px]">
-            Resume Preview
-          </p>
-          <p className="mt-0.5 text-[11px] text-white/40 sm:text-xs">
-            {activeTemplate.label} template
-          </p>
-        </div>
+        >
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold tracking-[-0.01em] text-white sm:text-[15px]">
+              Resume Preview
+            </p>
+            <p className="mt-0.5 text-[11px] text-white/40 sm:text-xs">
+              {activeTemplate.label} template
+            </p>
+          </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close resume preview"
-          className="
+          <div className="mr-2 flex items-center gap-1 rounded-xl border border-white/[0.12] bg-white/[0.04] p-1">
+            <button
+              type="button"
+              onClick={() => onThemeChange?.("light")}
+              aria-label="Use light resume theme"
+              aria-pressed={resumeTheme === "light"}
+              className={`rounded-lg px-2.5 py-2 text-[11px] font-medium transition ${resumeTheme === "light" ? "bg-white text-black" : "text-white/65 hover:bg-white/[0.08]"}`}
+            >
+              Light
+            </button>
+            <button
+              type="button"
+              onClick={() => onThemeChange?.("dark")}
+              aria-label="Use dark resume theme"
+              aria-pressed={resumeTheme === "dark"}
+              className={`rounded-lg px-2.5 py-2 text-[11px] font-medium transition ${resumeTheme === "dark" ? "bg-white text-black" : "text-white/65 hover:bg-white/[0.08]"}`}
+            >
+              Dark
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              if (typeof onClose === "function") onClose();
+            }}
+            aria-label="Close resume preview"
+            className="
             inline-flex h-9 w-9 shrink-0 items-center justify-center
             rounded-xl
             border border-white/[0.14]
@@ -398,29 +483,29 @@ export default function PreviewResume({
             focus:outline-none
             focus-visible:ring-2 focus-visible:ring-white/40
           "
-        >
-          ×
-        </button>
-      </div>
+          >
+            ×
+          </button>
+        </div>
 
-      {/* ========================= DESKTOP CONTROLS ======================== */}
-      <div className="hidden shrink-0 items-center justify-center border-b border-white/10 bg-[#0b0b0f]/80 px-5 py-2.5 sm:flex">
-        <div
-          className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1"
-          role="tablist"
-          aria-label="Resume templates"
-        >
-          {Object.entries(templates).map(([templateKey, template]) => {
-            const isActive = selectedTemplate === templateKey;
+        {/* ========================= DESKTOP CONTROLS ======================== */}
+        <div className="hidden shrink-0 items-center justify-center border-b border-white/10 bg-[#0b0b0f]/80 px-5 py-2.5 sm:flex">
+          <div
+            className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] p-1"
+            role="tablist"
+            aria-label="Resume templates"
+          >
+            {Object.entries(templates).map(([templateKey, template]) => {
+              const isActive = selectedTemplate === templateKey;
 
-            return (
-              <button
-                key={templateKey}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={() => onTemplateChange?.(templateKey)}
-                className={`
+              return (
+                <button
+                  key={templateKey}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => onTemplateChange?.(templateKey)}
+                  className={`
                   shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium
                   transition-all duration-200
                   focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40
@@ -430,18 +515,18 @@ export default function PreviewResume({
                       : "text-white/60 hover:bg-white/[0.07] hover:text-white"
                   }
                 `}
-              >
-                {template.label}
-              </button>
-            );
-          })}
-        </div>
+                >
+                  {template.label}
+                </button>
+              );
+            })}
+          </div>
 
-        <button
-          type="button"
-          onClick={handleDownload}
-          disabled={isDownloading}
-          className="
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="
             absolute right-16
             inline-flex items-center justify-center rounded-lg
             border border-white/15 bg-white/[0.06]
@@ -449,161 +534,154 @@ export default function PreviewResume({
             transition hover:bg-white/[0.12]
             disabled:cursor-not-allowed disabled:opacity-50
           "
-        >
-          {isDownloading ? "Preparing..." : "Download PDF"}
-        </button>
-      </div>
+          >
+            {isDownloading ? "Preparing..." : "Download PDF"}
+          </button>
+        </div>
 
-      {/* ============================ PREVIEW ============================== */}
-      <div
-        ref={previewViewportRef}
-        className={`
+        {/* ============================ PREVIEW ============================== */}
+        <div
+          ref={previewViewportRef}
+          className={`
           resume-preview-viewport
           min-h-0 w-full min-w-0 flex-1 overflow-y-auto overscroll-contain
           ${zoom > 1 ? "overflow-x-auto" : "overflow-x-hidden"}
           bg-black/30 px-3 py-5 sm:px-6 sm:py-8 lg:px-10
           pb-[150px] sm:pb-10 isolate
         `}
-      >
-        {(() => {
-          // A4 starts at its natural browser-rendered size and is scaled down
-          // ONLY enough to make the complete sheet visible initially.
-          // On mobile, always fit the A4 sheet inside the actual viewport width
-          // at the default 100% zoom. Horizontal scrolling should only become
-          // necessary after the user explicitly zooms in.
-          const horizontalPadding = previewSize.width < 640 ? 24 : 48;
-          const horizontalFit = Math.max(
-            0.1,
-            (previewSize.width - horizontalPadding) / paperSize.width
-          );
+        >
+          {(() => {
+            // A4 starts at its natural browser-rendered size and is scaled down
+            // ONLY enough to make the complete sheet visible initially.
+            // On mobile, always fit the A4 sheet inside the actual viewport width
+            // at the default 100% zoom. Horizontal scrolling should only become
+            // necessary after the user explicitly zooms in.
+            const horizontalPadding = previewSize.width < 640 ? 24 : 48;
+            const horizontalFit = Math.max(
+              0.1,
+              (previewSize.width - horizontalPadding) / paperSize.width,
+            );
 
-          const verticalFit = Math.max(
-            0.1,
-            (previewSize.height - (previewSize.width < 640 ? 24 : 48)) /
-              paperSize.height
-          );
+            const verticalFit = Math.max(
+              0.1,
+              (previewSize.height - (previewSize.width < 640 ? 24 : 48)) /
+                paperSize.height,
+            );
 
-          const fitScale = Math.min(1, horizontalFit, verticalFit);
-          const actualScale = fitScale * zoom;
+            const fitScale = Math.min(1, horizontalFit, verticalFit);
+            const actualScale = fitScale * zoom;
 
-          const scaledWidth = paperSize.width * actualScale;
-          const scaledHeight = paperSize.height * actualScale;
+            const scaledWidth = paperSize.width * actualScale;
+            const scaledHeight = paperSize.height * actualScale;
 
-          return (
-            <div
-              className="resume-print-stage resume-print-wrapper relative h-fit shrink-0"
-              style={{
-                width: `${scaledWidth}px`,
-                height: `${scaledHeight}px`,
-                marginLeft: "auto",
-                marginRight: "auto",
-              }}
-            >
+            return (
               <div
-                ref={resumeRef}
-                className="
-                  resume-print-paper
-                  resume-preview-paper
-                  h-fit w-[210mm] max-w-none
-                  origin-top-left
-                  bg-white
-                  shadow-[0_20px_80px_rgba(0,0,0,0.55)]
-                "
+                className="resume-print-stage resume-print-wrapper relative h-fit shrink-0"
                 style={{
-                  transform: `scale(${actualScale})`,
+                  width: `${scaledWidth}px`,
+                  height: `${scaledHeight}px`,
+                  marginLeft: "auto",
+                  marginRight: "auto",
                 }}
               >
-                <TemplateComponent data={data} />
+                <div
+                  ref={resumeRef}
+                  className={`resume-print-paper resume-preview-paper h-fit w-[210mm] max-w-none origin-top-left shadow-[0_20px_80px_rgba(0,0,0,0.55)] ${resumeTheme === "dark" ? "bg-[#17191c] text-[#e5e7eb]" : "bg-white text-black"}`}
+                  style={{
+                    transform: `scale(${actualScale})`,
+                  }}
+                >
+                  <TemplateComponent data={data} theme={resumeTheme} />
+                </div>
               </div>
-            </div>
-          );
-        })()}
-      </div>
+            );
+          })()}
+        </div>
 
-      {/* ========================== DESKTOP ZOOM =========================== */}
-      <div className="hidden shrink-0 items-center justify-center gap-2 border-t border-white/10 bg-[#0b0b0f]/90 px-3 py-2 sm:flex">
-        <button
-          type="button"
-          onClick={() => changeZoom(-0.05)}
-          className="h-8 w-8 rounded-lg border border-white/10 bg-white/[0.05] text-white/80 hover:bg-white/[0.1]"
-          aria-label="Zoom out"
-        >
-          −
-        </button>
-
-        <span className="min-w-[52px] text-center text-xs text-white/55">
-          {Math.round(zoom * 100)}%
-        </span>
-
-        <button
-          type="button"
-          onClick={() => changeZoom(0.05)}
-          className="h-8 w-8 rounded-lg border border-white/10 bg-white/[0.05] text-white/80 hover:bg-white/[0.1]"
-          aria-label="Zoom in"
-        >
-          +
-        </button>
-      </div>
-
-      {/* ============================ MOBILE BOTTOM ======================== */}
-      <div
-        className="
-          fixed bottom-0 left-0 right-0 z-[110]
-          border-t border-white/10
-          bg-[#0b0b0f]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]
-          pt-2 backdrop-blur-xl sm:hidden
-        "
-      >
-        {/* Mobile zoom controls */}
-        <div className="mb-2 flex items-center justify-center gap-2">
+        {/* ========================== DESKTOP ZOOM =========================== */}
+        <div className="hidden shrink-0 items-center justify-center gap-2 border-t border-white/10 bg-[#0b0b0f]/90 px-3 py-2 sm:flex">
           <button
             type="button"
             onClick={() => changeZoom(-0.05)}
-            className="
-              h-9 w-10 rounded-lg
-              border border-white/10 bg-white/[0.05]
-              text-base font-medium text-white/80
-              transition hover:bg-white/[0.1]
-              active:scale-[0.97]
-            "
+            className="h-8 w-8 rounded-lg border border-white/10 bg-white/[0.05] text-white/80 hover:bg-white/[0.1]"
             aria-label="Zoom out"
           >
             −
           </button>
 
-          <span className="min-w-[56px] text-center text-xs font-medium text-white/55">
+          <span className="min-w-[52px] text-center text-xs text-white/55">
             {Math.round(zoom * 100)}%
           </span>
 
           <button
             type="button"
             onClick={() => changeZoom(0.05)}
-            className="
-              h-9 w-10 rounded-lg
-              border border-white/10 bg-white/[0.05]
-              text-base font-medium text-white/80
-              transition hover:bg-white/[0.1]
-              active:scale-[0.97]
-            "
+            className="h-8 w-8 rounded-lg border border-white/10 bg-white/[0.05] text-white/80 hover:bg-white/[0.1]"
             aria-label="Zoom in"
           >
             +
           </button>
         </div>
 
-        {/* Template container */}
-        <div className="rounded-xl border border-white/10 bg-white/[0.04] p-1">
-          <div className="grid grid-cols-3 gap-1">
-            {Object.entries(templates).map(([templateKey, template]) => {
-              const isActive = selectedTemplate === templateKey;
+        {/* ============================ MOBILE BOTTOM ======================== */}
+        <div
+          className="
+          fixed bottom-0 left-0 right-0 z-[110]
+          border-t border-white/10
+          bg-[#0b0b0f]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]
+          pt-2 backdrop-blur-xl sm:hidden
+        "
+        >
+          {/* Mobile zoom controls */}
+          <div className="mb-2 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => changeZoom(-0.05)}
+              className="
+              h-9 w-10 rounded-lg
+              border border-white/10 bg-white/[0.05]
+              text-base font-medium text-white/80
+              transition hover:bg-white/[0.1]
+              active:scale-[0.97]
+            "
+              aria-label="Zoom out"
+            >
+              −
+            </button>
 
-              return (
-                <button
-                  key={templateKey}
-                  type="button"
-                  onClick={() => onTemplateChange?.(templateKey)}
-                  aria-pressed={isActive}
-                  className={`
+            <span className="min-w-[56px] text-center text-xs font-medium text-white/55">
+              {Math.round(zoom * 100)}%
+            </span>
+
+            <button
+              type="button"
+              onClick={() => changeZoom(0.05)}
+              className="
+              h-9 w-10 rounded-lg
+              border border-white/10 bg-white/[0.05]
+              text-base font-medium text-white/80
+              transition hover:bg-white/[0.1]
+              active:scale-[0.97]
+            "
+              aria-label="Zoom in"
+            >
+              +
+            </button>
+          </div>
+
+          {/* Template container */}
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-1">
+            <div className="grid grid-cols-3 gap-1">
+              {Object.entries(templates).map(([templateKey, template]) => {
+                const isActive = selectedTemplate === templateKey;
+
+                return (
+                  <button
+                    key={templateKey}
+                    type="button"
+                    onClick={() => onTemplateChange?.(templateKey)}
+                    aria-pressed={isActive}
+                    className={`
                     rounded-lg px-2 py-2.5 text-xs font-medium
                     transition-all duration-200
                     ${
@@ -612,31 +690,31 @@ export default function PreviewResume({
                         : "text-white/60 hover:bg-white/[0.07] hover:text-white"
                     }
                   `}
-                >
-                  {template.mobileLabel}
-                </button>
-              );
-            })}
+                  >
+                    {template.mobileLabel}
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Download container */}
-        <button
-          type="button"
-          onClick={handleDownload}
-          disabled={isDownloading}
-          className="
+          {/* Download container */}
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="
             mt-2 flex w-full items-center justify-center
             rounded-xl bg-white px-4 py-3
             text-xs font-semibold text-black
             transition active:scale-[0.99]
             disabled:cursor-not-allowed disabled:opacity-60
           "
-        >
-          {isDownloading ? "Preparing PDF..." : "Download PDF"}
-        </button>
+          >
+            {isDownloading ? "Preparing PDF..." : "Download PDF"}
+          </button>
+        </div>
       </div>
-    </div>
     </>
   );
 }

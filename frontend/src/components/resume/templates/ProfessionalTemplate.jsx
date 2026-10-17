@@ -13,11 +13,7 @@ const range = (start, end) => {
 };
 
 const href = (value) =>
-  value
-    ? /^https?:\/\//i.test(value)
-      ? value
-      : `https://${value}`
-    : "";
+  value ? (/^https?:\/\//i.test(value) ? value : `https://${value}`) : "";
 
 const shortUrl = (value) =>
   String(value || "")
@@ -35,9 +31,7 @@ const descriptionItems = (value) => {
 
   const lines = text
     .split(/\r?\n/)
-    .map((line) =>
-      line.replace(/^\s*[-•*]\s*/, "").trim()
-    )
+    .map((line) => line.replace(/^\s*[-•*]\s*/, "").trim())
     .filter(Boolean);
 
   return lines.length ? lines : [text];
@@ -50,17 +44,13 @@ function Section({ title, children }) {
     <section className="pro-section">
       <h2 className="pro-section-title">{title}</h2>
 
-      <div className="pro-section-content">
-        {children}
-      </div>
+      <div className="pro-section-content">{children}</div>
     </section>
   );
 }
 
 function BulletList({ items }) {
-  const values = toArray(items)
-    .map(valueText)
-    .filter(Boolean);
+  const values = toArray(items).map(valueText).filter(Boolean);
 
   if (!values.length) return null;
 
@@ -73,9 +63,7 @@ function BulletList({ items }) {
   );
 }
 
-export default function ProfessionalTemplate({
-  data = {},
-}) {
+export default function ProfessionalTemplate({ data = {}, theme = "light" }) {
   const resume = data || {};
   const profile = resume.profile || {};
 
@@ -83,12 +71,8 @@ export default function ProfessionalTemplate({
   const experience = toArray(resume.experience);
   const projects = toArray(resume.projects);
   const skills = toArray(resume.skills);
-  const certifications = toArray(
-    resume.certifications
-  );
-  const achievements = toArray(
-    resume.achievements
-  );
+  const certifications = toArray(resume.certifications);
+  const achievements = toArray(resume.achievements);
   const languages = toArray(resume.languages);
 
   const links = [
@@ -118,8 +102,7 @@ export default function ProfessionalTemplate({
   ].filter(Boolean);
 
   const skillGroups =
-    skills.length &&
-    typeof skills[0] === "object"
+    skills.length && typeof skills[0] === "object"
       ? skills
           .map((skill) => ({
             label:
@@ -129,59 +112,44 @@ export default function ProfessionalTemplate({
               skill.title ||
               "Skills",
 
-            values:
-              toArray(
-                skill.skills || skill.items
-              ).length
-                ? toArray(
-                    skill.skills || skill.items
-                  )
-                : skill.value
+            values: toArray(skill.skills || skill.items).length
+              ? toArray(skill.skills || skill.items)
+              : skill.value
                 ? [skill.value]
                 : [],
           }))
-          .filter(
-            (group) => group.values.length
-          )
+          .filter((group) => group.values.length)
       : skills.length
-      ? [
-          {
-            label: "Programming",
-            values: skills,
-          },
-        ]
-      : [];
+        ? [
+            {
+              label: "Programming",
+              values: skills,
+            },
+          ]
+        : [];
 
-  const parts = String(
-    profile.name || "Your Name"
-  )
+  const parts = String(profile.name || "Your Name")
     .trim()
     .split(/\s+/)
     .filter(Boolean);
 
   const firstName =
-    parts.length > 1
-      ? parts.slice(0, -1).join(" ")
-      : parts[0] || "Your";
+    parts.length > 1 ? parts.slice(0, -1).join(" ") : parts[0] || "Your";
 
-  const lastName =
-    parts.length > 1
-      ? parts[parts.length - 1]
-      : "";
+  const lastName = parts.length > 1 ? parts[parts.length - 1] : "";
 
-  const formattedUpdatedDate =
-    resume.updatedAt
-      ? new Date(
-          resume.updatedAt
-        ).toLocaleDateString(undefined, {
-          day: "2-digit",
-          month: "long",
-          year: "numeric",
-        })
-      : "";
+  const formattedUpdatedDate = resume.updatedAt
+    ? new Date(resume.updatedAt).toLocaleDateString(undefined, {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })
+    : "";
 
   return (
-    <div className="professional-template">
+    <div
+      className={`professional-template ${theme === "dark" ? "resume-theme-dark" : ""}`}
+    >
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;1,300;1,400&family=Raleway:wght@300;400;500;600;700&display=swap');
 
@@ -760,6 +728,16 @@ export default function ProfessionalTemplate({
          * =====================================================
          */
 
+        .professional-template.resume-theme-dark,
+        .professional-template.resume-theme-dark * {
+          color: #e5e7eb !important;
+          border-color: #59616b !important;
+          -webkit-print-color-adjust: exact;
+          print-color-adjust: exact;
+        }
+        .professional-template.resume-theme-dark { background: #17191c !important; }
+        .professional-template.resume-theme-dark * { background-color: transparent !important; }
+
         @media print {
           .professional-template {
             width: 210mm !important;
@@ -798,34 +776,24 @@ export default function ProfessionalTemplate({
         )}
 
         <h1 className="pro-name">
-          <span className="pro-name-first">
-            {firstName}
-          </span>
+          <span className="pro-name-first">{firstName}</span>
 
           {lastName && (
             <>
               {" "}
-              <span className="pro-name-last">
-                {lastName}
-              </span>
+              <span className="pro-name-last">{lastName}</span>
             </>
           )}
         </h1>
 
         <div className="pro-contact">
           {profile.email && (
-            <a href={`mailto:${profile.email}`}>
-              {profile.email}
-            </a>
+            <a href={`mailto:${profile.email}`}>{profile.email}</a>
           )}
 
-          {profile.phone && (
-            <> | {profile.phone}</>
-          )}
+          {profile.phone && <> | {profile.phone}</>}
 
-          {profile.location && (
-            <> | {profile.location}</>
-          )}
+          {profile.location && <> | {profile.location}</>}
         </div>
 
         <div className="pro-rule" />
@@ -838,48 +806,27 @@ export default function ProfessionalTemplate({
           {education.length > 0 && (
             <Section title="Education">
               {education.map((item, index) => (
-                <div
-                  className="pro-left-entry"
-                  key={index}
-                >
+                <div className="pro-left-entry" key={index}>
                   {item.institution && (
-                    <div className="pro-school">
-                      {item.institution}
-                    </div>
+                    <div className="pro-school">{item.institution}</div>
                   )}
 
-                  {(item.degree ||
-                    item.field) && (
+                  {(item.degree || item.field) && (
                     <div className="pro-degree">
-                      {[
-                        item.degree,
-                        item.field,
-                      ]
-                        .filter(Boolean)
-                        .join(" in ")}
+                      {[item.degree, item.field].filter(Boolean).join(" in ")}
                     </div>
                   )}
 
-                  {(item.startDate ||
-                    item.endDate ||
-                    item.location) && (
+                  {(item.startDate || item.endDate || item.location) && (
                     <div className="pro-location">
-                      {[
-                        range(
-                          item.startDate,
-                          item.endDate
-                        ),
-                        item.location,
-                      ]
+                      {[range(item.startDate, item.endDate), item.location]
                         .filter(Boolean)
                         .join(" | ")}
                     </div>
                   )}
 
                   {item.description && (
-                    <div className="pro-left-body">
-                      {item.description}
-                    </div>
+                    <div className="pro-left-body">{item.description}</div>
                   )}
                 </div>
               ))}
@@ -890,18 +837,9 @@ export default function ProfessionalTemplate({
             <Section title="Links">
               <div className="pro-links">
                 {links.map((link) => (
-                  <div
-                    className="pro-link"
-                    key={link.label}
-                  >
-                    <span className="pro-link-label">
-                      {link.label}
-                    </span>{" "}
-                    <a
-                      href={link.url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
+                  <div className="pro-link" key={link.label}>
+                    <span className="pro-link-label">{link.label}</span>{" "}
+                    <a href={link.url} target="_blank" rel="noreferrer">
                       {link.value}
                     </a>
                   </div>
@@ -912,41 +850,28 @@ export default function ProfessionalTemplate({
 
           {skillGroups.length > 0 && (
             <Section title="Skills">
-              {skillGroups.map(
-                (group, index) => (
-                  <div
-                    className="pro-skill"
-                    key={index}
-                  >
-                    <div className="pro-skill-label">
-                      {group.label}
-                    </div>
+              {skillGroups.map((group, index) => (
+                <div className="pro-skill" key={index}>
+                  <div className="pro-skill-label">{group.label}</div>
 
-                    <div className="pro-skill-values">
-                      {group.values
-                        .map(valueText)
-                        .join(" • ")}
-                    </div>
+                  <div className="pro-skill-values">
+                    {group.values.map(valueText).join(" • ")}
                   </div>
-                )
-              )}
+                </div>
+              ))}
             </Section>
           )}
 
           {certifications.length > 0 && (
             <Section title="Certifications">
-              <BulletList
-                items={certifications}
-              />
+              <BulletList items={certifications} />
             </Section>
           )}
 
           {languages.length > 0 && (
             <Section title="Languages">
               <div className="pro-skill-values">
-                {languages
-                  .map(valueText)
-                  .join(" • ")}
+                {languages.map(valueText).join(" • ")}
               </div>
             </Section>
           )}
@@ -957,118 +882,74 @@ export default function ProfessionalTemplate({
         <section className="pro-column">
           {experience.length > 0 && (
             <Section title="Experience">
-              {experience.map(
-                (item, index) => (
-                  <article
-                    className="pro-entry"
-                    key={index}
-                  >
-                    <div className="pro-entry-head">
-                      <div className="pro-entry-title">
-                        {item.company ||
-                          "Experience"}
-                      </div>
-
-                      {item.role && (
-                        <div className="pro-entry-role">
-                          {item.role}
-                        </div>
-                      )}
-
-                      {(item.startDate ||
-                        item.endDate) && (
-                        <div className="pro-entry-date">
-                          {range(
-                            item.startDate,
-                            item.endDate
-                          )}
-                        </div>
-                      )}
+              {experience.map((item, index) => (
+                <article className="pro-entry" key={index}>
+                  <div className="pro-entry-head">
+                    <div className="pro-entry-title">
+                      {item.company || "Experience"}
                     </div>
 
-                    {item.location && (
-                      <div className="pro-entry-location">
-                        {item.location}
-                      </div>
+                    {item.role && (
+                      <div className="pro-entry-role">{item.role}</div>
                     )}
 
-                    <BulletList
-                      items={descriptionItems(
-                        item.description
-                      )}
-                    />
-
-                    {toArray(
-                      item.technologies
-                    ).length > 0 && (
-                      <div className="pro-tech">
-                        Technologies:{" "}
-                        {toArray(
-                          item.technologies
-                        )
-                          .map(valueText)
-                          .join(" • ")}
+                    {(item.startDate || item.endDate) && (
+                      <div className="pro-entry-date">
+                        {range(item.startDate, item.endDate)}
                       </div>
                     )}
-                  </article>
-                )
-              )}
+                  </div>
+
+                  {item.location && (
+                    <div className="pro-entry-location">{item.location}</div>
+                  )}
+
+                  <BulletList items={descriptionItems(item.description)} />
+
+                  {toArray(item.technologies).length > 0 && (
+                    <div className="pro-tech">
+                      Technologies:{" "}
+                      {toArray(item.technologies).map(valueText).join(" • ")}
+                    </div>
+                  )}
+                </article>
+              ))}
             </Section>
           )}
 
           {projects.length > 0 && (
             <Section title="Projects">
-              {projects.map(
-                (item, index) => (
-                  <article
-                    className="pro-project"
-                    key={index}
-                  >
-                    <div className="pro-project-head">
-                      <div className="pro-project-title">
-                        {item.title ||
-                          "Project"}
-                      </div>
-
-                      {(item.startDate ||
-                        item.endDate) && (
-                        <div className="pro-project-date">
-                          {range(
-                            item.startDate,
-                            item.endDate
-                          )}
-                        </div>
-                      )}
+              {projects.map((item, index) => (
+                <article className="pro-project" key={index}>
+                  <div className="pro-project-head">
+                    <div className="pro-project-title">
+                      {item.title || "Project"}
                     </div>
 
-                    {item.description && (
-                      <div className="pro-body">
-                        {item.description}
+                    {(item.startDate || item.endDate) && (
+                      <div className="pro-project-date">
+                        {range(item.startDate, item.endDate)}
                       </div>
                     )}
+                  </div>
 
-                    {toArray(
-                      item.technologies
-                    ).length > 0 && (
-                      <div className="pro-tech">
-                        {toArray(
-                          item.technologies
-                        )
-                          .map(valueText)
-                          .join(" • ")}
-                      </div>
-                    )}
-                  </article>
-                )
-              )}
+                  {item.description && (
+                    <div className="pro-body">{item.description}</div>
+                  )}
+
+                  {toArray(item.technologies).length > 0 && (
+                    <div className="pro-tech">
+                      {toArray(item.technologies).map(valueText).join(" • ")}
+                    </div>
+                  )}
+                </article>
+              ))}
             </Section>
           )}
 
           {achievements.length > 0 && (
             <Section title="Achievements">
-              <BulletList
-                items={achievements}
-              />
+              <BulletList items={achievements} />
             </Section>
           )}
         </section>

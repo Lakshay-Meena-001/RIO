@@ -121,19 +121,15 @@ export default function RoadmapDetailPage({
       return;
     }
 
-    let cancelled = false;
-
-    const timer = setTimeout(() => {
-      if (!cancelled) {
-        void loadRoadmap();
-      }
-    }, 0);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [loadRoadmap, initialData, onProgressChange]);
+    // History fetches the selected roadmap and passes initialData. Only fetch
+    // here when this page is opened without preloaded data.
+    void loadRoadmap();
+  }, [
+    loadRoadmap,
+    initialData?.roadmap,
+    initialData?.userRoadmap,
+    onProgressChange,
+  ]);
 
   const phaseProgress = useMemo(
     () =>
