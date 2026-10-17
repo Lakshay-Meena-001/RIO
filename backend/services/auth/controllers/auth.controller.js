@@ -1208,3 +1208,233 @@ export const getUserBalanceInternal = async (req, res) => {
     });
   }
 };
+
+export const creditBalanceInternal = async (req, res) => {
+  const userId = req.internalUserId;
+
+  const transactionId =
+    typeof req.body?.transactionId === "string"
+      ? req.body.transactionId.trim()
+      : "";
+
+  const amount = req.body?.amount;
+  const action = "billing-balance-credit";
+
+  let mongoSession;
+  let outcome;
+
+  try {
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    if (!transactionId || transactionId.length > 200) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid transaction ID is required.",
+      });
+    }
+
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be a positive safe integer.",
+      });
+    }
+
+    mongoSession = await mongoose.startSession();
+
+    await mongoSession.withTransaction(async () => {
+      // 1. Prevent duplicate credits for the same transaction.
+      const existingTransaction = await BalanceTransaction.findOne({
+        userId,
+        transactionId,
+      }).session(mongoSession);
+
+      if (existingTransaction) {
+        if (
+          existingTransaction.amount !== amount ||
+          existingTransaction.action !== action
+        ) {
+          outcome = { type: "conflict" };
+          return;
+        }
+
+        outcome = {
+          type: "already-processed",
+          balance: Number(existingTransaction.balanceAfter),
+        };
+
+        return;
+      }
+
+      // 2. Read the current user balance.
+      const currentUser = await User.findById(userId)
+        .select("balance")
+        .session(mongoSession);
+
+      if (!currentUser) {
+        outcome = { type: "user-not-found" };
+        return;
+      }
+
+      // 3. Increase balance atomically, avoiding unsafe integers.
+      const updatedUser = await User.findOneAndUpdate(
+        {
+          _id: userId,
+          balance: { $lte: Number.MAX_SAFE_INTEGER - amount },
+        },
+        {
+          $inc: { balance: amount },
+        },
+        {
+          new: true,
+          runValidators: true,
+          session: mongoSession,
+        },
+      );
+
+      if (!updatedUser) {
+        outcome = { type: "balance-limit-exceeded" };
+        return;
+      }
+
+      // 4. Record the credit in the same MongoDB transaction.
+      await BalanceTransaction.create(
+        [
+          {
+            userId,
+            transactionId,
+            amount,
+            action,
+            balanceAfter: Number(updatedUser.balance),
+          },
+        ],
+        { session: mongoSession },
+      );
+
+      outcome = {
+        type: "success",
+        balance: Number(updatedUser.balance),
+      };
+    });
+
+    if (!outcome) {
+      throw new Error("Balance credit completed without an outcome.");
+    }
+
+    if (outcome.type === "conflict") {
+      return res.status(409).json({
+        success: false,
+        message: "Transaction ID was already used with different details.",
+      });
+    }
+
+    if (outcome.type === "user-not-found") {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    if (outcome.type === "balance-limit-exceeded") {
+      return res.status(409).json({
+        success: false,
+        message: "The maximum supported balance would be exceeded.",
+      });
+    }
+
+    // MongoDB is authoritative. Redis synchronization is best-effort.
+    try {
+      const sessionIds = await redis.smembers(getUserSessionsKey(userId));
+
+      if (sessionIds.length > 0) {
+        const latestUser = await User.findById(userId);
+
+        if (latestUser) {
+          const sessionData = JSON.stringify(buildSessionData(latestUser));
+
+          const results = await Promise.allSettled(
+            sessionIds.map((sessionId) =>
+              redis.set(
+                getSessionKey(sessionId),
+                sessionData,
+                "EX",
+                SESSION_TTL,
+              ),
+            ),
+          );
+
+          if (results.some((result) => result.status === "rejected")) {
+            console.error(
+              "Some Redis sessions could not be synchronized after balance credit.",
+            );
+          }
+        }
+      }
+
+      await redis.expire(getUserSessionsKey(userId), SESSION_TTL);
+    } catch (redisError) {
+      console.error(
+        "Redis session synchronization failed after balance credit:",
+        redisError.message,
+      );
+    }
+
+    const alreadyProcessed = outcome.type === "already-processed";
+
+    return res.status(200).json({
+      success: true,
+      message: alreadyProcessed
+        ? "Balance credit already processed."
+        : "Balance credited successfully.",
+      balance: outcome.balance,
+      ...(alreadyProcessed
+        ? { alreadyProcessed: true }
+        : { creditedAmount: amount }),
+    });
+  } catch (error) {
+    // Recover safely if a concurrent request committed first.
+    try {
+      const existingTransaction = await BalanceTransaction.findOne({
+        userId,
+        transactionId,
+      });
+
+      if (existingTransaction) {
+        if (
+          existingTransaction.amount !== amount ||
+          existingTransaction.action !== action
+        ) {
+          return res.status(409).json({
+            success: false,
+            message: "Transaction ID was already used with different details.",
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          message: "Balance credit already processed.",
+          balance: Number(existingTransaction.balanceAfter),
+          alreadyProcessed: true,
+        });
+      }
+    } catch (recoveryError) {
+      console.error("Balance credit recovery failed:", recoveryError.message);
+    }
+
+    console.error("Internal balance credit failed:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update balance. Please retry safely.",
+    });
+  } finally {
+    if (mongoSession) {
+      await mongoSession.endSession();
+    }
+  }
+};

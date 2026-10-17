@@ -108,7 +108,13 @@ function Sidebar({
       path: "/progress",
     },
   ];
+
   const accountItems = [
+    {
+      label: "Billing",
+      icon: FiCreditCard,
+      path: "/billing",
+    },
     {
       label: "Profile",
       icon: FiUser,
@@ -322,43 +328,50 @@ function Sidebar({
   );
 
   const creditsSection = (isExpanded) => (
-    <div
-      className={`transition-[opacity,transform] duration-300 ease-out ${
-        isExpanded ? "translate-x-0 opacity-100" : "translate-x-0 opacity-100"
-      }`}
-    >
+    <div className={isExpanded ? "px-0 pb-2" : "pb-2"}>
       {isExpanded ? (
-        <div className="flex w-full items-center justify-between px-3 py-2.5">
-          <div className="flex  items-center gap-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.045] text-[#A1A1AA]">
-              <FiCreditCard size={18} strokeWidth={1.7} />
-            </div>
-
-            <div className=" min-w-0 flex-1 ">
-              <span className="block text-[10px] uppercase tracking-[0.16em] text-[#71717A]">
-                Current Balance
-              </span>
-
-              <span className="mt-0.5 block text-[13px] font-semibold text-[#E4E4E7]">
-                {balance} INR
-              </span>
-            </div>
-          </div>
+        <div className="py-0">
           <button
             type="button"
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.06] text-white/80 transition-colors hover:bg-white/[0.12]"
+            onClick={() => handleNavigation("/billing")}
+            className="group flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition-colors duration-200 hover:bg-white/[0.045]"
+            title="Manage your balance"
           >
-            <FiPlus size={18} strokeWidth={2.5} />
+            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-[#303236] text-[#F4F4F5] transition-colors group-hover:bg-[#3A3C40]">
+              <FiCreditCard size={19} strokeWidth={1.7} />
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <span className="block text-[9px] font-medium uppercase tracking-[0.13em] text-[#A1A1AA]">
+                Available Balance
+              </span>
+
+              <span className="mt-1 block truncate text-[15px] font-semibold leading-none tracking-tight text-white">
+                {balance}{" "}
+                <span className="text-[11px] font-medium text-[#A1A1AA]">
+                  INR
+                </span>
+              </span>
+            </div>
+
+            <span
+              className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#F4F4F5] text-[#17191C] transition-transform duration-200 group-hover:scale-105"
+              aria-hidden="true"
+            >
+              <FiPlus size={18} strokeWidth={2} />
+            </span>
           </button>
+
         </div>
       ) : (
         <button
           type="button"
-          title={`${balance} INR balance`}
-          aria-label={`${balance} INR balance`}
-          className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-[#A1A1AA] transition-[background-color,color,transform] duration-200 hover:bg-white/[0.06] hover:text-white"
+          onClick={() => handleNavigation("/billing")}
+          title={`Available balance: ${balance} INR`}
+          aria-label={`Manage balance: ${balance} INR`}
+          className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[#303236] text-[#F4F4F5] transition-colors hover:bg-[#3A3C40]"
         >
-          <FiCreditCard size={16} strokeWidth={1.7} />
+          <FiCreditCard size={18} strokeWidth={1.7} />
         </button>
       )}
     </div>

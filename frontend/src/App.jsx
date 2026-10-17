@@ -8,9 +8,8 @@ import Dashboard from "./pages/Dashboard";
 import RoadmapDashboardPage from "./pages/roadmap/RoadmapDashboardPage";
 import RoadmapBuilderPage from "./pages/roadmap/RoadmapBuilderPage";
 
-// // Roadmap pages
-// import RoadmapPage from "./pages/roadmap/RoadmapPage";
-// import RoadmapDetailPage from "./pages/roadmap/RoadmapDetailPage";
+import BillingDashboardPage from "./pages/billing/BillingDashboardPage";
+import BillingHistoryPage from "./pages/billing/BillingHistoryPage";
 
 // Mock Interview pages
 import InterviewDashboard from "./pages/InterviewDashboard";
@@ -187,7 +186,7 @@ const App = () => {
         }
       />
       <Route
-         path="/builder/history"
+        path="/builder/history"
         element={
           isProtected ? (
             <ResumeHistoryPage user={user} setUser={setUser} />
@@ -291,6 +290,32 @@ const App = () => {
           )
         }
       />
+
+      {/* ==================================================
+          BILLING
+      ================================================== */}
+      <Route
+        path="/billing"
+        element={
+          isProtected ? (
+            <BillingDashboardPage user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/billing/history"
+        element={
+          isProtected ? (
+            <BillingHistoryPage user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
       {/* ==================================================
           FALLBACK
       ================================================== */}

@@ -13,10 +13,16 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL;
-const RESUME_SERVICE_URL = process.env.RESUME_SERVICE_URL;
-const INTERVIEW_SERVICE_URL = process.env.INTERVIEW_SERVICE_URL;
-const ROADMAP_SERVICE_URL = process.env.ROADMAP_SERVICE_URL;
+const AUTH_SERVICE_URL =
+  process.env.AUTH_SERVICE_URL || "http://localhost:8001";
+const RESUME_SERVICE_URL =
+  process.env.RESUME_SERVICE_URL || "http://localhost:8002";
+const INTERVIEW_SERVICE_URL =
+  process.env.INTERVIEW_SERVICE_URL || "http://localhost:8003";
+const ROADMAP_SERVICE_URL =
+  process.env.ROADMAP_SERVICE_URL || "http://localhost:8004";
+const BILLING_SERVICE_URL =
+  process.env.BILLING_SERVICE_URL || "http://localhost:8005";
 
 // Basic request parsing and cookie support.
 app.use(express.json());
@@ -65,7 +71,6 @@ app.get("/health", (req, res) => {
 // Auth service.
 app.use("/api/auth", proxy(AUTH_SERVICE_URL));
 
-
 // Resume service.
 app.use(
   "/api/resumes",
@@ -86,13 +91,22 @@ app.use(
   }),
 );
 
-
 // Roadmap service.
 app.use(
   "/api/roadmaps",
   isAuth,
   proxyWithHeaders(ROADMAP_SERVICE_URL, true, {
     forwardInternalSecret: true,
+  }),
+);
+
+// Billing service.
+app.use(
+  "/api/billing",
+  isAuth,
+  proxyWithHeaders(BILLING_SERVICE_URL, false, {
+    forwardInternalSecret: true,
+    internalSecretEnv: "BILLING_INTERNAL_SECRET",
   }),
 );
 

@@ -8,6 +8,7 @@ import {
   deductBalanceInternal,
   deductResumeScorerBalanceInternal,
   getUserBalanceInternal,
+  creditBalanceInternal,
   getCurrentUser,
 } from "../controllers/auth.controller.js";
 
@@ -16,14 +17,13 @@ import { internalAuthMiddleware } from "../middleware/internal-auth.middleware.j
 const authRouter = express.Router();
 
 // Public-facing authentication routes.
-
 authRouter.get("/me", getCurrentUser);
 authRouter.post("/login", googleAuth);
 authRouter.patch("/profile", completeProfile);
 authRouter.post("/logout", logout);
 
-// Balance deduction route.
-// Keep the existing URL temporarily to avoid breaking existing frontend callers.
+// Existing balance deduction route.
+// Preserve the current URL for existing callers.
 authRouter.post("/user-coins", useBalance);
 
 // Internal service-to-service routes.
@@ -43,6 +43,12 @@ authRouter.post(
   "/internal/user-balance",
   internalAuthMiddleware,
   getUserBalanceInternal,
+);
+
+authRouter.post(
+  "/internal/credit-balance",
+  internalAuthMiddleware,
+  creditBalanceInternal,
 );
 
 export default authRouter;

@@ -15,18 +15,18 @@ export const proxyWithHeaders = (
     proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
       proxyReqOpts.headers = proxyReqOpts.headers || {};
 
-      // Never trust client-supplied identity or internal-secret headers.
+      // Remove any client-supplied identity or internal secret.
       delete proxyReqOpts.headers["x-user-id"];
       delete proxyReqOpts.headers["x-internal-service-secret"];
 
-      // Forward identity only from the authenticated Gateway session.
+      // Forward identity from the authenticated Gateway session.
       const userId = srcReq.user?.userId ?? srcReq.user?.id ?? srcReq.user?._id;
 
       if (userId != null && String(userId).trim()) {
         proxyReqOpts.headers["x-user-id"] = String(userId);
       }
 
-      // Only explicitly configured internal services receive a secret.
+      // Forward the internal secret only to configured services.
       if (options.forwardInternalSecret) {
         const secretEnvName =
           options.internalSecretEnv || "ROADMAP_INTERNAL_SECRET";
@@ -40,6 +40,14 @@ export const proxyWithHeaders = (
         }
 
         proxyReqOpts.headers["x-internal-service-secret"] = internalSecret;
+
+        // Temporary safe diagnostic; never log the secret itself.
+        console.log("[Gateway internal auth]", {
+          secretEnvName,
+          secretConfigured: true,
+          secretLength: internalSecret.length,
+          userIdForwarded: Boolean(proxyReqOpts.headers["x-user-id"]),
+        });
       }
 
       return proxyReqOpts;
