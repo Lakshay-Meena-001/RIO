@@ -10,6 +10,7 @@ import RoadmapBuilderPage from "./pages/roadmap/RoadmapBuilderPage";
 
 import BillingDashboardPage from "./pages/billing/BillingDashboardPage";
 import BillingHistoryPage from "./pages/billing/BillingHistoryPage";
+import BillingTransactionDetailsPage from "./pages/billing/BillingTransactionDetailsPage";
 
 // Mock Interview pages
 import InterviewDashboard from "./pages/InterviewDashboard";
@@ -310,6 +311,17 @@ const App = () => {
         element={
           isProtected ? (
             <BillingHistoryPage user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
+      <Route
+        path="/billing/transactions/:transactionId"
+        element={
+          isProtected ? (
+            <BillingTransactionDetailsPage user={user} setUser={setUser} />
           ) : (
             <Navigate to="/" replace />
           )

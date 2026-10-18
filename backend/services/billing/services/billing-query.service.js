@@ -1,7 +1,6 @@
 import mongoose from "mongoose";
 
 import BillingTransaction from "../models/billing-transaction.model.js";
-import { paginationSchema } from "../validators/billing.schema.js";
 import AppError from "../utils/AppError.js";
 
 const toSafeAmount = (value) =>
@@ -63,8 +62,8 @@ export const getBillingSummary = async (userId) => {
 export const getBillingTransactions = async (userId, query) => {
   const authenticatedUserId = getAuthenticatedUserId(userId);
 
-  // Parse and normalize pagination using the existing Zod schema.
-  const { page, pageSize, skip } = paginationSchema.parse(query ?? {});
+  // Pagination has already been validated by the route middleware.
+  const { page, pageSize, skip } = query;
 
   const filter = { userId: authenticatedUserId };
 

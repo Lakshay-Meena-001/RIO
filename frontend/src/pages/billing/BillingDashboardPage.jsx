@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   FiArrowRight,
@@ -10,6 +11,7 @@ import {
   FiCheckCircle,
   FiXCircle,
   FiMenu,
+  FiPlus,
 } from "react-icons/fi";
 
 import Sidebar from "../../components/SideBar";
@@ -119,6 +121,7 @@ function Surface({ children, className = "" }) {
 }
 
 export default function BillingDashboardPage({ user, setUser }) {
+  const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -181,8 +184,62 @@ export default function BillingDashboardPage({ user, setUser }) {
   }, []);
 
   useEffect(() => {
-    void loadBilling();
-  }, [loadBilling]);
+    let cancelled = false;
+
+    const fetchBilling = async () => {
+      try {
+        const [summaryResult, transactionsResult] = await Promise.allSettled([
+          getBillingSummary(),
+          getBillingTransactions({ page: 1, pageSize: 5 }),
+        ]);
+
+        if (cancelled) return;
+
+        if (summaryResult.status === "fulfilled") {
+          setSummary(unwrap(summaryResult.value));
+        }
+
+        if (transactionsResult.status === "fulfilled") {
+          setTransactions(getTransactionList(transactionsResult.value));
+        }
+
+        if (
+          summaryResult.status === "rejected" &&
+          transactionsResult.status === "rejected"
+        ) {
+          setError(
+            summaryResult.reason?.response?.data?.message ||
+              transactionsResult.reason?.response?.data?.message ||
+              "We couldn't load your billing information.",
+          );
+        } else if (summaryResult.status === "rejected") {
+          setError(
+            summaryResult.reason?.response?.data?.message ||
+              "Your billing summary couldn't be loaded.",
+          );
+        } else if (transactionsResult.status === "rejected") {
+          setError(
+            transactionsResult.reason?.response?.data?.message ||
+              "Recent transactions couldn't be loaded.",
+          );
+        }
+      } catch {
+        if (!cancelled) {
+          setError("Something went wrong while loading billing data.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    void fetchBilling();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const balance = useMemo(() => {
     const candidate =
@@ -215,7 +272,9 @@ export default function BillingDashboardPage({ user, setUser }) {
     [paidTransactions],
   );
 
+  // Prefer the backend's complete count over the current page's count.
   const successfulPayments =
+    summary?.successfulPayments ??
     summary?.successfulTransactions ??
     summary?.paidCount ??
     paidTransactions.length;
@@ -246,7 +305,7 @@ export default function BillingDashboardPage({ user, setUser }) {
 
   return (
     <div className="relative min-h-screen overflow-x-clip bg-[#17191C] text-white">
-      {/* Background — same RIO dashboard theme */}
+      {/* Background */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0">
         <div
           className="absolute inset-0"
@@ -301,7 +360,7 @@ export default function BillingDashboardPage({ user, setUser }) {
             sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
           }`}
         >
-          <div className="mx-auto w-full max-w-[1480px] px-5 pb-16 pt-[88px] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
+          <div className="mx-auto w-full max-w-[1480px] px-5 pb-22 pt-[88px] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
             {/* Page heading */}
             <motion.section
               initial={reduceMotion ? false : { opacity: 0, y: 10 }}
@@ -331,18 +390,29 @@ export default function BillingDashboardPage({ user, setUser }) {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => void loadBilling()}
-                disabled={loading}
-                className="inline-flex items-center justify-center gap-2 self-start rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 lg:self-auto"
-              >
-                <FiRefreshCw
-                  size={14}
-                  className={loading ? "animate-spin" : ""}
-                />
-                Refresh data
-              </button>
+              
+              <div className="hidden items-center gap-3 sm:flex">
+                <button
+                  type="button"
+                  onClick={() => navigate("/billing/history")}
+                  className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20 sm:px-5"
+                >
+                  <FiClock size={14} />
+                  View history
+                </button>
+
+                <button
+                  type="button"
+                  onClick={""}
+                  className="group inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-5"
+                >
+                  <FiPlus
+                    size={14}
+                    className={""}
+                  />
+                  Add Balance
+                </button>
+              </div>
             </motion.section>
 
             {/* Error state */}
@@ -409,9 +479,10 @@ export default function BillingDashboardPage({ user, setUser }) {
             </section>
 
             {/* Recent transactions */}
+
             <section className="mb-10">
               <div className="mb-5 flex items-end justify-between gap-4">
-                <div>
+                <div className="w-full text-center sm:w-auto sm:text-left">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#666870]">
                     Account activity
                   </p>
@@ -485,7 +556,7 @@ export default function BillingDashboardPage({ user, setUser }) {
                   </div>
                 ) : (
                   <div className="px-5 py-12 sm:px-7">
-                    <div className="flex items-start gap-3">
+                    <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:gap-3 sm:text-left">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.025] text-[#858994]">
                         <FiCreditCard size={16} />
                       </span>
@@ -495,7 +566,7 @@ export default function BillingDashboardPage({ user, setUser }) {
                           Your transactions will appear here.
                         </h3>
 
-                        <p className="mt-1 max-w-xl text-xs leading-5 text-[#777B85]">
+                        <p className="mx-auto mt-1 max-w-xl text-xs leading-5 text-[#777B85] sm:mx-0">
                           Once you have billing activity, you can review its
                           amount, date, and payment status here.
                         </p>
@@ -507,8 +578,9 @@ export default function BillingDashboardPage({ user, setUser }) {
             </section>
 
             {/* Billing footer */}
-            <footer className="flex flex-col gap-4 border-t border-white/[0.08] pt-7 sm:flex-row sm:items-end sm:justify-between">
-              <div>
+
+            <footer className="flex flex-col items-center gap-4 border-t border-white/[0.08] pt-7 text-center sm:flex-row sm:items-end sm:justify-between sm:text-left">
+              <div className="w-full sm:w-auto">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#666870]">
                   Billing overview
                 </p>
@@ -517,7 +589,7 @@ export default function BillingDashboardPage({ user, setUser }) {
                   Your account, at a glance.
                 </h2>
 
-                <p className="mt-2 max-w-xl text-xs leading-5 text-[#777B85]">
+                <p className="mx-auto mt-2 max-w-xl text-xs leading-5 text-[#777B85] sm:mx-0">
                   Your available balance and recent payment activity are
                   displayed here.
                 </p>
@@ -527,7 +599,7 @@ export default function BillingDashboardPage({ user, setUser }) {
                 type="button"
                 onClick={() => void loadBilling()}
                 disabled={loading}
-                className="inline-flex items-center justify-center gap-2 self-start rounded-full bg-white px-5 py-3 text-xs font-semibold text-[#17191C] transition hover:-translate-y-0.5 hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 self-center rounded-full bg-white px-5 py-3 text-xs font-semibold text-[#17191C] transition hover:-translate-y-0.5 hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-50 sm:self-start"
               >
                 <FiRefreshCw
                   size={14}
@@ -539,6 +611,30 @@ export default function BillingDashboardPage({ user, setUser }) {
             </footer>
           </div>
         </main>
+      </div>
+
+      {/* Mobile bottom actions */}
+      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.08] bg-[#111315]/90 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:hidden">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate("/billing/history")}
+            className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20"
+          >
+            <FiClock size={14} />
+            <span>History</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate("/billing/add-balance")}
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 hover:bg-[#E8E8EB] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-white/30"
+          >
+            <FiPlus size={15} />
+            <span>Add balance</span>
+            <FiArrowRight size={14} />
+          </button>
+        </div>
       </div>
     </div>
   );
