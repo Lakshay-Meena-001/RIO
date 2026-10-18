@@ -49,12 +49,12 @@ const gatewayAuthMiddleware = (req, res, next) => {
   }
 
   console.log("[Billing Auth]", {
-  expectedSecretConfigured: Boolean(expectedSecret?.trim()),
-  expectedLength: expectedBuffer.length,
-  receivedSecret: typeof providedSecret === "string",
-  receivedLength: providedBuffer.length,
-  secretMatches,
-});
+    expectedSecretConfigured: Boolean(expectedSecret?.trim()),
+    expectedLength: expectedBuffer.length,
+    receivedSecret: typeof providedSecret === "string",
+    receivedLength: providedBuffer.length,
+    secretMatches,
+  });
 
   if (typeof userId !== "string" || !OBJECT_ID_REGEX.test(userId)) {
     return next(

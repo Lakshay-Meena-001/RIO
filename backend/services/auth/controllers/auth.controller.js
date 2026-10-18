@@ -1209,6 +1209,75 @@ export const getUserBalanceInternal = async (req, res) => {
   }
 };
 
+export const getUserBalanceTransactionsInternal = async (req, res) => {
+  try {
+    const userId = req.internalUserId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    const page = Number(req.body?.page ?? 1);
+    const pageSize = Number(req.body?.pageSize ?? 10);
+
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid pagination parameters.",
+      });
+    }
+
+    const filter = {
+      userId,
+      action: { $ne: "billing-balance-credit" },
+    };
+    const skip = (page - 1) * pageSize;
+
+    const [transactions, total] = await Promise.all([
+      BalanceTransaction.find(filter)
+        .select("transactionId amount action balanceAfter createdAt updatedAt")
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+
+      BalanceTransaction.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        transactions,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+        },
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Internal balance transaction history lookup failed:",
+      error.message,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch transaction history.",
+    });
+  }
+};
+
 export const creditBalanceInternal = async (req, res) => {
   const userId = req.internalUserId;
 

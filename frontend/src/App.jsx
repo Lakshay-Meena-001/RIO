@@ -9,7 +9,7 @@ import RoadmapDashboardPage from "./pages/roadmap/RoadmapDashboardPage";
 import RoadmapBuilderPage from "./pages/roadmap/RoadmapBuilderPage";
 
 import BillingDashboardPage from "./pages/billing/BillingDashboardPage";
-import BillingHistoryPage from "./pages/billing/BillingHistoryPage";
+import BillingHistoryPage from "./pages/billing/TransactionHistoryPage";
 import BillingTransactionDetailsPage from "./pages/billing/BillingTransactionDetailsPage";
 
 // Mock Interview pages

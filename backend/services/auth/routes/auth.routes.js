@@ -8,6 +8,7 @@ import {
   deductBalanceInternal,
   deductResumeScorerBalanceInternal,
   getUserBalanceInternal,
+  getUserBalanceTransactionsInternal,
   creditBalanceInternal,
   getCurrentUser,
 } from "../controllers/auth.controller.js";
@@ -43,6 +44,12 @@ authRouter.post(
   "/internal/user-balance",
   internalAuthMiddleware,
   getUserBalanceInternal,
+);
+
+authRouter.post(
+  "/internal/balance-transactions",
+  internalAuthMiddleware,
+  getUserBalanceTransactionsInternal,
 );
 
 authRouter.post(

@@ -398,7 +398,7 @@ export default function BillingDashboardPage({ user, setUser }) {
                   className="group inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20 sm:px-5"
                 >
                   <FiClock size={14} />
-                  View history
+                  Transaction history
                 </button>
 
                 <button
