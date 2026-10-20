@@ -289,7 +289,7 @@ export default function InterviewReport({
                 )}
               </div>
             </div>
-            <div className="flex shrink-0 flex-wrap gap-2">
+            <div className="hidden sm:flex flex-wrap items-center justify-center gap-2 sm:justify-end">
               <button
                 type="button"
                 onClick={() => setShowDeleteModal(true)}

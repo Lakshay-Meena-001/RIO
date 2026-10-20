@@ -18,9 +18,42 @@ import Sidebar from "../../components/SideBar";
 import {
   getBillingSummary,
   getBillingTransactions,
+  createBillingOrder,
+  verifyBillingPayment,
 } from "../../api/billing.api";
 
+import AddBalanceModal from "./AddBalanceModal";
+
 const ease = [0.22, 1, 0.36, 1];
+
+const loadRazorpayScript = () =>
+  new Promise((resolve) => {
+    if (window.Razorpay) {
+      resolve(true);
+      return;
+    }
+
+    const existingScript = document.querySelector(
+      'script[src="https://checkout.razorpay.com/v1/checkout.js"]',
+    );
+
+    if (existingScript) {
+      existingScript.addEventListener("load", () => resolve(true), {
+        once: true,
+      });
+      existingScript.addEventListener("error", () => resolve(false), {
+        once: true,
+      });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    script.async = true;
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
 
 const unwrap = (value) => value?.data?.data ?? value?.data ?? value ?? {};
 
@@ -51,6 +84,18 @@ const formatInrFromPaise = (value) => {
 
   return Number.isFinite(amount)
     ? (amount / 100).toLocaleString("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 2,
+      })
+    : "—";
+};
+
+const formatInrFromRupees = (value) => {
+  const amount = Number(value);
+
+  return Number.isFinite(amount)
+    ? amount.toLocaleString("en-IN", {
         style: "currency",
         currency: "INR",
         maximumFractionDigits: 2,
@@ -133,6 +178,10 @@ export default function BillingDashboardPage({ user, setUser }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
+  const [addBalanceOpen, setAddBalanceOpen] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+
   const firstName = user?.name?.trim()?.split(/\s+/)?.[0] || "there";
 
   const loadBilling = useCallback(async () => {
@@ -183,63 +232,130 @@ export default function BillingDashboardPage({ user, setUser }) {
     }
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
+  const handleAddBalance = async (planId) => {
+    if (paymentLoading) return;
 
-    const fetchBilling = async () => {
-      try {
-        const [summaryResult, transactionsResult] = await Promise.allSettled([
-          getBillingSummary(),
-          getBillingTransactions({ page: 1, pageSize: 5 }),
-        ]);
+    setPaymentLoading(true);
+    setPaymentError("");
 
-        if (cancelled) return;
+    try {
+      const scriptLoaded = await loadRazorpayScript();
 
-        if (summaryResult.status === "fulfilled") {
-          setSummary(unwrap(summaryResult.value));
-        }
-
-        if (transactionsResult.status === "fulfilled") {
-          setTransactions(getTransactionList(transactionsResult.value));
-        }
-
-        if (
-          summaryResult.status === "rejected" &&
-          transactionsResult.status === "rejected"
-        ) {
-          setError(
-            summaryResult.reason?.response?.data?.message ||
-              transactionsResult.reason?.response?.data?.message ||
-              "We couldn't load your billing information.",
-          );
-        } else if (summaryResult.status === "rejected") {
-          setError(
-            summaryResult.reason?.response?.data?.message ||
-              "Your billing summary couldn't be loaded.",
-          );
-        } else if (transactionsResult.status === "rejected") {
-          setError(
-            transactionsResult.reason?.response?.data?.message ||
-              "Recent transactions couldn't be loaded.",
-          );
-        }
-      } catch {
-        if (!cancelled) {
-          setError("Something went wrong while loading billing data.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      if (!scriptLoaded) {
+        throw new Error(
+          "Razorpay Checkout could not be loaded. Please try again.",
+        );
       }
-    };
 
-    void fetchBilling();
+      const orderResponse = await createBillingOrder({ planId });
+      const order = orderResponse?.data;
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      if (
+        orderResponse?.success !== true ||
+        !order?.orderId ||
+        !order?.keyId ||
+        !Number.isSafeInteger(order?.amount) ||
+        order.amount <= 0
+      ) {
+        throw new Error("The payment order response is invalid.");
+      }
+
+      await new Promise((resolve, reject) => {
+        let paymentFinished = false;
+        let checkout;
+
+        const finish = (callback) => {
+          if (paymentFinished) return;
+          paymentFinished = true;
+          callback();
+        };
+
+        checkout = new window.Razorpay({
+          key: order.keyId,
+          amount: order.amount,
+          currency: order.currency || "INR",
+          name: "RIO",
+          description: `${order.plan?.name || "Starter"} balance top-up`,
+          order_id: order.orderId,
+
+          handler: async (paymentResponse) => {
+            try {
+              if (
+                paymentResponse?.razorpay_order_id !== order.orderId ||
+                !paymentResponse?.razorpay_payment_id ||
+                !paymentResponse?.razorpay_signature
+              ) {
+                throw new Error(
+                  "Razorpay returned incomplete payment details.",
+                );
+              }
+
+              const verificationResponse = await verifyBillingPayment({
+                orderId: paymentResponse.razorpay_order_id,
+                paymentId: paymentResponse.razorpay_payment_id,
+                signature: paymentResponse.razorpay_signature,
+              });
+
+              const verified = verificationResponse?.data;
+
+              if (
+                verificationResponse?.success !== true ||
+                verified?.status !== "paid" ||
+                verified?.balanceCreditStatus !== "completed"
+              ) {
+                throw new Error(
+                  "Payment received, but balance credit is not confirmed. Please refresh billing before retrying.",
+                );
+              }
+
+              finish(resolve);
+            } catch (verificationError) {
+              finish(() => reject(verificationError));
+            }
+          },
+
+          modal: {
+            ondismiss: () => {
+              finish(() => reject(new Error("Payment was cancelled.")));
+            },
+          },
+
+          theme: {
+            color: "#17191C",
+          },
+        });
+
+        checkout.on("payment.failed", (event) => {
+          finish(() =>
+            reject(
+              new Error(
+                event?.error?.description ||
+                  "Payment failed. Please try again.",
+              ),
+            ),
+          );
+        });
+
+        checkout.open();
+      });
+
+      setAddBalanceOpen(false);
+      await loadBilling();
+    } catch (paymentError) {
+      const message =
+        paymentError?.response?.data?.message ||
+        paymentError?.message ||
+        "Unable to complete the payment. Please try again.";
+
+      setPaymentError(message);
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadBilling();
+  }, [loadBilling]);
 
   const balance = useMemo(() => {
     const candidate =
@@ -279,8 +395,7 @@ export default function BillingDashboardPage({ user, setUser }) {
     summary?.paidCount ??
     paidTransactions.length;
 
-  const totalAmount =
-    summary?.totalPaidAmount ?? summary?.totalAmount ?? totalPaidAmount;
+  const totalAmount = summary?.totalPaidAmount;
 
   const stats = [
     {
@@ -297,7 +412,7 @@ export default function BillingDashboardPage({ user, setUser }) {
     },
     {
       label: "Total payment amount",
-      value: formatInrFromPaise(totalAmount),
+      value: formatNumber(totalAmount),
       detail: "Total recorded successful payments",
       Icon: FiArrowUpRight,
     },
@@ -390,7 +505,6 @@ export default function BillingDashboardPage({ user, setUser }) {
                 </p>
               </div>
 
-              
               <div className="hidden items-center gap-3 sm:flex">
                 <button
                   type="button"
@@ -403,13 +517,13 @@ export default function BillingDashboardPage({ user, setUser }) {
 
                 <button
                   type="button"
-                  onClick={""}
+                  onClick={() => {
+                    setPaymentError("");
+                    setAddBalanceOpen(true);
+                  }}
                   className="group inline-flex items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] focus:outline-none focus:ring-2 focus:ring-white/30 sm:px-5"
                 >
-                  <FiPlus
-                    size={14}
-                    className={""}
-                  />
+                  <FiPlus size={14} className={""} />
                   Add Balance
                 </button>
               </div>
@@ -546,8 +660,23 @@ export default function BillingDashboardPage({ user, setUser }) {
                           <StatusLabel status={getStatus(transaction)} />
 
                           <span className="text-sm font-semibold text-white">
-                            {formatInrFromPaise(
-                              transaction?.amount ?? transaction?.amountInPaise,
+                            {transaction?.source === "balance" ||
+                            transaction?.amountUnit === "balance-unit" ? (
+                              <span
+                                className={
+                                  transaction?.type === "deduction"
+                                    ? "text-red-400"
+                                    : "text-emerald-300"
+                                }
+                              >
+                                {transaction?.type === "deduction" ? "−" : "+"}
+                                {formatInrFromRupees(transaction?.amount)}
+                              </span>
+                            ) : (
+                              formatInrFromPaise(
+                                transaction?.amount ??
+                                  transaction?.amountInPaise,
+                              )
                             )}
                           </span>
                         </div>
@@ -627,7 +756,10 @@ export default function BillingDashboardPage({ user, setUser }) {
 
           <button
             type="button"
-            onClick={() => navigate("/billing/add-balance")}
+            onClick={() => {
+              setPaymentError("");
+              setAddBalanceOpen(true);
+            }}
             className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 hover:bg-[#E8E8EB] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-white/30"
           >
             <FiPlus size={15} />
@@ -636,6 +768,18 @@ export default function BillingDashboardPage({ user, setUser }) {
           </button>
         </div>
       </div>
+      {addBalanceOpen && (
+        <AddBalanceModal
+          onClose={() => {
+            if (paymentLoading) return;
+            setAddBalanceOpen(false);
+            setPaymentError("");
+          }}
+          onContinue={handleAddBalance}
+          loading={paymentLoading}
+          error={paymentError}
+        />
+      )}
     </div>
   );
 }

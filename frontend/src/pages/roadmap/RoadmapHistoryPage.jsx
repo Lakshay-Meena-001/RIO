@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import RoadmapDetailPage from "./RoadmapDetailPage.jsx";
-import { FiArrowLeft } from "react-icons/fi";
+import { FiArrowLeft, FiPlay } from "react-icons/fi";
 
 import {
   FiArrowRight,
@@ -18,6 +18,7 @@ import {
   getUserRoadmap,
   getUserRoadmaps,
 } from "../../api/roadmap.api.js";
+import { Clock3, Lightbulb } from "lucide-react";
 
 const unwrap = (response) => response?.data ?? response ?? null;
 
@@ -140,7 +141,7 @@ const formatDate = (value) => {
 };
 
 const FLOATING_SIDEBAR =
-  "absolute inset-y-5 w-[min(282px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[18px] border border-white/[0.11] bg-[#111315]/90 shadow-[0_22px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl";
+  "absolute inset-y-5 w-[min(282px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl";
 
 function ProgressRing({ value }) {
   const radius = 28;
@@ -427,6 +428,9 @@ export default function RoadmapHistoryPage() {
   const [template, setTemplate] = useState(null);
 
   const [search, setSearch] = useState("");
+
+  const [historyPage, setHistoryPage] = useState(1);
+  const historyPageSize = 5;
 
   const [loading, setLoading] = useState(true);
 
@@ -821,6 +825,23 @@ export default function RoadmapHistoryPage() {
     );
   }, [roadmaps, search]);
 
+  const historyPageCount = Math.max(
+    1,
+    Math.ceil(filteredRoadmaps.length / historyPageSize),
+  );
+  const paginatedRoadmaps = filteredRoadmaps.slice(
+    (historyPage - 1) * historyPageSize,
+    historyPage * historyPageSize,
+  );
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    if (historyPage > historyPageCount) setHistoryPage(historyPageCount);
+  }, [historyPage, historyPageCount]);
+
   return (
     <div className="rio-roadmap-history fixed inset-0 overflow-hidden bg-[radial-gradient(ellipse_at_48%_0%,rgba(255,255,255,0.055),transparent_38%),#101113] text-white">
       <style>{`
@@ -848,7 +869,7 @@ export default function RoadmapHistoryPage() {
       </div>
       <div className="relative z-10 flex h-full min-h-0">
         <aside
-          className={`${FLOATING_SIDEBAR} top-4 bottom-20  left-4 z-50 w-[min(282px,calc(100vw-1rem))] shadow-[0_24px_80px_rgba(0,0,0,.30)] transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"} flex`}
+          className={`${FLOATING_SIDEBAR} top-4 bottom-20 left-4 z-50 w-[min(282px,calc(100vw-1rem))] shadow-[0_24px_80px_rgba(0,0,0,.32)]  backdrop-blur-2xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"} flex`}
         >
           <div className="shrink-0 border-b border-white/[0.065] bg-white/[0.012] px-5 pb-5 pt-6">
             <div className="flex items-start justify-between gap-3">
@@ -947,7 +968,7 @@ export default function RoadmapHistoryPage() {
             )}
 
             {!loading &&
-              filteredRoadmaps.map((item, index) => {
+              paginatedRoadmaps.map((item, index) => {
                 const itemId = getId(item);
 
                 const active = itemId === selectedId;
@@ -995,6 +1016,35 @@ export default function RoadmapHistoryPage() {
                 );
               })}
           </div>
+
+          <div className="flex shrink-0 items-center justify-between border-t border-white/[0.065] bg-white/[0.012] px-4 py-3">
+            <span className="text-[10px] text-[#858994]">
+              Page {Math.min(historyPage, historyPageCount)} of{" "}
+              {historyPageCount}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                aria-label="Previous page"
+                disabled={historyPage <= 1 || loading}
+                onClick={() => setHistoryPage((page) => Math.max(1, page - 1))}
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.08] text-[#858994] transition hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <FiArrowLeft size={13} />
+              </button>
+              <button
+                type="button"
+                aria-label="Next page"
+                disabled={historyPage >= historyPageCount || loading}
+                onClick={() =>
+                  setHistoryPage((page) => Math.min(historyPageCount, page + 1))
+                }
+                className="flex h-8 w-8 items-center justify-center rounded-full border border-white/[0.08] text-[#D4D4D8] transition hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                <FiArrowRight size={13} />
+              </button>
+            </div>
+          </div>
         </aside>
 
         {mobileHistoryOpen && (
@@ -1002,7 +1052,7 @@ export default function RoadmapHistoryPage() {
             type="button"
             aria-label="Close roadmap history"
             onClick={() => setMobileHistoryOpen(false)}
-            className="absolute inset-0 z-40 bg-black/55 backdrop-blur-[2px] lg:hidden"
+            className="absolute inset-0 z-40 backdrop-blur-xl bg-black/45 lg:hidden"
           />
         )}
 
@@ -1049,6 +1099,15 @@ export default function RoadmapHistoryPage() {
                   Learning path & progress
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleteLoading}
+                aria-label="Delete interview"
+                className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+              >
+                <FiTrash2 size={16} />
+              </button>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-6 pb-18 sm:px-7 sm:py-8 lg:px-9 lg:py-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -1124,7 +1183,7 @@ export default function RoadmapHistoryPage() {
       </div>
 
       {/* Mobile actions stay anchored at the bottom, outside the scrollable content. */}
-      <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#111315]/90 px-4 pt-3 backdrop-blur-xl pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[linear-gradient(160deg,rgba(35,37,42,0.97)_0%,rgba(20,22,25,0.98)_55%,rgba(15,16,18,0.99)_100%)] px-4 pt-3 backdrop-blur-xl pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
         {selectedId ? (
           <div className="grid grid-cols-2 gap-3">
             <button
@@ -1133,17 +1192,18 @@ export default function RoadmapHistoryPage() {
               className="group inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
               aria-label="Open roadmap history"
             >
-              <FiArrowLeft size={14} />
-              History
+              <Clock3 size={14} />
+              My Learnings
             </button>
             <button
               type="button"
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => navigate("/roadmap/new")}
               disabled={deleteLoading}
               className="group inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.08)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_14px_34px_rgba(255,255,255,0.12)] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
             >
-              <FiTrash2 size={14} />
-              Delete
+              <FiPlay size={14} />
+              New Roadmap
+              <FiArrowRight size={14} />
             </button>
           </div>
         ) : (

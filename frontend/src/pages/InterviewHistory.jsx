@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import InterviewReport from "./InterviewReport";
 import {
   FiArrowLeft,
+  FiArrowRight,
   FiClock,
   FiRefreshCw,
   FiTrash2,
@@ -12,7 +13,10 @@ import {
   FiCheckCircle,
   FiTarget,
   FiPlay,
+  FiPlus
 } from "react-icons/fi";
+
+import {} from "lucide-react";
 import { getInterviewHistory } from "../api/interview.api";
 
 const getId = (item) => item?._id || item?.id || item?.interviewId || null;
@@ -221,6 +225,8 @@ export default function InterviewHistory() {
   const [error, setError] = useState("");
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const [deleteRequest, setDeleteRequest] = useState(false);
 
   const loadInterviewHistory = useCallback(async () => {
@@ -329,6 +335,20 @@ export default function InterviewHistory() {
         );
   }, [interviews, search]);
 
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginatedInterviews = filtered.slice(
+    (page - 1) * pageSize,
+    page * pageSize,
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pages));
+  }, [pages]);
+
   const selectInterview = (id) => {
     if (!id) return;
     setSelectedInterviewId(id);
@@ -353,7 +373,7 @@ export default function InterviewHistory() {
   return (
     <div className="rio-interview-history fixed inset-0 overflow-hidden bg-[radial-gradient(ellipse_at_48%_0%,rgba(255,255,255,.055),transparent_38%),#101113] text-white">
       <style>{`
-      @keyframes rioInterviewEnter {from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes rioInterviewEnter {from{opacity:0}to{opacity:1}}
       .rio-interview-history{animation:rioInterviewEnter 280ms cubic-bezier(.22,1,.36,1)}
       .rio-interview-item{animation:rioInterviewEnter 260ms both}
       @media(prefers-reduced-motion:reduce){.rio-interview-history,.rio-interview-item{animation:none!important;transition:none!important}}
@@ -368,7 +388,7 @@ export default function InterviewHistory() {
       />
       <div className="relative z-10 flex h-full min-h-0">
         <aside
-          className={`absolute inset-y-4 bottom-20 left-4 z-50 flex w-[min(292px,calc(100vw - 1rem))] flex-col overflow-hidden rounded-[18px] border border-white/[.10] bg-[#111315]/95 shadow-[0_22px_60px_rgba(0,0,0,.3)] backdrop-blur-2xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"}`}
+          className={`absolute inset-y-4 bottom-20 left-4 z-50 flex w-[min(282px,calc(100vw - 1rem))] flex-col overflow-hidden rounded-[18px] border border-white/[.10] bg-[#111315]/95 shadow-[0_22px_60px_rgba(0,0,0,.3)] backdrop-blur-2xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"}`}
         >
           <div className="shrink-0 border-b border-white/[.065] bg-white/[.012] px-5 pb-4 pt-5">
             <div className="flex items-start justify-between gap-3">
@@ -469,7 +489,7 @@ export default function InterviewHistory() {
               </div>
             )}
             {!loading &&
-              filtered.map((item, index) => {
+              paginatedInterviews.map((item, index) => {
                 const id = getId(item),
                   active = id === selectedInterviewId,
                   date = dateOf(item);
@@ -513,13 +533,42 @@ export default function InterviewHistory() {
                 );
               })}
           </div>
+          <div className="shrink-0 border-t border-white/[.07] px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] text-[#858994]">
+                Page {page} of {pages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={page <= 1 || loading}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  aria-label="Previous page"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 disabled:opacity-30"
+                >
+                  <FiArrowLeft />
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= pages || loading}
+                  onClick={() =>
+                    setPage((current) => Math.min(pages, current + 1))
+                  }
+                  aria-label="Next page"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 disabled:opacity-30"
+                >
+                  <FiArrowRight />
+                </button>
+              </div>
+            </div>
+          </div>
         </aside>
         {mobileHistoryOpen && (
           <button
             type="button"
             aria-label="Close interview history"
             onClick={() => setMobileHistoryOpen(false)}
-            className="absolute inset-0 z-40 bg-black/55 backdrop-blur-[2px] lg:hidden"
+            className="fixed inset-0 z-40 backdrop-blur-xl bg-black/45 lg:hidden"
           />
         )}
         <Sidebar interview={selectedInterview} />
@@ -538,24 +587,35 @@ export default function InterviewHistory() {
                 Back to mock interviews
               </button>
             </div>
-            <div className="flex h-16 shrink-0 items-center border-b border-white/[.07] bg-[#111214]/75 px-4 backdrop-blur-xl lg:hidden">
+
+            <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/[.07] bg-[#111214]/75 px-4 backdrop-blur-xl lg:hidden">
               <button
                 type="button"
                 onClick={() => navigate("/mock-interview")}
                 aria-label="Back to mock interviews"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[.045]"
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-[#D4D4D8]"
               >
                 <FiArrowLeft size={15} />
               </button>
-              <div className="ml-3 min-w-0 border-l border-white/[.09] pl-3">
+              <div className="ml-3 min-w-0 border-l border-white/[0.09] pl-3">
                 <p className="truncate text-xs font-semibold">
                   {selectedInterview?.role || "Interview workspace"}
                 </p>
-                <p className="mt-0.5 text-[9px] uppercase tracking-[.14em] text-[#858994]">
+                <p className="mt-0.5 text-[9px] uppercase tracking-[0.14em] text-[#858994]">
                   Performance review
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setDeleteRequest(true)}
+                disabled={!selectedInterviewId}
+                aria-label="Delete interview"
+                className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+              >
+                <FiTrash2 size={16} />
+              </button>
             </div>
+
             <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none]">
               {selectedInterviewId ? (
                 <InterviewReport
@@ -599,7 +659,7 @@ export default function InterviewHistory() {
           </div>
         </main>
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/[.08] bg-[#111315]/92 px-4 pt-3 backdrop-blur-xl pb-[calc(.75rem+env(safe-area-inset-bottom))] lg:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/[.08] bg-[#111315]/92 px-4 pt-3 backdrop-blur-2xl pb-[calc(.75rem+env(safe-area-inset-bottom))] lg:hidden">
         {interviews.length === 0 && !loading && !error ? (
           <button
             onClick={() => navigate("/mock-interview/new")}
@@ -615,16 +675,16 @@ export default function InterviewHistory() {
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8]"
             >
               <FiClock size={14} />
-              History
+              My Interviews
             </button>
             <button
               type="button"
-              onClick={() => setDeleteRequest(true)}
+              onClick={() => navigate("/mock-interview/new")}
               disabled={!selectedInterviewId}
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] disabled:opacity-40"
             >
-              <FiTrash2 size={14} />
-              Delete
+              <FiPlus size={16} />
+              New Interview
             </button>
           </div>
         )}

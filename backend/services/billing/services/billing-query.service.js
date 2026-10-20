@@ -123,7 +123,8 @@ const fetchAuthBalanceTransactions = async (userId, requiredCount) => {
     // Fetch enough newest-first records to calculate this global page.
     // Stop early when the source has no more records.
   } while (
-    transactions.length < Math.min(requiredCount, total) &&
+    transactions.length <
+      (requiredCount === Infinity ? total : Math.min(requiredCount, total)) &&
     transactions.length < total
   );
 
@@ -139,6 +140,12 @@ const toBalanceHistoryItem = (transaction) => ({
   action: transaction.action,
   type: "deduction",
   status: "completed",
+
+  // Service and resource details
+  serviceName: transaction.serviceName || transaction.action,
+  resourceName: transaction.resourceName || null,
+  resourceId: transaction.resourceId || null,
+  reportUrl: transaction.reportUrl || null,
 
   // This amount is in RIO balance units, not paise.
   amount: transaction.amount,
@@ -226,7 +233,7 @@ export const getBillingSummary = async (userId) => {
       },
     ]),
     fetchCurrentBalance(userId),
-    fetchAuthBalanceTransactions(userId, 0),
+    fetchAuthBalanceTransactions(userId, Infinity),
   ]);
 
   const result = summary[0] ?? {
@@ -235,25 +242,55 @@ export const getBillingSummary = async (userId) => {
     pendingPayments: 0,
     failedPayments: 0,
     totalPaidAmount: 0,
+    totalTopUpTransactions: 0,
   };
 
   // Auth history excludes billing-balance-credit entries.
   // Count these separately so top-ups aren't double-counted.
+  // Service deductions are completed transactions stored by Auth Service.
   const deductionCount = balanceHistory.total;
 
+  const serviceSpending = balanceHistory.transactions.reduce(
+    (total, transaction) => {
+      const service = String(
+        transaction.serviceName || transaction.action || "",
+      )
+        .toLowerCase()
+        .replace(/[-_]/g, " ");
+
+      const isTargetService =
+        service.includes("resume scorer") || service.includes("interview");
+
+      if (!isTargetService) return total;
+
+      const amount = toSafeAmount(transaction.amount);
+
+      return Number.isSafeInteger(total + amount) ? total + amount : total;
+    },
+    0,
+  );
+  const successfulTopUps = result.successfulPayments;
+  const totalTopUpTransactions = result.totalTransactions;
+
   return {
-    // All top-up records plus persisted balance transactions.
+    // Razorpay top-ups plus service deductions.
     totalTransactions: result.totalTransactions + deductionCount,
 
-    // Actual successful Razorpay top-up payments only.
-    successfulPayments: result.successfulPayments,
-    successfulTransactions: result.successfulPayments + deductionCount,
+    totalTopUpTransactions,
 
+    // Both successful top-ups and completed service deductions.
+    successfulPayments: successfulTopUps + deductionCount,
+    successfulTransactions: successfulTopUps + deductionCount,
+
+    // Pending/failed statuses apply to Razorpay billing transactions.
     pendingPayments: result.pendingPayments,
     failedPayments: result.failedPayments,
 
-    // BillingTransaction.amount is stored in paise.
-    totalPaidAmount: toSafeAmount(result.totalPaidAmount),
+    // Only service spending. Razorpay balance additions are excluded.
+    totalPaidAmount: serviceSpending,
+
+    // Razorpay top-up amount remains a separate metric.
+    totalTopUpAmount: toSafeAmount(result.totalPaidAmount),
 
     currency: "INR",
     currentBalance: userBalance,

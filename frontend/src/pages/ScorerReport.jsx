@@ -1,5 +1,4 @@
 import {
-  ArrowLeft,
   ExternalLink,
   Mail,
   MapPin,
@@ -11,6 +10,7 @@ import {
   BriefcaseBusiness,
   GraduationCap,
   FileText,
+  ArrowRight,
 } from "lucide-react";
 
 const text = (value) => (value == null || value === "" ? "" : String(value));
@@ -199,12 +199,12 @@ export default function ScorerReport({
             where to focus next.
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+       <div className="hidden sm:flex flex-wrap items-center justify-center gap-2 sm:justify-end">
           {onDeleteHistory && (
             <button
               type="button"
               onClick={onDeleteHistory}
-              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/[0.07] px-4 py-2.5 text-xs font-semibold text-red-300 transition hover:border-red-500/40 hover:bg-red-500/[0.12]"
+              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-white-500/20 px-4 py-2.5 text-xs font-semibold bg-white bg-white text-[#17191C] transition "
             >
               Delete History
             </button>
@@ -216,7 +216,7 @@ export default function ScorerReport({
               onClick={onBackToScorer}
               className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.035] px-4 py-2.5 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
             >
-              <ArrowLeft size={14} /> New analysis
+               New analysis<ArrowRight size={14} />
             </button>
           )}
         </div>

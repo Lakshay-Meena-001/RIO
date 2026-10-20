@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import {
   ArrowLeft,
+  ArrowRight,
   Award,
   BriefcaseBusiness,
   Check,
@@ -174,6 +175,8 @@ export default function ResumeHistoryPage() {
   const dispatch = useDispatch();
   const [history, setHistory] = useState([]);
   const [query, setQuery] = useState("");
+  const [historyPage, setHistoryPage] = useState(1);
+  const historyPageSize = 10;
   const [selectedId, setSelectedId] = useState("");
   const [selectedResume, setSelectedResume] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -257,7 +260,6 @@ export default function ResumeHistoryPage() {
       const normalized = normalize(resume);
       setDraft(clone(normalized));
       setOriginalDraft(clone(normalized));
-      setEditing(false);
     } catch (err) {
       setError(
         err?.response?.data?.message ||
@@ -317,6 +319,15 @@ export default function ResumeHistoryPage() {
       ),
     );
   }, [history, query]);
+
+  const historyPages = Math.max(
+    1,
+    Math.ceil(filtered.length / historyPageSize),
+  );
+  const pagedHistory = filtered.slice(
+    (historyPage - 1) * historyPageSize,
+    historyPage * historyPageSize,
+  );
 
   const chooseResume = (id) => {
     if (String(id) === String(selectedId)) return;
@@ -614,7 +625,7 @@ export default function ResumeHistoryPage() {
       <div className="relative z-10 flex h-full min-h-0">
         {/* LEFT: roadmap-style floating history sidebar */}
         <aside
-          className={`absolute inset-y-4 left-4 z-50 flex w-[min(282px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[18px] border border-white/[0.11] bg-[#111315]/90 shadow-[0_24px_80px_rgba(0,0,0,.30)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"}`}
+          className={`absolute top-4 bottom-20 left-4 flex w-[min(282px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "z-[90] translate-x-0" : "z-50 -translate-x-[calc(100%+1rem)]"}`}
         >
           <div className="shrink-0 border-b border-white/[0.065] bg-white/[0.012] px-5 pb-5 pt-6">
             <div className="flex items-start justify-between gap-3">
@@ -654,13 +665,19 @@ export default function ResumeHistoryPage() {
               <Search size={13} className="shrink-0 text-[#686B74]" />
               <input
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                  setHistoryPage(1);
+                }}
                 placeholder="Find a resume…"
                 className="w-full bg-transparent text-xs text-white outline-none placeholder:text-[#62656D]"
               />
               <button
                 type="button"
-                onClick={() => setQuery("")}
+                onClick={() => {
+                  setQuery("");
+                  setHistoryPage(1);
+                }}
                 aria-label="Clear search"
                 className={query ? "text-[#777B85] hover:text-white" : "hidden"}
               >
@@ -702,7 +719,7 @@ export default function ResumeHistoryPage() {
                 </button>
               </div>
             )}
-            {filtered.map((item, index) => {
+            {pagedHistory.map((item, index) => {
               const active = String(item._id) === String(selectedId);
               return (
                 <button
@@ -744,13 +761,44 @@ export default function ResumeHistoryPage() {
               );
             })}
           </div>
+          <div className="shrink-0 border-t border-white/[.07] px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-[10px] text-[#858994]">
+                Page {historyPage} of {historyPages}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={historyPage <= 1}
+                  onClick={() =>
+                    setHistoryPage((page) => Math.max(1, page - 1))
+                  }
+                  aria-label="Previous page"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-[#D4D4D8] disabled:opacity-30"
+                >
+                  <ArrowLeft size={14} />
+                </button>
+                <button
+                  type="button"
+                  disabled={historyPage >= historyPages}
+                  onClick={() =>
+                    setHistoryPage((page) => Math.min(historyPages, page + 1))
+                  }
+                  aria-label="Next page"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 text-[#D4D4D8] disabled:opacity-30"
+                >
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+            </div>
+          </div>
         </aside>
         {mobileHistoryOpen && (
           <button
             type="button"
             aria-label="Close resume history"
             onClick={() => setMobileHistoryOpen(false)}
-            className="absolute inset-0 z-40 bg-black/55 backdrop-blur-[2px] lg:hidden"
+            className="absolute inset-0 z-40 backdrop-blur-xl bg-black/45 lg:hidden"
           />
         )}
 
@@ -787,21 +835,15 @@ export default function ResumeHistoryPage() {
                   Resume detail workspace
                 </p>
               </div>
+
               <button
                 type="button"
-                onClick={() => (editing ? cancelEdit() : startEdit())}
-                disabled={!selectedResume || loadingDetail}
-                className="ml-auto inline-flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-[12px] font-semibold text-[#17191C] shadow-[0_8px_24px_rgba(0,0,0,.18)] transition active:scale-[.98] disabled:opacity-40"
+                onClick={() => setDeleteOpen(true)}
+                disabled={deleting}
+                className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
               >
-                {editing ? (
-                  <>
-                    <X size={14} /> Cancel
-                  </>
-                ) : (
-                  <>
-                    <Pencil size={14} /> Edit
-                  </>
-                )}
+                <Trash2 size={14} />
+                <span className="hidden sm:inline">Delete</span>
               </button>
             </div>
             <div className="rio-history-scroll rio-mobile-content min-h-0 flex-1 overflow-y-auto px-4 pb-28 pt-6 sm:px-7 sm:py-8 lg:px-9 lg:py-9">
@@ -1050,7 +1092,7 @@ export default function ResumeHistoryPage() {
               type="button"
               onClick={() => setDeleteOpen(true)}
               disabled={!selectedResume || deleting}
-              className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-300/[0.16] bg-red-300/[0.045] px-3 py-2.5 text-[10px] font-semibold text-red-100/80 transition hover:border-red-300/25 hover:bg-red-300/[0.09] disabled:cursor-not-allowed disabled:opacity-40"
+              className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-white  px-3 py-2.5 text-[10px] font-semibold text-[#17191C] transition   disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trash2 size={12} /> Delete resume
             </button>
@@ -1067,7 +1109,7 @@ export default function ResumeHistoryPage() {
       </div>
 
       {/* Mobile action dock follows the Roadmap history interaction pattern. */}
-      {!editing && selectedResume && (
+      {!editing && selectedResume && !mobileHistoryOpen && (
         <button
           type="button"
           onClick={() => setPreviewOpen(true)}
@@ -1109,20 +1151,28 @@ export default function ResumeHistoryPage() {
               <>
                 <button
                   type="button"
-                  onClick={() => setMobileHistoryOpen(true)}
+                  onClick={() => setMobileHistoryOpen((open) => !open)}
                   className="rio-mobile-action-button group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065]"
                 >
                   <Clock3 size={14} />
-                  <span>History</span>
+                  <span>My Resumes</span>
                 </button>
+
                 <button
                   type="button"
-                  onClick={() => setDeleteOpen(true)}
-                  disabled={deleting}
-                  className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-rose-300/[.17] bg-rose-300/[.045] px-3 py-3 text-xs font-semibold text-rose-100/90 transition duration-200 hover:bg-rose-300/[.09] disabled:opacity-50"
+                  onClick={() => (editing ? cancelEdit() : startEdit())}
+                  disabled={!selectedResume || loadingDetail}
+                  className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:bg-rose-300/[.09] disabled:opacity-50"
                 >
-                  <Trash2 size={14} />
-                  <span>Delete</span>
+                  {editing ? (
+                    <>
+                      <X size={14} /> Cancel
+                    </>
+                  ) : (
+                    <>
+                      <Pencil size={14} /> Edit
+                    </>
+                  )}
                 </button>
               </>
             )
@@ -1164,7 +1214,7 @@ export default function ResumeHistoryPage() {
             aria-labelledby="delete-resume-heading"
             className="w-full max-w-md rounded-[18px] border border-white/[0.11] bg-[#17191c] p-6 shadow-[0_24px_80px_rgba(0,0,0,.4)]"
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-300/20 bg-red-300/[.07] text-red-100">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border bg-white text-[#17191C]">
               <Trash2 size={16} />
             </div>
             <h2
@@ -1190,7 +1240,7 @@ export default function ResumeHistoryPage() {
                 type="button"
                 onClick={removeResume}
                 disabled={deleting}
-                className="inline-flex items-center gap-2 rounded-xl border border-red-300/20 bg-red-300/[.08] px-4 py-2.5 text-xs font-semibold text-red-100"
+                className="inline-flex items-center gap-2 rounded-xl border  bg-white px-4 py-2.5 text-xs font-semibold text-[#17191C]"
               >
                 {deleting ? (
                   <LoaderCircle size={13} className="animate-spin" />

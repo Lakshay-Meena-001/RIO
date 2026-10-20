@@ -232,6 +232,7 @@ export default function BillingHistoryPage({ user }) {
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notFoundMessage, setNotFoundMessage] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -331,7 +332,7 @@ export default function BillingHistoryPage({ user }) {
     summary?.balance ??
     user?.currentBalance ??
     user?.balance;
-  const paidTotal = summary?.totalPaidAmount ?? summary?.totalAmount;
+  const paidTotal = summary?.totalTopUpAmount;
   const lowBalance =
     balance != null &&
     Number.isFinite(Number(balance)) &&
@@ -342,10 +343,53 @@ export default function BillingHistoryPage({ user }) {
     if (id) setParams({ transaction: id }, { replace: true });
     setMobileOpen(false);
   };
-  const firstName = user?.name?.trim()?.split(/\s+/)?.[0] || "there";
 
   return (
     <div className="relative h-[100dvh] overflow-hidden bg-[#17191C] text-white">
+      {notFoundMessage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="not-found-title"
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#111315] p-6 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2
+                  id="not-found-title"
+                  className="text-base font-semibold text-white"
+                >
+                  Not Found
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
+                  {notFoundMessage}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setNotFoundMessage("")}
+                aria-label="Close popup"
+                className="rounded-lg p-1 text-[#A1A1AA] hover:bg-white/10 hover:text-white"
+              >
+                <FiX size={18} />
+              </button>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setNotFoundMessage("")}
+                className="rounded-xl bg-white px-5 py-2.5 text-xs font-semibold text-[#17191C] transition hover:bg-[#E8E8EB]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0"
@@ -676,6 +720,130 @@ export default function BillingHistoryPage({ user }) {
                         mono
                       />
                       <Row label="Activity type" value={titleOf(selected)} />
+                      {(() => {
+                        const reportUrl =
+                          selected.reportUrl || selected.metadata?.reportUrl;
+
+                        const isSafeReportUrl =
+                          typeof reportUrl === "string" &&
+                          reportUrl.startsWith("/") &&
+                          !reportUrl.startsWith("//") &&
+                          !reportUrl.includes("\\");
+
+                        return (
+                          isSafeReportUrl && (
+                            <Row
+                              label="Report"
+                              value={
+                                <a
+                                  href={reportUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline underline-offset-2"
+                                >
+                                  View report
+                                </a>
+                              }
+                            />
+                          )
+                        );
+                      })()}
+                      {(selected.serviceName ||
+                        selected.metadata?.serviceName ||
+                        selected.service ||
+                        selected.action) && (
+                        <Row
+                          label="Service"
+                          value={(() => {
+                            const serviceName =
+                              selected.serviceName ||
+                              selected.metadata?.serviceName ||
+                              selected.service ||
+                              selected.action;
+
+                            const normalizedService = String(serviceName)
+                              .toLowerCase()
+                              .replace(/[-_]/g, " ");
+
+                            const metadata = selected.metadata || {};
+
+                            const resourceId =
+                              selected.resourceId ||
+                              metadata.resourceId ||
+                              selected.resumeId ||
+                              metadata.resumeId ||
+                              selected.interviewId ||
+                              metadata.interviewId;
+
+                            const isInterview =
+                              normalizedService.includes("interview");
+
+                            const isScorer =
+                              normalizedService.includes("resume scorer") ||
+                              normalizedService.includes("resume score") ||
+                              normalizedService.includes("resume analysis");
+
+                            const openService = () => {
+                              if (!resourceId) {
+                                setNotFoundMessage(
+                                  "Is transaction ke saath linked service record nahi mila.",
+                                );
+                                return;
+                              }
+
+                              if (isInterview) {
+                                navigate(
+                                  `/mock-interview/history?interview=${encodeURIComponent(resourceId)}`,
+                                );
+                                return;
+                              }
+
+                              if (isScorer) {
+                                navigate(
+                                  `/scorer/history?resume=${encodeURIComponent(resourceId)}`,
+                                );
+                                return;
+                              }
+
+                              setNotFoundMessage(
+                                "Service identify nahi ho paayi.",
+                              );
+                            };
+
+                            return (
+                              <button
+                                type="button"
+                                onClick={openService}
+                                className="underline underline-offset-2 hover:text-white"
+                              >
+                                {serviceName}
+                              </button>
+                            );
+                          })()}
+                        />
+                      )}
+
+                      {(selected.resourceName ||
+                        selected.metadata?.resourceName) && (
+                        <Row
+                          label="Resource"
+                          value={
+                            selected.resourceName ||
+                            selected.metadata?.resourceName
+                          }
+                        />
+                      )}
+
+                      {(selected.resourceId ||
+                        selected.metadata?.resourceId) && (
+                        <Row
+                          label="Resource ID"
+                          value={
+                            selected.resourceId || selected.metadata?.resourceId
+                          }
+                          mono
+                        />
+                      )}
                       <Row
                         label="Transaction type"
                         value={

@@ -342,10 +342,6 @@ export default function ScorerDashboard({ user, setUser }) {
               </div>
 
               <div className="flex w-full items-center justify-center gap-3 lg:w-auto lg:justify-end">
-                <span className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-medium text-[#D4D4D8]">
-                  <FiShield size={14} /> Private resume analysis
-                </span>
-
                 <button
                   type="button"
                   onClick={() => navigate("/scorer/history")}
@@ -353,8 +349,10 @@ export default function ScorerDashboard({ user, setUser }) {
                 >
                   <FiClock size={14} />
                   View History
-                  <FiArrowRight size={14} />
                 </button>
+                <span className="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-medium text-[#D4D4D8]">
+                  <FiShield size={14} /> Private resume analysis
+                </span>
               </div>
             </section>
 

@@ -65,16 +65,40 @@ const inr = (v) =>
         maximumFractionDigits: 2,
       })
     : "—";
+
 const balanceValue = (v) =>
   Number.isFinite(Number(v))
     ? Number(v).toLocaleString("en-IN", { maximumFractionDigits: 2 })
     : "—";
+
 const isDeduction = (t) =>
   t?.type === "deduction" ||
-  /resume-scorer|interview|deduct/.test(
-    String(t?.action || "").toLowerCase(),
+  /resume scorer|interview|deduct/.test(
+    String(t?.action || "")
+      .toLowerCase()
+      .replace(/[-_]/g, " "),
   ) ||
   t?.source === "balance";
+
+const isTopUp = (t) =>
+  t?.source === "billing" ||
+  t?.balanceCredit != null ||
+  /billing-balance-credit|balance-credit|top-up/i.test(
+    `${t?.action || ""} ${t?.serviceName || ""}`,
+  );
+
+const isFailed = (t) =>
+  [
+    "failed",
+    "failure",
+    "cancelled",
+    "canceled",
+    "rejected",
+    "refunded",
+    "expired",
+    "error",
+  ].includes(statusOf(t));
+
 const titleOf = (t) => {
   const metadata =
     t?.metadata && typeof t.metadata === "object" ? t.metadata : {};
@@ -139,6 +163,7 @@ const titleOf = (t) => {
     )
   );
 };
+
 const amountOf = (t) => {
   if (!t) return "—";
   if (
@@ -254,6 +279,7 @@ export default function BillingHistoryPage({ user }) {
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+ 
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -312,13 +338,12 @@ export default function BillingHistoryPage({ user }) {
   const filtered = useMemo(
     () =>
       transactions.filter((t) => {
-        const s = statusOf(t);
-        const normalized = PENDING.has(s)
-          ? "Pending"
-          : SUCCESS.has(s)
-            ? "Success"
-            : "Failed";
-        const matchesFilter = filter === "All" || normalized === filter;
+        const matchesFilter =
+          filter === "All" ||
+          (filter === "Success" && SUCCESS.has(statusOf(t))) ||
+          (filter === "Top-ups" && isTopUp(t)) ||
+          (filter === "Failed" && isFailed(t));
+
         const q = search.trim().toLowerCase();
         const matchesSearch =
           !q ||
@@ -339,6 +364,7 @@ export default function BillingHistoryPage({ user }) {
       }),
     [transactions, filter, search],
   );
+
   const selected =
     filtered.find((t) => idOf(t) === selectedId) ||
     transactions.find((t) => idOf(t) === selectedId) ||
@@ -354,7 +380,7 @@ export default function BillingHistoryPage({ user }) {
     summary?.balance ??
     user?.currentBalance ??
     user?.balance;
-  const paidTotal = summary?.totalPaidAmount ?? summary?.totalAmount;
+  const paidTotal = summary?.totalPaidAmount;
   const lowBalance =
     balance != null &&
     Number.isFinite(Number(balance)) &&
@@ -417,7 +443,7 @@ export default function BillingHistoryPage({ user }) {
         )}
         <aside
           className={cx(
-            "absolute inset-y-3 left-3 flex w-[min(310px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 md:inset-y-4 md:left-4 md:right-auto md:w-[300px] lg:inset-y-5 lg:left-5",
+            "absolute top-4 bottom-20 left-4 flex w-[min(282px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 md:inset-y-4 md:left-4 md:right-auto md:w-[300px] lg:inset-y-5 lg:left-5",
             mobileOpen ? "z-[90]" : "z-50",
             mobileOpen
               ? "z-[90] translate-x-0"
@@ -467,7 +493,7 @@ export default function BillingHistoryPage({ user }) {
               </button>
               {filterOpen && (
                 <div className="absolute left-0 right-0 top-full z-20 mt-2 rounded-xl border border-white/[.12] bg-[#191b1e] p-1 shadow-2xl">
-                  {["All", "Success", "Pending", "Failed"].map((v) => (
+                  {["All", "Success", "Failed", "Top-ups"].map((v) => (
                     <button
                       key={v}
                       onClick={() => {
@@ -610,7 +636,7 @@ export default function BillingHistoryPage({ user }) {
 
         <main className="min-w-0 flex-1 overflow-y-auto pb-28 pt-[82px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:pb-8 md:pt-5 md:pl-[328px] lg:pl-[328px] lg:pr-[328px]">
           <div className="mx-auto w-full max-w-[900px] px-4 sm:px-7 lg:px-5">
-            <div className="mb-7 hidden items-center justify-between md:flex">
+            <div className="mx-6 pb-4 border-b  border-white/[0.08] hidden items-center justify-between md:flex">
               <button
                 onClick={() => navigate("/billing")}
                 className="inline-flex items-center gap-2 text-xs text-[#858994] hover:text-white"
@@ -712,6 +738,66 @@ export default function BillingHistoryPage({ user }) {
                         mono
                       />
                       <Row label="Activity type" value={titleOf(selected)} />
+                      {(() => {
+                        const reportUrl =
+                          selected.reportUrl || selected.metadata?.reportUrl;
+
+                        const isSafeReportUrl =
+                          typeof reportUrl === "string" &&
+                          reportUrl.startsWith("/") &&
+                          !reportUrl.startsWith("//") &&
+                          !reportUrl.includes("\\");
+
+                        return (
+                          isSafeReportUrl && (
+                            <Row
+                              label="Report"
+                              value={
+                                <a
+                                  href={reportUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline underline-offset-2"
+                                >
+                                  View report
+                                </a>
+                              }
+                            />
+                          )
+                        );
+                      })()}
+                      {(selected.serviceName ||
+                        selected.metadata?.serviceName) && (
+                        <Row
+                          label="Service"
+                          value={
+                            selected.serviceName ||
+                            selected.metadata?.serviceName
+                          }
+                        />
+                      )}
+
+                      {(selected.resourceName ||
+                        selected.metadata?.resourceName) && (
+                        <Row
+                          label="Resource"
+                          value={
+                            selected.resourceName ||
+                            selected.metadata?.resourceName
+                          }
+                        />
+                      )}
+
+                      {(selected.resourceId ||
+                        selected.metadata?.resourceId) && (
+                        <Row
+                          label="Resource ID"
+                          value={
+                            selected.resourceId || selected.metadata?.resourceId
+                          }
+                          mono
+                        />
+                      )}
                       <Row
                         label="Transaction type"
                         value={
@@ -835,13 +921,14 @@ export default function BillingHistoryPage({ user }) {
                 icon: FiCheckCircle,
               },
               {
-                label: "Pending",
-                value: summary?.pendingTransactions ?? "—",
-                icon: FiClock,
+                label: "Top-ups",
+                value: summary?.totalTopUpTransactions ?? "—",
+                icon: FiCreditCard,
               },
               {
                 label: "Failed",
-                value: summary?.failedTransactions ?? "—",
+                value:
+                  summary?.failedTransactions ?? summary?.failedPayments ?? "—",
                 icon: FiXCircle,
               },
             ].map((x) => (
@@ -866,7 +953,7 @@ export default function BillingHistoryPage({ user }) {
               Total payment amount
             </p>
             <p className="mt-2 text-[23px] font-semibold tracking-[-.04em]">
-              {paidTotal == null ? "—" : inr(paidTotal)}
+              {paidTotal == null ? "—" : paidTotal.toLocaleString("en-IN")}
             </p>
             <p className="mt-1 text-[10px] text-[#777B85]">
               Successful payments only
@@ -895,7 +982,7 @@ export default function BillingHistoryPage({ user }) {
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => setMobileOpen(true)}
+              onClick={() => setMobileOpen((prev) => !prev)}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:bg-white/[0.065]"
               aria-label="Open transaction history list"
             >
@@ -921,7 +1008,7 @@ export default function BillingHistoryPage({ user }) {
           aria-label="Refresh transaction history"
           className={cx(
             "fixed bottom-[5.6rem] right-4 grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-[#22252A] text-[#E4E4E7] shadow-[0_8px_28px_rgba(0,0,0,.35)] transition hover:bg-[#30333A] disabled:opacity-50 md:hidden",
-            mobileOpen ? "z-40" : "z-[70]",
+            mobileOpen ? "z-hidden" : "z-[70]",
           )}
         >
           <FiRefreshCw className={loading ? "animate-spin" : ""} size={16} />

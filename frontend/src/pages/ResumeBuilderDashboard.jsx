@@ -279,7 +279,7 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
           aria-label="Open resume history"
           className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition hover:bg-white/[0.1]"
         >
-          <FiClock size={17} />
+         {firstName.charAt(0).toUpperCase()}
         </button>
       </header>
 
@@ -331,7 +331,7 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
               <div className="hidden flex-wrap gap-2 md:flex">
                 <SecondaryButton onClick={openHistory}>
                   <FiClock size={14} />
-                  Resume history
+                  View history
                 </SecondaryButton>
 
                 <PrimaryButton onClick={openBuilder}>

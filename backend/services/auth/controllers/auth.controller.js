@@ -610,7 +610,8 @@ export const useBalance = async (req, res) => {
       ? req.body.transactionId.trim()
       : "";
 
-  const { amount, action } = req.body ?? {};
+  const { amount, action, serviceName, resourceName, resourceId, reportUrl } =
+    req.body ?? {};
   const balanceAmount = Number(amount);
 
   const normalizedAction =
@@ -894,7 +895,9 @@ export const deductBalanceInternal = async (req, res) => {
       ? req.body.transactionId.trim()
       : "";
 
-  const { amount, action } = req.body ?? {};
+  const { amount, action, serviceName, resourceName, resourceId, reportUrl } =
+    req.body ?? {};
+
   const balanceAmount = Number(amount);
 
   const normalizedAction =
@@ -1013,6 +1016,24 @@ export const deductBalanceInternal = async (req, res) => {
             transactionId,
             amount: balanceAmount,
             action: normalizedAction,
+            serviceName:
+              typeof serviceName === "string"
+                ? serviceName.trim().slice(0, 100)
+                : null,
+            resourceName:
+              typeof resourceName === "string"
+                ? resourceName.trim().slice(0, 255)
+                : null,
+            resourceId:
+              typeof resourceId === "string"
+                ? resourceId.trim().slice(0, 200)
+                : null,
+            reportUrl:
+              typeof reportUrl === "string" &&
+              reportUrl.startsWith("/") &&
+              !reportUrl.startsWith("//")
+                ? reportUrl.slice(0, 1000)
+                : null,
             balanceAfter: Number(updatedUser.balance),
           },
         ],
@@ -1244,7 +1265,9 @@ export const getUserBalanceTransactionsInternal = async (req, res) => {
 
     const [transactions, total] = await Promise.all([
       BalanceTransaction.find(filter)
-        .select("transactionId amount action balanceAfter createdAt updatedAt")
+        .select(
+          "transactionId amount action serviceName resourceName resourceId reportUrl balanceAfter createdAt updatedAt",
+        )
         .sort({ createdAt: -1, _id: -1 })
         .skip(skip)
         .limit(pageSize)
@@ -1379,6 +1402,10 @@ export const creditBalanceInternal = async (req, res) => {
             transactionId,
             amount,
             action,
+            serviceName: null,
+            resourceName: null,
+            resourceId: null,
+            reportUrl: null,
             balanceAfter: Number(updatedUser.balance),
           },
         ],

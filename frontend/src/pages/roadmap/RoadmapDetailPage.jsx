@@ -473,7 +473,7 @@ export default function RoadmapDetailPage({
               {canonical.summary}
             </p>
           )}
-          <div className="mt-6 flex flex-wrap gap-2.5">
+          <div className="mt-6 hidden flex-wrap gap-2.5 sm:flex">
             <Meta
               label="Package"
               value={titleCase(

@@ -10,6 +10,8 @@ import {
   FiSearch,
   FiX,
 } from "react-icons/fi";
+
+import { Trash2,Clock3} from "lucide-react";
 import { getResumes, getResumeById, deleteResume } from "../api/resume.api";
 import ScorerReport from "./ScorerReport";
 
@@ -44,7 +46,7 @@ const dateLabel = (value) => {
 };
 const unwrap = (response) => response?.data ?? response ?? null;
 const FLOATING_PANEL =
-  "absolute inset-y-4 left-4 z-50 flex w-[min(282px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[18px] border border-white/[0.11] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.30)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[282px] lg:translate-x-0";
+  "absolute  top-4 bottom-20 left-4 z-50 flex w-[min(282px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[18px] border border-white/[0.11] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.30)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[282px] lg:translate-x-0";
 
 export default function ScorerHistory() {
   const navigate = useNavigate();
@@ -55,6 +57,8 @@ export default function ScorerHistory() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -179,6 +183,16 @@ export default function ScorerHistory() {
         .includes(needle),
     );
   }, [reports, query]);
+
+  const pages = Math.max(1, Math.ceil(filteredReports.length / pageSize));
+  const paginatedReports = useMemo(
+    () => filteredReports.slice((page - 1) * pageSize, page * pageSize),
+    [filteredReports, page, pageSize],
+  );
+
+  useEffect(() => {
+    setPage((currentPage) => Math.min(currentPage, pages));
+  }, [pages]);
 
   const selectReport = (item) => {
     const id = getId(item);
@@ -311,7 +325,10 @@ export default function ScorerHistory() {
             <FiSearch size={13} className="shrink-0 text-[#686B74]" />
             <input
               value={query}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setPage(1);
+              }}
               placeholder="Find a report…"
               className="w-full min-w-0 bg-transparent text-xs text-white outline-none placeholder:text-[#62656D]"
             />
@@ -363,7 +380,7 @@ export default function ScorerHistory() {
             </div>
           )}
           {!loading &&
-            filteredReports.map((item, index) => {
+            paginatedReports.map((item, index) => {
               const id = getId(item);
               const active = id === selectedId;
               return (
@@ -403,6 +420,34 @@ export default function ScorerHistory() {
               );
             })}
         </div>
+
+        <div className="shrink-0 border-t border-white/[.07] px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] text-[#858994]">
+              Page {page} of {pages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page <= 1 || loading}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                aria-label="Previous page"
+                className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 disabled:opacity-30"
+              >
+                <FiArrowLeft  />
+              </button>
+              <button
+                type="button"
+                disabled={page >= pages || loading}
+                onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                aria-label="Next page"
+                className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 disabled:opacity-30"
+              >
+                <FiArrowRight />
+              </button>
+            </div>
+          </div>
+        </div>
       </aside>
 
       {mobileHistoryOpen && (
@@ -410,7 +455,7 @@ export default function ScorerHistory() {
           type="button"
           aria-label="Close resume history"
           onClick={() => setMobileHistoryOpen(false)}
-          className="absolute inset-0 z-40 bg-black/55 backdrop-blur-[2px] lg:hidden"
+          className="fixed inset-0 z-40 backdrop-blur-xl bg-black/45 lg:hidden"
         />
       )}
 
@@ -445,6 +490,17 @@ export default function ScorerHistory() {
               Resume scoring & insights
             </p>
           </div>
+          {selectedReport && (
+            <button
+              type="button"
+              onClick={handleDeleteHistory}
+              disabled={deleting}
+              aria-label="Delete resume report"
+              className="ml-auto flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 disabled:opacity-50"
+            >
+              <Trash2 size={16} />
+            </button>
+          )}
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-24 pt-5 sm:px-7 sm:py-8 lg:px-9 lg:py-9 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {error && !selectedReport && (
@@ -529,7 +585,7 @@ export default function ScorerHistory() {
             onClick={() => setMobileHistoryOpen((open) => !open)}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8]"
           >
-            <FiArrowLeft size={14} /> History
+            <Clock3 size={14} /> My Assessments
           </button>
           <button
             type="button"
