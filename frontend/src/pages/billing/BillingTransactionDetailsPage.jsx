@@ -20,6 +20,8 @@ import {
 import {
   getBillingSummary,
   getBillingTransactions,
+  getPendingBillingPayment,
+  cancelBillingPayment,
 } from "../../api/billing.api";
 
 const cx = (...v) => v.filter(Boolean).join(" ");
@@ -33,9 +35,21 @@ const getItems = (r) => {
   };
 };
 const idOf = (t) =>
-  String(t?._id ?? t?.transactionId ?? t?.id ?? t?.razorpayPaymentId ?? "");
+  String(t?.transactionId ?? t?._id ?? t?.id ?? t?.razorpayPaymentId ?? "");
 const statusOf = (t) =>
   String(t?.status ?? t?.paymentStatus ?? t?.state ?? "unknown").toLowerCase();
+const isTopUp = (t) =>
+  t?.source === "billing" ||
+  t?.type === "balance_purchase" ||
+  t?.balanceCredit != null ||
+  Boolean(t?.planId) ||
+  /billing|top[-_ ]?up|balance[-_ ]?credit/i.test(
+    `${t?.action || ""} ${t?.serviceName || ""} ${t?.description || ""}`,
+  );
+const isLivePendingTopUp = (t) =>
+  PENDING.has(statusOf(t)) &&
+  isTopUp(t) &&
+  (!t?.expiresAt || new Date(t.expiresAt).getTime() > Date.now());
 const SUCCESS = new Set([
   "paid",
   "completed",
@@ -233,13 +247,18 @@ export default function BillingHistoryPage({ user }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notFoundMessage, setNotFoundMessage] = useState("");
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [, setExpiryClockTick] = useState(0);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    const [sr, tr] = await Promise.allSettled([
+    const [sr, tr, pr] = await Promise.allSettled([
       getBillingSummary(),
       getBillingTransactions({ page, pageSize }),
+      getPendingBillingPayment(),
     ]);
     if (sr.status === "fulfilled") setSummary(unwrap(sr.value));
     else
@@ -249,7 +268,20 @@ export default function BillingHistoryPage({ user }) {
       );
     if (tr.status === "fulfilled") {
       const result = getItems(tr.value);
-      setTransactions(result.items);
+      let nextItems = result.items;
+      if (pr.status === "fulfilled") {
+        const pendingPayload = unwrap(pr.value);
+        const pending = pendingPayload?.transactionId ? pendingPayload : null;
+        if (pending) {
+          const alreadyIncluded = nextItems.some(
+            (item) =>
+              item?.transactionId === pending.transactionId ||
+              item?._id === pending._id,
+          );
+          if (!alreadyIncluded) nextItems = [pending, ...nextItems];
+        }
+      }
+      setTransactions(nextItems);
       if (result.pagination)
         setPagination({
           total: Number(
@@ -270,11 +302,11 @@ export default function BillingHistoryPage({ user }) {
         });
       setSelectedId((current) => {
         const requested = params.get("transaction");
-        if (requested && result.items.some((x) => idOf(x) === requested))
+        if (requested && nextItems.some((x) => idOf(x) === requested))
           return requested;
-        return result.items.some((x) => idOf(x) === current)
+        return nextItems.some((x) => idOf(x) === current)
           ? current
-          : idOf(result.items[0]);
+          : idOf(nextItems[0]);
       });
     } else
       setError(
@@ -284,7 +316,12 @@ export default function BillingHistoryPage({ user }) {
     setLoading(false);
   }, [page, params]);
   useEffect(() => {
-    void load();
+    // Start data loading after the effect commits; cancel if dependencies change
+    // or the page unmounts before the request is kicked off.
+    const frameId = window.requestAnimationFrame(() => {
+      void load();
+    });
+    return () => window.cancelAnimationFrame(frameId);
   }, [load]);
 
   const filtered = useMemo(
@@ -321,6 +358,42 @@ export default function BillingHistoryPage({ user }) {
     filtered.find((t) => idOf(t) === selectedId) ||
     transactions.find((t) => idOf(t) === selectedId) ||
     null;
+
+  useEffect(() => {
+    const selectedStatus = statusOf(selected || {});
+    const expiresAt = selected?.expiresAt
+      ? new Date(selected.expiresAt).getTime()
+      : NaN;
+    if (
+      !selected?.transactionId ||
+      !PENDING.has(selectedStatus) ||
+      !Number.isFinite(expiresAt)
+    ) {
+      return undefined;
+    }
+
+    let refreshedAfterExpiry = false;
+    const intervalId = window.setInterval(() => {
+      setExpiryClockTick((value) => value + 1);
+      if (!refreshedAfterExpiry && Date.now() >= expiresAt) {
+        refreshedAfterExpiry = true;
+        // The pending-payment endpoint may persist expiry while the transaction
+        // list from the same parallel request still contains the old status.
+        // Run a second read after reconciliation so history immediately shows Expired.
+        void (async () => {
+          await load();
+          await load();
+        })();
+      }
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [
+    selected?.transactionId,
+    selected?.expiresAt,
+    selected ? statusOf(selected) : "unknown",
+    load,
+  ]);
   const total = Number(pagination.total ?? transactions.length);
   const pages = Math.max(
     1,
@@ -342,6 +415,36 @@ export default function BillingHistoryPage({ user }) {
     setSelectedId(id);
     if (id) setParams({ transaction: id }, { replace: true });
     setMobileOpen(false);
+  };
+
+  const selectedIsLivePending = Boolean(
+    selected && isLivePendingTopUp(selected),
+  );
+
+  const handleCancelSelectedPayment = async () => {
+    if (!selected?.transactionId || actionLoading) return;
+    setActionLoading(true);
+    setActionError("");
+    try {
+      await cancelBillingPayment(selected.transactionId);
+      setCancelConfirmOpen(false);
+      await load();
+    } catch (error) {
+      setActionError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to cancel this payment.",
+      );
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const continueSelectedPayment = () => {
+    if (!selected?.transactionId) return;
+    navigate(
+      `/billing?continuePayment=${encodeURIComponent(selected.transactionId)}`,
+    );
   };
 
   return (
@@ -388,6 +491,58 @@ export default function BillingHistoryPage({ user }) {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {cancelConfirmOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="history-cancel-title"
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#151719] p-5 shadow-2xl sm:p-6"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-amber-300/20 bg-amber-300/[.08] text-amber-200">
+                <FiClock size={19} />
+              </span>
+              <div>
+                <h2
+                  id="history-cancel-title"
+                  className="text-base font-semibold text-white"
+                >
+                  Cancel this payment?
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
+                  The pending checkout will be closed. If the gateway has
+                  captured or is still processing the payment, its status will
+                  be reconciled before any expiry is recorded.
+                </p>
+              </div>
+            </div>
+            {actionError && (
+              <p role="alert" className="mt-3 text-xs text-rose-300">
+                {actionError}
+              </p>
+            )}
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => setCancelConfirmOpen(false)}
+                className="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-semibold text-[#D4D4D8] hover:bg-white/[.05] disabled:opacity-50"
+              >
+                Keep payment
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => void handleCancelSelectedPayment()}
+                className="rounded-xl bg-amber-300 px-4 py-2.5 text-xs font-semibold text-black hover:bg-amber-200 disabled:opacity-50"
+              >
+                {actionLoading ? "Cancelling…" : "Yes, cancel payment"}
+              </button>
+            </div>
+          </section>
         </div>
       )}
       <div
@@ -639,7 +794,7 @@ export default function BillingHistoryPage({ user }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              <div className="mb-6">
+              <div className=" mb-6">
                 <p className="text-[9px] font-semibold uppercase tracking-[.22em] text-[#777B85]">
                   ACCOUNT ACTIVITY / OVERVIEW
                 </p>
@@ -1011,6 +1166,29 @@ export default function BillingHistoryPage({ user }) {
             >
               <FiCreditCard size={15} /> Add Balance
             </button>
+            {selectedIsLivePending && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActionError("");
+                    setCancelConfirmOpen(true);
+                  }}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-300/25 bg-amber-300/[.07] px-2 py-3 text-[11px] font-semibold text-amber-200 disabled:opacity-50"
+                >
+                  <FiXCircle size={13} /> Cancel Payment
+                </button>
+                <button
+                  type="button"
+                  onClick={continueSelectedPayment}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-300 px-2 py-3 text-[11px] font-semibold text-black disabled:opacity-50"
+                >
+                  <FiCreditCard size={13} /> Continue Payment
+                </button>
+              </div>
+            )}
             <p className="mt-3 text-center text-[9px] leading-4 text-[#686B74]">
               Secure payments powered by Razorpay
             </p>
@@ -1020,25 +1198,48 @@ export default function BillingHistoryPage({ user }) {
         {/* Mobile actions stay anchored at the bottom, outside the scrollable content. */}
         <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#111315]/90 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden">
           <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setMobileOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:bg-white/[0.065]"
-              aria-label="Open transaction history list"
-            >
-              <FiFileText size={14} />
-              History
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigate("/billing?addBalance=1")}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-[#E8E8EB]"
-              aria-label="Add balance"
-            >
-              <FiCreditCard size={14} />
-              Add Balance
-            </button>
+            {selectedIsLivePending ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActionError("");
+                    setCancelConfirmOpen(true);
+                  }}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/[.07] px-3 py-3 text-xs font-semibold text-amber-200 disabled:opacity-50"
+                >
+                  <FiXCircle size={14} /> Cancel Payment
+                </button>
+                <button
+                  type="button"
+                  onClick={continueSelectedPayment}
+                  disabled={actionLoading}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-300 px-3 py-3 text-xs font-semibold text-black disabled:opacity-50"
+                >
+                  <FiCreditCard size={14} /> Continue Payment
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:bg-white/[0.065]"
+                  aria-label="Open transaction history list"
+                >
+                  <FiFileText size={14} /> History
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/billing?addBalance=1")}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-[#E8E8EB]"
+                  aria-label="Add balance"
+                >
+                  <FiCreditCard size={14} /> Add Balance
+                </button>
+              </>
+            )}
           </div>
         </div>
 

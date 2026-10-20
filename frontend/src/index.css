@@ -1,110 +1,109 @@
 @import "tailwindcss";
 
-/* =========================================================
-   RIO DESIGN SYSTEM
-   LUXURY MONOCHROME — CHARCOAL / BLACK / WHITE
-========================================================= */
-
-:root {
+:root,
+:root[data-theme="dark"] {
   color-scheme: dark;
 
-  /* Backgrounds */
-  --bg: #08090B;
-  --bg-secondary: #101114;
-  --surface: #151619;
-  --surface-elevated: #1C1D21;
-  --surface-hover: #24252A;
+  --bg: #090a0c;
+  --bg-secondary: #111214;
+  --surface: #17181b;
+  --surface-elevated: #1e2024;
+  --surface-hover: #27292e;
 
-  /* Text */
-  --text: #F5F5F5;
-  --muted: rgba(245, 245, 245, 0.58);
-  --muted-strong: rgba(245, 245, 245, 0.78);
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --muted-strong: #d4d4d8;
 
-  /* Glass surfaces */
+  --border: rgba(255, 255, 255, 0.085);
+  --border-strong: rgba(255, 255, 255, 0.15);
   --glass: rgba(255, 255, 255, 0.035);
   --glass-strong: rgba(255, 255, 255, 0.065);
-
-  /* Borders */
-  --border: rgba(255, 255, 255, 0.075);
-  --border-strong: rgba(255, 255, 255, 0.13);
-
-  /* Buttons */
   --button: rgba(255, 255, 255, 0.055);
-  --button-hover: rgba(255, 255, 255, 0.10);
+  --button-hover: rgba(255, 255, 255, 0.1);
 
-  /* Primary action — white on dark */
-  --accent: #F5F5F5;
-  --accent-foreground: #101114;
-  --accent-shadow: rgba(255, 255, 255, 0.08);
+  --accent: #f4f4f5;
+  --accent-foreground: #111214;
+  --focus-ring: rgba(244, 244, 245, 0.7);
+  --selection: rgba(255, 255, 255, 0.12);
 
-  /* Focus and selection */
-  --focus-ring: rgba(255, 255, 255, 0.65);
-  --selection: rgba(255, 255, 255, 0.09);
+  --status-pending: #eab308;
+  --status-completed: #22c55e;
+  --status-expired: #a1a1aa;
+  --status-failed: #ef4444;
+  --status-processing: #60a5fa;
 
-  /* Gradients */
-  --gradient-page:
-    linear-gradient(
-      145deg,
-      #08090B 0%,
-      #111215 48%,
-      #090A0C 100%
-    );
+  --page-gradient: linear-gradient(145deg, #090a0c 0%, #111214 52%, #0b0c0e 100%);
+  --surface-gradient: linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012));
+  --accent-gradient: linear-gradient(180deg, #ffffff, #e8e8e8);
 
-  --gradient-surface:
-    linear-gradient(
-      145deg,
-      rgba(255, 255, 255, 0.045) 0%,
-      rgba(255, 255, 255, 0.012) 100%
-    );
+  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.16);
+  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.22);
+  --shadow-lg: 0 18px 55px rgba(0, 0, 0, 0.32);
 
-  --gradient-button:
-    linear-gradient(
-      180deg,
-      #FFFFFF 0%,
-      #E8E8E8 100%
-    );
-
-  /* Shadows */
-  --shadow-soft:
-    0 8px 28px rgba(0, 0, 0, 0.20);
-
-  --shadow-elevated:
-    0 18px 55px rgba(0, 0, 0, 0.32);
-
-  /* Radius */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 18px;
   --radius-xl: 24px;
 
-  /* Motion */
-  --transition-fast: 160ms ease;
-  --transition-normal: 240ms ease;
+  --ease-fast: 160ms ease;
+  --ease-normal: 240ms ease;
 }
 
-/* =========================================================
-   GLOBAL FOUNDATION
-========================================================= */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f7f7f8;
+  --bg-secondary: #f0f0f2;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-hover: #f1f1f3;
+
+  --text: #18181b;
+  --muted: #71717a;
+  --muted-strong: #3f3f46;
+
+  --border: rgba(24, 24, 27, 0.09);
+  --border-strong: rgba(24, 24, 27, 0.15);
+  --glass: rgba(24, 24, 27, 0.025);
+  --glass-strong: rgba(24, 24, 27, 0.045);
+  --button: #f4f4f5;
+  --button-hover: #e4e4e7;
+
+  --accent: #18181b;
+  --accent-foreground: #ffffff;
+  --focus-ring: rgba(24, 24, 27, 0.58);
+  --selection: rgba(24, 24, 27, 0.12);
+
+  --status-pending: #a16207;
+  --status-completed: #15803d;
+  --status-expired: #71717a;
+  --status-failed: #b91c1c;
+  --status-processing: #1d4ed8;
+
+  --page-gradient: linear-gradient(145deg, #fafafa 0%, #f4f4f5 52%, #fafafa 100%);
+  --surface-gradient: linear-gradient(145deg, #ffffff, #f4f4f5);
+  --accent-gradient: linear-gradient(180deg, #27272a, #18181b);
+
+  --shadow-sm: 0 4px 16px rgba(24, 24, 27, 0.035);
+  --shadow-md: 0 8px 28px rgba(24, 24, 27, 0.055);
+  --shadow-lg: 0 18px 55px rgba(24, 24, 27, 0.1);
+}
+
+* {
+  box-sizing: border-box;
+}
 
 html {
   min-height: 100%;
-  background: var(--bg);
-  color-scheme: dark;
+  scroll-behavior: smooth;
 }
 
 body,
 #root {
   min-height: 100%;
-  background: var(--gradient-page);
-  color: var(--text);
-}
-
-body {
   margin: 0;
-}
-
-* {
-  box-sizing: border-box;
+  background: var(--page-gradient);
+  color: var(--text);
 }
 
 ::selection {
@@ -112,69 +111,82 @@ body {
   color: var(--text);
 }
 
-
-
-/* Smooth scrolling only where explicitly needed */
-html {
-  scroll-behavior: smooth;
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    scroll-behavior: auto !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
+.theme-page {
+  min-height: 100%;
+  background: var(--page-gradient);
+  color: var(--text);
 }
 
-/* =========================================================
-   LUXURY GLASS SURFACES
-========================================================= */
+.theme-surface {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
 
-.glass-surface {
+.theme-surface-elevated {
+  background: var(--surface-elevated);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+.theme-muted {
+  color: var(--muted);
+}
+
+.theme-border {
+  border-color: var(--border);
+}
+
+.glass-surface,
+.glass-surface-strong {
   background: var(--glass);
   border: 1px solid var(--border);
-  box-shadow: var(--shadow-soft);
+  box-shadow: var(--shadow-sm);
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
 }
 
 .glass-surface-strong {
   background: var(--glass-strong);
-  border: 1px solid var(--border-strong);
+  border-color: var(--border-strong);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
 }
 
-/* =========================================================
-   PREMIUM BUTTONS
-========================================================= */
+.btn-primary,
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: var(--radius-md);
+  font: inherit;
+  cursor: pointer;
+  transition: background var(--ease-normal), border-color var(--ease-normal), color var(--ease-normal), transform var(--ease-fast), box-shadow var(--ease-normal);
+}
 
 .btn-primary {
   color: var(--accent-foreground);
-  background: var(--gradient-button);
-  border: 1px solid rgba(255, 255, 255, 0.72);
-  transition:
-    background var(--transition-normal),
-    transform var(--transition-fast),
-    box-shadow var(--transition-normal);
+  background: var(--accent-gradient);
+  border: 1px solid var(--border-strong);
 }
 
 .btn-primary:hover {
-  box-shadow: 0 5px 22px var(--accent-shadow);
   transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .btn-secondary {
   color: var(--text);
   background: var(--button);
   border: 1px solid var(--border);
-  transition:
-    background var(--transition-normal),
-    border-color var(--transition-normal);
 }
 
 .btn-secondary:hover {
@@ -182,52 +194,75 @@ html {
   border-color: var(--border-strong);
 }
 
-/* =========================================================
-   AMBIENT HERO GRADIENT — MONOCHROME
-========================================================= */
+.status-dot {
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-pending {
+  color: var(--status-pending);
+}
+
+.status-completed {
+  color: var(--status-completed);
+}
+
+.status-expired {
+  color: var(--status-expired);
+}
+
+.status-failed {
+  color: var(--status-failed);
+}
+
+.status-processing {
+  color: var(--status-processing);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.2rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--glass);
+  color: var(--muted-strong);
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
 
 .hero-gradient {
   position: absolute;
-  left: 50%;
   top: 50%;
-
+  left: 50%;
   width: 75vw;
   height: 75vw;
-
   max-width: 1000px;
   max-height: 1000px;
-
   transform: translate(-50%, -50%);
-
-  background: radial-gradient(
-    circle,
-    rgba(255, 255, 255, 0.055) 0%,
-    rgba(190, 190, 190, 0.025) 30%,
-    transparent 68%
-  );
-
-  opacity: 0.65;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.055), rgba(190, 190, 190, 0.025) 30%, transparent 68%);
+  opacity: 0.55;
   pointer-events: none;
-
-  animation: heroGradient 22s ease-in-out infinite;
+  animation: hero-gradient 22s ease-in-out infinite;
 }
 
-@keyframes heroGradient {
+@keyframes hero-gradient {
   0%,
   100% {
-    transform: translate(-50%, -50%) scale(0.90);
-    opacity: 0.45;
+    transform: translate(-50%, -50%) scale(0.92);
+    opacity: 0.4;
   }
 
   50% {
-    transform: translate(-50%, -50%) scale(1.06);
-    opacity: 0.75;
+    transform: translate(-50%, -50%) scale(1.04);
+    opacity: 0.65;
   }
 }
-
-/* =========================================================
-   RESPONSIVE POLISH
-========================================================= */
 
 @media (max-width: 768px) {
   :root {
@@ -238,6 +273,17 @@ html {
   .hero-gradient {
     width: 110vw;
     height: 110vw;
-    opacity: 0.45;
+    opacity: 0.4;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

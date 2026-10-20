@@ -16,6 +16,8 @@ import {
   createOrder,
   verifyPayment,
   cancelPayment,
+  continuePayment,
+  getPendingPayment,
 } from "../controllers/billing.controller.js";
 
 const router = Router();
@@ -33,6 +35,8 @@ router.get(
   getTransactions,
 );
 
+router.get("/transactions/pending", getPendingPayment);
+
 // GET /api/billing/transactions/:transactionId
 router.get("/transactions/:transactionId", getTransactionById);
 
@@ -42,10 +46,10 @@ router.post("/orders", validate(createOrderSchema), createOrder);
 // POST /api/billing/verify
 router.post("/verify", validate(verifyPaymentSchema), verifyPayment);
 
+// POST /api/billing/transactions/:transactionId/continue
+router.post("/transactions/:transactionId/continue", continuePayment);
+
 // POST /api/billing/transactions/:transactionId/cancel
-router.post(
-  "/transactions/:transactionId/cancel",
-  cancelPayment,
-);
+router.post("/transactions/:transactionId/cancel", cancelPayment);
 
 export default router;

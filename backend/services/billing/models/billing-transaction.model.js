@@ -97,6 +97,11 @@ const billingTransactionSchema = new mongoose.Schema(
       default: null,
     },
 
+    expiredAt: {
+      type: Date,
+      default: null,
+    },
+
     balanceCreditStatus: {
       type: String,
       required: true,

@@ -5,6 +5,7 @@ import { useDispatch } from "react-redux";
 // Existing pages
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
+import ProgressPage from "./pages/ProgressPage";
 import RoadmapDashboardPage from "./pages/roadmap/RoadmapDashboardPage";
 import RoadmapBuilderPage from "./pages/roadmap/RoadmapBuilderPage";
 
@@ -137,6 +138,20 @@ const App = () => {
           )
         }
       />
+      {/* ==================================================
+          PROGRESS OVERVIEW
+      ================================================== */}
+      <Route
+        path="/progress"
+        element={
+          isProtected ? (
+            <ProgressPage user={user} setUser={setUser} />
+          ) : (
+            <Navigate to="/" replace />
+          )
+        }
+      />
+
       {/* ==================================================
           RESUME SCORER
       ================================================== */}

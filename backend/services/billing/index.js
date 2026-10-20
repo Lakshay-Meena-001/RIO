@@ -7,6 +7,12 @@ import billingRouter from "./routes/billing.routes.js";
 import webhookRouter from "./routes/webhook.routes.js";
 import notFoundMiddleware from "./middlewares/not-found.middleware.js";
 import errorHandler from "./middlewares/error-handler.middleware.js";
+import {
+  startBillingRecovery,
+  stopBillingRecovery,
+} from "./services/billing-recovery.service.js";
+import BillingTransaction from "./models/billing-transaction.model.js";
+import PaymentEvent from "./models/payment-event.model.js";
 
 import dns from "node:dns";
 
@@ -62,7 +68,12 @@ async function startServer() {
   }
 
   await mongoose.connect(MONGODB_URI);
-  console.log("Billing Service: MongoDB connected");
+  await Promise.all([
+    BillingTransaction.createIndexes(),
+    PaymentEvent.createIndexes(),
+  ]);
+  console.log("Billing Service: MongoDB connected; billing indexes verified");
+  startBillingRecovery();
 
   server = app.listen(PORT, HOST, () => {
     console.log(`Billing Service running at http://${HOST}:${PORT}`);
@@ -81,6 +92,8 @@ async function shutdown(signal) {
   console.log(`Billing Service: received ${signal}; shutting down`);
 
   try {
+    stopBillingRecovery();
+
     if (server) {
       await new Promise((resolve, reject) => {
         server.close((error) => {

@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import {
   FiArrowRight,
@@ -20,6 +20,9 @@ import {
   getBillingTransactions,
   createBillingOrder,
   verifyBillingPayment,
+  getPendingBillingPayment,
+  continueBillingPayment,
+  cancelBillingPayment,
 } from "../../api/billing.api";
 
 import AddBalanceModal from "./AddBalanceModal";
@@ -167,6 +170,7 @@ function Surface({ children, className = "" }) {
 
 export default function BillingDashboardPage({ user, setUser }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const reduceMotion = useReducedMotion();
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -174,6 +178,8 @@ export default function BillingDashboardPage({ user, setUser }) {
 
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
+  const [pendingPayment, setPendingPayment] = useState(null);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -181,6 +187,39 @@ export default function BillingDashboardPage({ user, setUser }) {
   const [addBalanceOpen, setAddBalanceOpen] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentError, setPaymentError] = useState("");
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const continuePendingPaymentRef = useRef(null);
+
+  // Open the Add Balance modal when another billing page navigates to
+  // /billing?addBalance=1. Remove the one-shot query flag after consuming it.
+  useEffect(() => {
+    if (searchParams.get("addBalance") !== "1") return;
+
+    setPaymentError("");
+    setAddBalanceOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("addBalance");
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  // History can deep-link to the exact pending transaction to continue checkout.
+  useEffect(() => {
+    const requestedTransaction = searchParams.get("continuePayment");
+    if (!requestedTransaction || !pendingPayment?.transactionId) return;
+    if (requestedTransaction !== pendingPayment.transactionId || paymentLoading)
+      return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("continuePayment");
+    setSearchParams(nextParams, { replace: true });
+    continuePendingPaymentRef.current?.();
+  }, [
+    searchParams,
+    setSearchParams,
+    pendingPayment?.transactionId,
+    paymentLoading,
+  ]);
 
   const firstName = user?.name?.trim()?.split(/\s+/)?.[0] || "there";
 
@@ -189,20 +228,41 @@ export default function BillingDashboardPage({ user, setUser }) {
     setError("");
 
     try {
-      const [summaryResult, transactionsResult] = await Promise.allSettled([
-        getBillingSummary(),
-        getBillingTransactions({
-          page: 1,
-          pageSize: 5,
-        }),
-      ]);
+      const [summaryResult, transactionsResult, pendingResult] =
+        await Promise.allSettled([
+          getBillingSummary(),
+          getBillingTransactions({ page: 1, pageSize: 5 }),
+          getPendingBillingPayment(),
+        ]);
 
       if (summaryResult.status === "fulfilled") {
         setSummary(unwrap(summaryResult.value));
       }
 
       if (transactionsResult.status === "fulfilled") {
-        setTransactions(getTransactionList(transactionsResult.value));
+        const transactionList = getTransactionList(transactionsResult.value);
+        setTransactions(transactionList);
+      }
+
+      // The dedicated endpoint is not limited by the five recent history rows.
+      if (pendingResult.status === "fulfilled") {
+        const pending = unwrap(pendingResult.value);
+        setPendingPayment(pending && pending.transactionId ? pending : null);
+      } else if (transactionsResult.status === "fulfilled") {
+        const transactionList = getTransactionList(transactionsResult.value);
+        const pending = transactionList.find((transaction) => {
+          const status = getStatus(transaction);
+          const expiresAt = transaction?.expiresAt
+            ? new Date(transaction.expiresAt).getTime()
+            : 0;
+          return (
+            transaction?.source === "billing" &&
+            ["pending", "created", "processing"].includes(status) &&
+            Number.isFinite(expiresAt) &&
+            expiresAt > Date.now()
+          );
+        });
+        setPendingPayment(pending || null);
       }
 
       if (
@@ -232,7 +292,7 @@ export default function BillingDashboardPage({ user, setUser }) {
     }
   }, []);
 
-  const handleAddBalance = async (planId) => {
+  const handleAddBalance = async (amount, existingOrder = null) => {
     if (paymentLoading) return;
 
     setPaymentLoading(true);
@@ -247,7 +307,9 @@ export default function BillingDashboardPage({ user, setUser }) {
         );
       }
 
-      const orderResponse = await createBillingOrder({ planId });
+      const orderResponse = existingOrder
+        ? { success: true, data: existingOrder }
+        : await createBillingOrder({ amount });
       const order = orderResponse?.data;
 
       if (
@@ -275,7 +337,7 @@ export default function BillingDashboardPage({ user, setUser }) {
           amount: order.amount,
           currency: order.currency || "INR",
           name: "RIO",
-          description: `${order.plan?.name || "Starter"} balance top-up`,
+          description: `RIO balance top-up of ₹${(amount ?? order.amount / 100).toLocaleString("en-IN")}`,
           order_id: order.orderId,
 
           handler: async (paymentResponse) => {
@@ -315,8 +377,19 @@ export default function BillingDashboardPage({ user, setUser }) {
           },
 
           modal: {
-            ondismiss: () => {
-              finish(() => reject(new Error("Payment was cancelled.")));
+            ondismiss: async () => {
+              try {
+                if (order.transactionId) {
+                  await cancelBillingPayment(order.transactionId);
+                }
+                await loadBilling();
+                finish(resolve);
+              } catch (dismissError) {
+                // If Razorpay reports an unresolved attempt, keep the status visible
+                // and let backend reconciliation decide; don't claim it was expired.
+                await loadBilling();
+                finish(() => reject(dismissError));
+              }
             },
           },
 
@@ -353,9 +426,94 @@ export default function BillingDashboardPage({ user, setUser }) {
     }
   };
 
+  const handleContinuePendingPayment = async () => {
+    if (!pendingPayment?.transactionId || paymentLoading) return;
+    setPaymentError("");
+    setPaymentLoading(true);
+    try {
+      const response = await continueBillingPayment(
+        pendingPayment.transactionId,
+      );
+      const order = unwrap(response);
+      if (
+        !order?.orderId ||
+        !order?.keyId ||
+        !Number.isSafeInteger(order?.amount)
+      ) {
+        throw new Error("The existing payment order response is invalid.");
+      }
+      setPaymentLoading(false);
+      await handleAddBalance(order.amount / 100, order);
+    } catch (error) {
+      setPaymentError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to continue this payment.",
+      );
+      setPaymentLoading(false);
+      await loadBilling();
+    }
+  };
+
+  continuePendingPaymentRef.current = handleContinuePendingPayment;
+
+  const handleCancelPendingPayment = async () => {
+    if (!pendingPayment?.transactionId || paymentLoading) return;
+    setCancelConfirmOpen(false);
+    setPaymentLoading(true);
+    setPaymentError("");
+    try {
+      await cancelBillingPayment(pendingPayment.transactionId);
+      await loadBilling();
+    } catch (error) {
+      setPaymentError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to cancel this payment.",
+      );
+      await loadBilling();
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadBilling();
   }, [loadBilling]);
+
+  useEffect(() => {
+    if (!pendingPayment?.expiresAt) {
+      setRemainingSeconds(0);
+      return undefined;
+    }
+
+    let intervalId;
+
+    const updateCountdown = () => {
+      const expiresAt = new Date(pendingPayment.expiresAt).getTime();
+      const seconds = Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+
+      setRemainingSeconds(seconds);
+
+      if (seconds === 0) {
+        if (intervalId) window.clearInterval(intervalId);
+        // First call reconciles the expired order through the backend endpoint.
+        // The transaction-list request in that same call may have started before
+        // reconciliation finished, so fetch once more to show the persisted status.
+        void (async () => {
+          await loadBilling();
+          await loadBilling();
+        })();
+      }
+    };
+
+    updateCountdown();
+    intervalId = window.setInterval(updateCountdown, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [pendingPayment?.expiresAt, loadBilling]);
+
+  const pendingCountdown = `${String(Math.floor(remainingSeconds / 60)).padStart(2, "0")}:${String(remainingSeconds % 60).padStart(2, "0")}`;
 
   const balance = useMemo(() => {
     const candidate =
@@ -377,17 +535,6 @@ export default function BillingDashboardPage({ user, setUser }) {
     [transactions],
   );
 
-  const totalPaidAmount = useMemo(
-    () =>
-      paidTransactions.reduce(
-        (total, transaction) =>
-          total +
-          Number(transaction?.amount ?? transaction?.amountInPaise ?? 0),
-        0,
-      ),
-    [paidTransactions],
-  );
-
   // Prefer the backend's complete count over the current page's count.
   const successfulPayments =
     summary?.successfulPayments ??
@@ -395,7 +542,7 @@ export default function BillingDashboardPage({ user, setUser }) {
     summary?.paidCount ??
     paidTransactions.length;
 
-  const totalAmount = summary?.totalPaidAmount;
+  const totalAmount = summary?.totalTopUpAmount;
 
   const stats = [
     {
@@ -405,15 +552,15 @@ export default function BillingDashboardPage({ user, setUser }) {
       Icon: FiCreditCard,
     },
     {
-      label: "Successful payments",
+      label: "Successful transactions",
       value: formatNumber(successfulPayments),
-      detail: "Completed billing transactions",
+      detail: "Completed top-ups and balance activity",
       Icon: FiCheckCircle,
     },
     {
-      label: "Total payment amount",
-      value: formatNumber(totalAmount),
-      detail: "Total recorded successful payments",
+      label: "Total top-ups",
+      value: formatInrFromPaise(totalAmount),
+      detail: "Total amount added through successful payments",
       Icon: FiArrowUpRight,
     },
   ];
@@ -550,6 +697,70 @@ export default function BillingDashboardPage({ user, setUser }) {
                   Retry
                 </button>
               </div>
+            )}
+
+            {/* Pending payment: display and server-based expiry countdown */}
+            {pendingPayment && (
+              <section className="mb-6 rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-amber-300">
+                      Payment pending
+                    </p>
+                    <p className="mt-1 text-sm text-white/70">
+                      Complete this payment before it expires.
+                    </p>
+                    <p className="mt-2 text-xs text-white/50">
+                      Transaction: {pendingPayment.transactionId}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        navigate(
+                          `/billing/history?transaction=${encodeURIComponent(pendingPayment.transactionId)}`,
+                        )
+                      }
+                      className="mt-2 text-xs font-semibold text-amber-200 underline underline-offset-4 hover:text-amber-100"
+                    >
+                      View this payment in History
+                    </button>
+                    {paymentError && (
+                      <p
+                        role="alert"
+                        className="mt-2 max-w-xl text-xs text-rose-300"
+                      >
+                        {paymentError}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-3 sm:items-end">
+                    <div className="sm:text-right">
+                      <p className="text-xs text-white/55">Time remaining</p>
+                      <p className="mt-1 text-xl font-semibold tabular-nums text-white">
+                        {pendingCountdown}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={paymentLoading || remainingSeconds <= 0}
+                        onClick={() => void handleContinuePendingPayment()}
+                        className="rounded-lg bg-amber-300 px-4 py-2 text-xs font-semibold text-black transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {paymentLoading ? "Please wait…" : "Continue Payment"}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={paymentLoading}
+                        onClick={() => setCancelConfirmOpen(true)}
+                        className="rounded-lg border border-white/15 px-4 py-2 text-xs font-semibold text-white/80 transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Cancel Payment
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
             )}
 
             {/* Billing overview */}
@@ -768,6 +979,63 @@ export default function BillingDashboardPage({ user, setUser }) {
           </button>
         </div>
       </div>
+      {cancelConfirmOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+          <section
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="cancel-payment-title"
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-[#151719] p-5 shadow-2xl sm:p-6"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-amber-300/20 bg-amber-300/[.08] text-amber-200">
+                <FiAlertCircle size={19} />
+              </span>
+              <div className="min-w-0">
+                <h2
+                  id="cancel-payment-title"
+                  className="text-base font-semibold text-white"
+                >
+                  Cancel this payment?
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#A1A1AA]">
+                  This checkout will be closed. If Razorpay has already captured
+                  or is still processing the payment, we will keep the
+                  transaction safe and reconcile its status.
+                </p>
+                {pendingPayment?.transactionId && (
+                  <p className="mt-3 break-all font-mono text-[11px] text-[#777B85]">
+                    Reference: {pendingPayment.transactionId}
+                  </p>
+                )}
+              </div>
+            </div>
+            {paymentError && (
+              <p role="alert" className="mt-3 text-xs text-rose-300">
+                {paymentError}
+              </p>
+            )}
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelConfirmOpen(false)}
+                disabled={paymentLoading}
+                className="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-semibold text-[#D4D4D8] hover:bg-white/[.05] disabled:opacity-50"
+              >
+                Keep payment
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleCancelPendingPayment()}
+                disabled={paymentLoading}
+                className="rounded-xl bg-amber-300 px-4 py-2.5 text-xs font-semibold text-black hover:bg-amber-200 disabled:opacity-50"
+              >
+                {paymentLoading ? "Cancelling…" : "Yes, cancel payment"}
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
       {addBalanceOpen && (
         <AddBalanceModal
           onClose={() => {
@@ -776,6 +1044,7 @@ export default function BillingDashboardPage({ user, setUser }) {
             setPaymentError("");
           }}
           onContinue={handleAddBalance}
+          currentBalance={balance}
           loading={paymentLoading}
           error={paymentError}
         />

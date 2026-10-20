@@ -75,3 +75,30 @@ export const verifyBillingPayment = async (verificationData) => {
 
   return response.data;
 };
+
+export const cancelBillingPayment = async (transactionId) => {
+  const response = await api.post(
+    `/api/billing/transactions/${encodeURIComponent(transactionId)}/cancel`,
+  );
+
+  return response.data;
+};
+
+/** Resume an existing pending payment order without creating a new order. */
+export const continueBillingPayment = async (transactionId) => {
+  if (typeof transactionId !== "string" || !transactionId.trim()) {
+    throw new Error("Transaction ID is required.");
+  }
+
+  const response = await api.post(
+    `/api/billing/transactions/${encodeURIComponent(transactionId.trim())}/continue`,
+  );
+
+  return response.data;
+};
+
+/** Get the authenticated user's active pending top-up payment. */
+export const getPendingBillingPayment = async () => {
+  const response = await api.get("/api/billing/transactions/pending");
+  return response.data;
+};

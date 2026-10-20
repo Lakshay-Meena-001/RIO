@@ -221,12 +221,16 @@ export const getBillingSummary = async (userId) => {
           },
           pendingPayments: {
             $sum: {
-              $cond: [{ $eq: ["$status", "pending"] }, 1, 0],
+              $cond: [{ $in: ["$status", ["created", "pending"]] }, 1, 0],
             },
           },
           failedPayments: {
             $sum: {
-              $cond: [{ $eq: ["$status", "failed"] }, 1, 0],
+              $cond: [
+                { $in: ["$status", ["failed", "expired", "cancelled"]] },
+                1,
+                0,
+              ],
             },
           },
         },
@@ -400,6 +404,7 @@ export const getBillingTransactions = async (userId, query) => {
           "paidAt",
           "balanceCreditedAt",
           "createdAt",
+          "expiresAt",
         ].join(" "),
       )
       .sort({ createdAt: -1, _id: -1 })
@@ -465,6 +470,7 @@ export const getBillingTransactionById = async (userId, transactionId) => {
         "failureCode",
         "createdAt",
         "updatedAt",
+        "expiresAt",
       ].join(" "),
     )
     .lean();

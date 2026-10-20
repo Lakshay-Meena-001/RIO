@@ -1,5 +1,7 @@
 import {
   cancelBillingPayment,
+  continueBillingPayment,
+  getPendingBillingPayment,
   createBillingOrder,
 } from "../services/billing.service.js";
 
@@ -47,6 +49,17 @@ export const getTransactions = async (req, res, next) => {
       success: true,
       data: result,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPendingPayment = async (req, res, next) => {
+  try {
+    const payment = await getPendingBillingPayment({
+      userId: req.internalUserId,
+    });
+    return res.status(200).json({ success: true, data: payment });
   } catch (error) {
     next(error);
   }
@@ -119,6 +132,23 @@ export const verifyPayment = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Payment verification completed",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const continuePayment = async (req, res, next) => {
+  try {
+    const result = await continueBillingPayment({
+      userId: req.internalUserId,
+      transactionId: req.params.transactionId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Existing payment order retrieved",
       data: result,
     });
   } catch (error) {

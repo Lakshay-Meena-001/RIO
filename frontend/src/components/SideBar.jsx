@@ -253,8 +253,8 @@ function Sidebar({
               isExpanded ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-3"
             } ${itemAnimationClass} ${
               active
-                ? "bg-white/[0.09] text-white"
-                : "text-[#71717A] hover:bg-white/[0.045] hover:text-[#D4D4D8]"
+                ? "bg-white/[0.12] text-white"
+                : "text-[#85858D] hover:bg-white/[0.06] hover:text-[#ffffff]"
             }`}
             style={
               stagger && isExpanded
@@ -263,7 +263,7 @@ function Sidebar({
             }
           >
             {active && (
-              <span className="absolute left-0 h-5 w-[2px] rounded-full bg-white" />
+              <span className="absolute left-0 h-5 w-[2px] rounded-full bg-[#e4e4e7]" />
             )}
 
             <Icon size={17} strokeWidth={1.7} className="shrink-0" />
@@ -301,8 +301,8 @@ function Sidebar({
               isExpanded ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-3"
             } ${itemAnimationClass} ${
               active
-                ? "bg-white/[0.09] text-white"
-                : "text-[#71717A] hover:bg-white/[0.045] hover:text-[#D4D4D8]"
+                ? "bg-white/[0.12] text-white"
+                : "text-[#85858D] hover:bg-white/[0.06] hover:text-[#ffffff]"
             }`}
             style={
               stagger && isExpanded
@@ -311,7 +311,7 @@ function Sidebar({
             }
           >
             {active && (
-              <span className="absolute left-0 h-5 w-[2px] rounded-full bg-white" />
+              <span className="absolute left-0 h-5 w-[2px] rounded-full bg-[#e4e4e7]" />
             )}
 
             <Icon size={17} strokeWidth={1.7} className="shrink-0" />
@@ -333,11 +333,11 @@ function Sidebar({
         <div className="py-0">
           <button
             type="button"
-            onClick={() => handleNavigation("/billing")}
+            onClick={() => handleNavigation("/billing?addBalance=1")}
             className="group flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition-colors duration-200 hover:bg-white/[0.045]"
             title="Manage your balance"
           >
-            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-[#303236] text-[#F4F4F5] transition-colors group-hover:bg-[#3A3C40]">
+            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-white/[0.13] text-white transition-colors group-hover:bg-white/[0.20]">
               <FiCreditCard size={19} strokeWidth={1.7} />
             </div>
 
@@ -355,21 +355,20 @@ function Sidebar({
             </div>
 
             <span
-              className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#F4F4F5] text-[#17191C] transition-transform duration-200 group-hover:scale-105"
+              className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#e4e4e7] text-[#17191C] transition-transform duration-200 group-hover:scale-105"
               aria-hidden="true"
             >
               <FiPlus size={18} strokeWidth={2} />
             </span>
           </button>
-
         </div>
       ) : (
         <button
           type="button"
-          onClick={() => handleNavigation("/billing")}
+          onClick={() => handleNavigation("/billing?addBalance=1")}
           title={`Available balance: ${balance} INR`}
           aria-label={`Manage balance: ${balance} INR`}
-          className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[#303236] text-[#F4F4F5] transition-colors hover:bg-[#3A3C40]"
+          className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.13] text-white transition-colors hover:bg-white/[0.20]"
         >
           <FiCreditCard size={18} strokeWidth={1.7} />
         </button>
@@ -389,7 +388,7 @@ function Sidebar({
         >
           <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-xs font-bold text-[#17191C]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e4e4e7] text-xs font-bold text-[#17191C]">
                 {initials}
               </div>
 
@@ -406,7 +405,7 @@ function Sidebar({
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#71717A] transition-colors hover:bg-white/[0.06] hover:text-white"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#71717A] transition-colors hover:bg-white/[0.08] hover:text-white"
                 aria-label="Logout"
                 title="Logout"
               >
@@ -426,7 +425,7 @@ function Sidebar({
           <button
             type="button"
             onClick={() => handleNavigation("/profile")}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-xs font-bold text-[#17191C]"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e4e4e7] text-xs font-bold text-[#17191C]"
             title={firstName}
           >
             {initials}
@@ -470,7 +469,7 @@ function Sidebar({
           <button
             type="button"
             onClick={() => setSidebarOpen((value) => !value)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#71717A] transition-colors hover:bg-white/[0.06] hover:text-white"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#71717A] transition-colors hover:bg-white/[0.08] hover:text-white"
             aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
           >
             {isExpanded ? (
@@ -595,7 +594,7 @@ function Sidebar({
                   <button
                     type="button"
                     onClick={() => setMobileOpen(false)}
-                    className="absolute right-3 top-5 z-[9999] flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-[#A1A1AA] transition-colors hover:text-white"
+                    className="absolute right-3 top-5 z-[9999] flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.14] bg-white/[0.05] text-[#A1A1AA] transition-colors hover:text-white"
                     aria-label="Close navigation"
                   >
                     <FiX size={17} />
