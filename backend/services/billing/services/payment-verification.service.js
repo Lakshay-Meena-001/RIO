@@ -198,11 +198,14 @@ export const verifyBillingPayment = async ({
     };
   }
 
-  if (transaction.status !== BILLING_TRANSACTION_STATUS.PENDING) {
+  if (
+    transaction.status !== BILLING_TRANSACTION_STATUS.PENDING &&
+    transaction.status !== BILLING_TRANSACTION_STATUS.EXPIRED
+  ) {
     throw new AppError(
       "Billing transaction is not eligible for payment verification",
       409,
-      "BILLING_TRANSACTION_NOT_PENDING",
+      "BILLING_TRANSACTION_NOT_ELIGIBLE",
     );
   }
 
@@ -210,7 +213,12 @@ export const verifyBillingPayment = async ({
   const claimedTransaction = await BillingTransaction.findOneAndUpdate(
     {
       _id: transaction._id,
-      status: BILLING_TRANSACTION_STATUS.PENDING,
+      status: {
+        $in: [
+          BILLING_TRANSACTION_STATUS.PENDING,
+          BILLING_TRANSACTION_STATUS.EXPIRED,
+        ],
+      },
     },
     {
       $set: {

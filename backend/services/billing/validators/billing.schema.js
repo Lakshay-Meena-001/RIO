@@ -35,11 +35,12 @@ export const paginationSchema = z
 
 export const createOrderSchema = z
   .object({
-    planId: z
-      .string()
-      .trim()
-      .min(1, "Plan ID is required")
-      .max(50, "Plan ID cannot exceed 50 characters"),
+    amount: z
+      .number()
+      .int("Amount must be a whole number in INR")
+      .min(100, "Minimum top-up amount is ₹100")
+      .max(50000, "Maximum top-up amount is ₹50,000")
+      .safe(),
   })
   .strict();
 

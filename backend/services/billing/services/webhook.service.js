@@ -111,6 +111,7 @@ export const processRazorpayWebhookEvent = async ({ eventRecord, event }) => {
 
     if (
       transaction.status !== BILLING_TRANSACTION_STATUS.PENDING &&
+      transaction.status !== BILLING_TRANSACTION_STATUS.EXPIRED &&
       transaction.status !== BILLING_TRANSACTION_STATUS.PAID
     ) {
       throw new AppError(
@@ -119,14 +120,21 @@ export const processRazorpayWebhookEvent = async ({ eventRecord, event }) => {
         "BILLING_TRANSACTION_NOT_ELIGIBLE",
       );
     }
-
     let claimedTransaction = transaction;
 
-    if (transaction.status === BILLING_TRANSACTION_STATUS.PENDING) {
+    if (
+      transaction.status === BILLING_TRANSACTION_STATUS.PENDING ||
+      transaction.status === BILLING_TRANSACTION_STATUS.EXPIRED
+    ) {
       claimedTransaction = await BillingTransaction.findOneAndUpdate(
         {
           _id: transaction._id,
-          status: BILLING_TRANSACTION_STATUS.PENDING,
+          status: {
+            $in: [
+              BILLING_TRANSACTION_STATUS.PENDING,
+              BILLING_TRANSACTION_STATUS.EXPIRED,
+            ],
+          },
         },
         {
           $set: {

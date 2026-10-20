@@ -86,6 +86,17 @@ const billingTransactionSchema = new mongoose.Schema(
       default: BILLING_TRANSACTION_STATUS.CREATED,
     },
 
+    expiresAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+
+    cancelRequestedAt: {
+      type: Date,
+      default: null,
+    },
+
     balanceCreditStatus: {
       type: String,
       required: true,
@@ -142,6 +153,26 @@ billingTransactionSchema.index({
   status: 1,
   balanceCreditStatus: 1,
 });
+
+billingTransactionSchema.index(
+  {
+    userId: 1,
+    type: 1,
+    provider: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      status: {
+        $in: [
+          BILLING_TRANSACTION_STATUS.CREATED,
+          BILLING_TRANSACTION_STATUS.PENDING,
+        ],
+      },
+    },
+    name: "one_active_billing_transaction_per_user",
+  },
+);
 
 const BillingTransaction =
   mongoose.models.BillingTransaction ||

@@ -1,4 +1,7 @@
-import { createBillingOrder } from "../services/billing.service.js";
+import {
+  cancelBillingPayment,
+  createBillingOrder,
+} from "../services/billing.service.js";
 
 import {
   getBillingSummary,
@@ -68,19 +71,19 @@ export const getTransactionById = async (req, res, next) => {
 export const createOrder = async (req, res, next) => {
   try {
     const userId = req.internalUserId;
-    const { planId } = req.validated?.body ?? {};
+    const { amount } = req.validated?.body ?? {};
 
-    if (!planId) {
+    if (amount === undefined) {
       throw new AppError(
-        "Validated plan ID is required",
+        "Validated INR amount is required",
         400,
-        "VALIDATED_PLAN_ID_REQUIRED",
+        "VALIDATED_AMOUNT_REQUIRED",
       );
     }
 
     const order = await createBillingOrder({
       userId,
-      planId,
+      amount,
     });
 
     return res.status(201).json({
@@ -116,6 +119,26 @@ export const verifyPayment = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Payment verification completed",
+      data: result,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const cancelPayment = async (req, res, next) => {
+  try {
+    const userId = req.internalUserId;
+    const { transactionId } = req.params;
+
+    const result = await cancelBillingPayment({
+      userId,
+      transactionId,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Payment cancellation processed",
       data: result,
     });
   } catch (error) {

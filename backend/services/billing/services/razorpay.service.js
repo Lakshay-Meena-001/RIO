@@ -52,6 +52,34 @@ export const createProviderOrder = async ({
   });
 };
 
+export const fetchProviderOrderPayments = async (orderId) => {
+  if (typeof orderId !== "string" || !orderId.trim()) {
+    throw new AppError(
+      "A valid provider order ID is required",
+      400,
+      "INVALID_PROVIDER_ORDER_ID",
+    );
+  }
+
+  const razorpay = getRazorpayClient();
+
+  try {
+    const result = await razorpay.orders.fetchPayments(orderId);
+
+    if (!result || !Array.isArray(result.items)) {
+      throw new Error("Invalid provider payment response");
+    }
+
+    return result.items;
+  } catch {
+    throw new AppError(
+      "Unable to reconcile payment status with the provider",
+      502,
+      "PAYMENT_RECONCILIATION_FAILED",
+    );
+  }
+};
+
 export const verifyPaymentSignature = ({ orderId, paymentId, signature }) => {
   const keySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
 

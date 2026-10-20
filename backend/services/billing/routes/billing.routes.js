@@ -15,6 +15,7 @@ import {
   getTransactionById,
   createOrder,
   verifyPayment,
+  cancelPayment,
 } from "../controllers/billing.controller.js";
 
 const router = Router();
@@ -40,5 +41,11 @@ router.post("/orders", validate(createOrderSchema), createOrder);
 
 // POST /api/billing/verify
 router.post("/verify", validate(verifyPaymentSchema), verifyPayment);
+
+// POST /api/billing/transactions/:transactionId/cancel
+router.post(
+  "/transactions/:transactionId/cancel",
+  cancelPayment,
+);
 
 export default router;

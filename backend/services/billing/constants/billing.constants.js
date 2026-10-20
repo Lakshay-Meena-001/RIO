@@ -3,7 +3,9 @@ export const BILLING_TRANSACTION_STATUS = Object.freeze({
   PENDING: "pending",
   PAID: "paid",
   FAILED: "failed",
+  EXPIRED: "expired",
   REFUNDED: "refunded",
+  CANCELLED: "cancelled",
 });
 
 export const BILLING_TRANSACTION_TYPE = Object.freeze({
