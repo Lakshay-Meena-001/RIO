@@ -15,24 +15,9 @@ import {
 
 import { getResume, getResumes } from "../api/resume.api";
 import Sidebar from "../components/SideBar";
+import Surface from "../components/ui/Surface";
 
 const ease = [0.22, 1, 0.36, 1];
-
-const Surface = ({ children, className = "" }) => (
-  <div
-    className={`relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] ${className}`}
-  >
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0"
-      style={{
-        background:
-          "radial-gradient(ellipse 75% 85% at 100% 0%, rgba(255,255,255,0.055), transparent 68%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 48%)",
-      }}
-    />
-    <div className="relative">{children}</div>
-  </div>
-);
 
 const PrimaryButton = ({ children, onClick, className = "" }) => (
   <motion.button
@@ -279,7 +264,7 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
           aria-label="Open resume history"
           className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition hover:bg-white/[0.1]"
         >
-         {firstName.charAt(0).toUpperCase()}
+          {firstName.charAt(0).toUpperCase()}
         </button>
       </header>
 
@@ -450,8 +435,6 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
                                 ? "Completed"
                                 : "Resume in progress"}
                             </span>
-
-                      
                           </div>
 
                           <h3 className="break-words text-center text-[27px] font-semibold tracking-[-0.045em] sm:text-left sm:text-[34px]">

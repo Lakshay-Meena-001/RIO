@@ -15,6 +15,7 @@ import {
   FiUser,
 } from "react-icons/fi";
 import Sidebar from "../components/SideBar";
+import Surface from "../components/ui/Surface";
 import { getUserRoadmaps } from "../api/roadmap.api.js";
 import { getInterviewHistory } from "../api/interview.api.js";
 import { getResumes } from "../api/resume.api.js";
@@ -37,20 +38,7 @@ const dateLabel = (value) => {
         year: "numeric",
       });
 };
-const Surface = ({ children, className = "" }) => (
-  <section
-    className={`relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] ${className}`}
-  >
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        background:
-          "radial-gradient(ellipse 75% 85% at 100% 0%, rgba(255,255,255,0.055), transparent 68%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 48%)",
-      }}
-    />
-    <div className="relative">{children}</div>
-  </section>
-);
+
 const ProgressBar = ({ value = 0 }) => (
   <div className="h-1.5 overflow-hidden rounded-full bg-white/[.08]">
     <div

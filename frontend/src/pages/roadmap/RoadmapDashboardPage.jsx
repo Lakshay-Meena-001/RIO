@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { getUserRoadmaps } from "../../api/roadmap.api.js";
 
 import Sidebar from "../../components/SideBar";
+import Surface from "../../components/ui/Surface";
 
 import {
   FiArrowRight,
@@ -16,22 +17,6 @@ import {
   FiTrendingUp,
   FiCheckCircle,
 } from "react-icons/fi";
-
-const Surface = ({ children, className = "" }) => (
-  <div
-    className={`relative overflow-hidden rounded-[22px] border border-white/[0.11] bg-[#111315] shadow-[0_22px_60px_rgba(0,0,0,0.18)] ${className}`}
-  >
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        background:
-          "radial-gradient(ellipse 70% 95% at 100% 0%, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.025) 38%, transparent 70%), linear-gradient(135deg, rgba(255,255,255,0.025), transparent 48%)",
-      }}
-    />
-
-    <div className="relative">{children}</div>
-  </div>
-);
 
 const RoadmapDashboardPage = ({
   user,
@@ -408,7 +393,7 @@ const RoadmapDashboardPage = ({
                 </div>
 
                 {loading ? (
-                  <Surface className="p-6 sm:p-7">
+                  <Surface variant="roadmap" className="p-6 sm:p-7">
                     <div className="h-3 w-28 animate-pulse rounded bg-white/[0.07]" />
 
                     <div className="mt-5 h-7 w-2/3 animate-pulse rounded bg-white/[0.07]" />
@@ -418,7 +403,7 @@ const RoadmapDashboardPage = ({
                     <div className="mt-7 h-1.5 w-full animate-pulse rounded-full bg-white/[0.07]" />
                   </Surface>
                 ) : error ? (
-                  <Surface className="p-6 sm:p-8">
+                  <Surface variant="roadmap" className="p-6 sm:p-8">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#666870]">
                       Roadmap unavailable
                     </p>
@@ -440,7 +425,10 @@ const RoadmapDashboardPage = ({
                     </button>
                   </Surface>
                 ) : currentRoadmap ? (
-                  <Surface className="group transition duration-300 hover:border-white/[0.2]">
+                  <Surface
+                    variant="roadmap"
+                    className="group transition duration-300 hover:border-white/[0.2]"
+                  >
                     <div className="p-5 sm:p-7">
                       <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
                         <div className="max-w-2xl text-center sm:text-left">
@@ -505,7 +493,7 @@ const RoadmapDashboardPage = ({
                           className="h-full rounded-full bg-white"
                         />
                       </div>
-                      
+
                       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 border-t border-white/[0.08] pt-4 text-center text-[11px] text-[#71747C] sm:justify-start sm:text-left">
                         <span>
                           {currentRoadmap.category || "Learning path"}
@@ -527,11 +515,10 @@ const RoadmapDashboardPage = ({
                           )}
                         </span>
                       </div>
-                    
                     </div>
                   </Surface>
                 ) : (
-                  <Surface className="px-5 py-6 sm:px-6">
+                  <Surface variant="roadmap" className="px-5 py-6 sm:px-6">
                     <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                       <div>
                         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#666870]">
@@ -593,7 +580,7 @@ const RoadmapDashboardPage = ({
                   </p>
                 </div>
 
-                <Surface>
+                <Surface variant="roadmap">
                   <div className="relative grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4">
                     {[
                       {
@@ -693,7 +680,7 @@ const RoadmapDashboardPage = ({
                   )}
                 </div>
 
-                <Surface>
+                <Surface variant="roadmap">
                   <div className="relative px-5 sm:px-7">
                     {loading ? (
                       <div className="divide-y divide-white/[0.07]">

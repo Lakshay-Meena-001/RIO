@@ -13,6 +13,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 
+import Surface from "../components/ui/Surface";
+
 const text = (value) => (value == null || value === "" ? "" : String(value));
 const list = (value) => (Array.isArray(value) ? value.filter(Boolean) : []);
 const urlFor = (value) => {
@@ -22,30 +24,15 @@ const urlFor = (value) => {
 };
 const cx = (...values) => values.filter(Boolean).join(" ");
 
-function Surface({ children, className = "" }) {
+function Section({ icon: Icon, title, count, children, className = "" }) {
   return (
-    <section
+    <Surface
+      variant="scorer"
       className={cx(
-        "relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] shadow-[0_18px_50px_rgba(0,0,0,0.13)]",
+        "p-4 sm:p-6 shadow-[0_18px_50px_rgba(0,0,0,0.13)]",
         className,
       )}
     >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 95% at 100% 0%, rgba(255,255,255,0.065), transparent 70%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 48%)",
-        }}
-      />
-      <div className="relative">{children}</div>
-    </section>
-  );
-}
-
-function Section({ icon: Icon, title, count, children, className = "" }) {
-  return (
-    <Surface className={cx("p-4 sm:p-6", className)}>
       <div className="mb-5 flex items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-[#D4D4D8]">
@@ -199,7 +186,7 @@ export default function ScorerReport({
             where to focus next.
           </p>
         </div>
-       <div className="hidden sm:flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+        <div className="hidden sm:flex flex-wrap items-center justify-center gap-2 sm:justify-end">
           {onDeleteHistory && (
             <button
               type="button"
@@ -216,7 +203,8 @@ export default function ScorerReport({
               onClick={onBackToScorer}
               className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/[0.10] bg-white/[0.035] px-4 py-2.5 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
             >
-               New analysis<ArrowRight size={14} />
+              New analysis
+              <ArrowRight size={14} />
             </button>
           )}
         </div>

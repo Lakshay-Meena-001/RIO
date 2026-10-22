@@ -1,0 +1,419 @@
+/* Additive shared primitives. Existing RIO palette, gradients and glass effects remain the source of truth. */
+:root {
+  --rio-font-body:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --rio-text-xs: 0.75rem;
+  --rio-text-sm: 0.875rem;
+  --rio-text-base: 1rem;
+  --rio-text-lg: 1.125rem;
+  --rio-title-sm: clamp(1.125rem, 1rem + 0.35vw, 1.375rem);
+  --rio-title-md: clamp(1.375rem, 1.1rem + 0.8vw, 1.875rem);
+  --rio-title-lg: clamp(1.65rem, 1.25rem + 1.25vw, 2.375rem);
+  --rio-page-gutter: clamp(1rem, 2.4vw, 2rem);
+  --rio-content-max: 1440px;
+  --rio-section-gap: clamp(1.25rem, 2vw, 1.75rem);
+  --rio-card-padding: clamp(1rem, 1.5vw, 1.5rem);
+  --rio-control-height: 2.75rem;
+}
+/* Typography is opt-in per shared component until each page is audited. */
+.rio-page-container {
+  width: min(100%, var(--rio-content-max));
+  margin-inline: auto;
+  padding: clamp(1rem, 2vw, 1.75rem) var(--rio-page-gutter);
+  min-width: 0;
+}
+.rio-page-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rio-section-gap);
+  min-width: 0;
+}
+.rio-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  min-width: 0;
+  margin-bottom: clamp(1.25rem, 2vw, 1.75rem);
+}
+.rio-page-header__copy {
+  min-width: 0;
+}
+.rio-page-header__eyebrow {
+  margin: 0 0 0.45rem;
+  color: var(--muted);
+  font-size: var(--rio-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.rio-page-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--rio-title-lg);
+  font-weight: 500;
+  letter-spacing: -0.035em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.rio-page-description {
+  max-width: 68ch;
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+  font-size: var(--rio-text-sm);
+  line-height: 1.65;
+}
+.rio-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.rio-section-title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--rio-title-sm);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.rio-section-description {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: var(--rio-text-sm);
+  line-height: 1.55;
+}
+.rio-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-gradient);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+.rio-card--glass {
+  background: var(--glass);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.rio-card--elevated {
+  border-color: var(--border-strong);
+  background: linear-gradient(145deg, var(--surface-elevated), var(--surface));
+  box-shadow: var(--shadow-md);
+}
+.rio-card__body {
+  padding: var(--rio-card-padding);
+}
+.rio-button {
+  display: inline-flex;
+  min-height: var(--rio-control-height);
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--button);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--rio-text-sm);
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--ease-normal),
+    border-color var(--ease-normal),
+    color var(--ease-normal),
+    transform var(--ease-fast),
+    box-shadow var(--ease-normal);
+}
+.rio-button:hover:not(:disabled) {
+  background: var(--button-hover);
+  border-color: var(--border-strong);
+}
+.rio-button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+.rio-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.rio-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.rio-button--primary {
+  border-color: var(--border-strong);
+  background: var(--accent-gradient);
+  color: var(--accent-foreground);
+}
+.rio-button--primary:hover:not(:disabled) {
+  background: var(--accent-gradient);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-1px);
+}
+.rio-button--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+.rio-button--danger {
+  border-color: rgba(224, 126, 121, 0.3);
+  color: var(--status-failed);
+}
+.rio-button--sm {
+  min-height: 2.25rem;
+  padding: 0.45rem 0.75rem;
+  font-size: var(--rio-text-xs);
+}
+.rio-button--lg {
+  min-height: 3.125rem;
+  padding: 0.8rem 1.25rem;
+}
+.rio-button--full {
+  width: 100%;
+}
+.rio-icon-button {
+  width: var(--rio-control-height);
+  min-width: var(--rio-control-height);
+  padding: 0;
+}
+.rio-icon-button--sm {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  min-height: 2.25rem;
+}
+.rio-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.rio-field__label {
+  color: var(--muted-strong);
+  font-size: var(--rio-text-sm);
+  font-weight: 500;
+}
+.rio-field__control {
+  width: 100%;
+  min-width: 0;
+  min-height: var(--rio-control-height);
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--glass);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--rio-text-sm);
+  transition:
+    border-color var(--ease-normal),
+    background var(--ease-normal),
+    box-shadow var(--ease-normal);
+}
+.rio-field__control::placeholder {
+  color: var(--muted);
+  opacity: 0.8;
+}
+.rio-field__control:focus {
+  border-color: var(--border-strong);
+  box-shadow: 0 0 0 3px var(--selection);
+}
+.rio-field__control[aria-invalid="true"] {
+  border-color: var(--status-failed);
+}
+.rio-field__hint,
+.rio-field__error {
+  margin: 0;
+  font-size: var(--rio-text-xs);
+  line-height: 1.5;
+}
+.rio-field__hint {
+  color: var(--muted);
+}
+.rio-field__error {
+  color: var(--status-failed);
+}
+.rio-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 100%;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--glass);
+  color: var(--muted-strong);
+  font-size: var(--rio-text-xs);
+  font-weight: 500;
+  line-height: 1.25;
+}
+.rio-badge--pending {
+  color: var(--status-pending);
+}
+.rio-badge--completed {
+  color: var(--status-completed);
+}
+.rio-badge--failed {
+  color: var(--status-failed);
+}
+.rio-badge--processing {
+  color: var(--status-processing);
+}
+.rio-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.68);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.rio-modal {
+  width: min(100%, 34rem);
+  max-height: min(85dvh, 52rem);
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  background: linear-gradient(
+    145deg,
+    var(--surface-elevated),
+    var(--bg-secondary)
+  );
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+.rio-modal__header,
+.rio-modal__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+}
+.rio-modal__header {
+  border-bottom: 1px solid var(--border);
+}
+.rio-modal__footer {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+.rio-modal__title {
+  margin: 0;
+  font-size: var(--rio-title-sm);
+  font-weight: 500;
+}
+.rio-modal__body {
+  padding: 1.25rem;
+}
+.rio-app-shell {
+  min-height: 100dvh;
+  min-width: 0;
+}
+.rio-app-shell__main {
+  min-width: 0;
+  min-height: 100dvh;
+}
+.rio-mobile-bottom-bar {
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 40;
+  padding: 0.5rem max(0.75rem, env(safe-area-inset-left))
+    max(0.5rem, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg-secondary) 88%, transparent);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+}
+.rio-mobile-bottom-bar__inner {
+  display: flex;
+  width: min(100%, 36rem);
+  align-items: center;
+  justify-content: space-around;
+  gap: 0.25rem;
+  margin-inline: auto;
+}
+.rio-mobile-bottom-bar__item {
+  display: inline-flex;
+  min-width: 0;
+  min-height: 2.75rem;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.68rem;
+  text-decoration: none;
+}
+.rio-mobile-bottom-bar__item[aria-current="page"] {
+  background: var(--sidebar-active);
+  color: var(--text);
+}
+
+/* Premium page-heading variant */
+.rio-page-header--hero .rio-page-title {
+  font-size: clamp(2.5rem, 3.5vw, 3.5rem);
+  line-height: 1.04;
+  letter-spacing: -0.05em;
+  font-weight: 600;
+}
+
+.rio-page-header--hero .rio-page-description {
+  margin-top: 1rem;
+  max-width: 68ch;
+}
+
+@media (max-width: 767px) {
+  .rio-page-header--hero .rio-page-title {
+    font-size: clamp(2rem, 8vw, 2.75rem);
+    line-height: 1.08;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rio-page-header,
+  .rio-page-header * {
+    scroll-behavior: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .rio-page-container {
+    padding-top: 1rem;
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+  .rio-page-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.85rem;
+  }
+  .rio-page-header__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .rio-modal-backdrop {
+    padding: 0.65rem;
+  }
+  .rio-modal {
+    max-height: 90dvh;
+    border-radius: var(--radius-lg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rio-button {
+    transition: none;
+  }
+}

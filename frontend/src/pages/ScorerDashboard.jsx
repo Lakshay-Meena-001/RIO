@@ -19,6 +19,7 @@ import {
 
 import api from "../utils/axios";
 import Sidebar from "../components/SideBar";
+import Surface from "../components/ui/Surface";
 
 import { getCurrentUser } from "../api/user.api";
 
@@ -39,22 +40,6 @@ const formatDate = (value) => {
         year: "numeric",
       });
 };
-
-const Surface = ({ children, className = "" }) => (
-  <section
-    className={`relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] shadow-[0_22px_60px_rgba(0,0,0,0.16)] ${className}`}
-  >
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0"
-      style={{
-        background:
-          "radial-gradient(ellipse 70% 95% at 100% 0%, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.02) 38%, transparent 70%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 48%)",
-      }}
-    />
-    <div className="relative">{children}</div>
-  </section>
-);
 
 const CHECKS = [
   {
@@ -374,7 +359,7 @@ export default function ScorerDashboard({ user, setUser }) {
               </div>
             )}
 
-            <Surface>
+            <Surface variant="scorer" className="shadow-[0_22px_60px_rgba(0,0,0,0.16)]">
               <div className="grid lg:grid-cols-[minmax(0,1fr)_370px]">
                 <div className="p-4 sm:p-6 lg:p-7">
                   <div
@@ -543,7 +528,7 @@ export default function ScorerDashboard({ user, setUser }) {
                   />
                 </button>
               </div>
-              <Surface>
+              <Surface variant="scorer" className="shadow-[0_22px_60px_rgba(0,0,0,0.16)]">
                 {loadingRecent ? (
                   <div className="divide-y divide-white/[0.07] px-5 sm:px-7">
                     {[1, 2].map((item) => (

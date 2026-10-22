@@ -17,28 +17,14 @@ import {
   FiZap,
 } from "react-icons/fi";
 import Sidebar from "../components/SideBar";
+import Surface from "../components/ui/Surface";
 import { getInterviewHistory, getActiveInterview } from "../api/interview.api";
 import { getResume, getResumes } from "../api/resume.api";
 import { getUserRoadmaps } from "../api/roadmap.api";
 import { getBillingSummary, getBillingTransactions } from "../api/billing.api";
+import PageHeader from "../components/ui/PageHeader";
 
 const ease = [0.22, 1, 0.36, 1];
-
-const Surface = ({ children, className = "" }) => (
-  <section
-    className={`relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] ${className}`}
-  >
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0"
-      style={{
-        background:
-          "radial-gradient(ellipse 75% 85% at 100% 0%, rgba(255,255,255,0.055), transparent 68%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 48%)",
-      }}
-    />
-    <div className="relative">{children}</div>
-  </section>
-);
 
 const normalizePayload = (response) => {
   let value = response?.data ?? response;
@@ -399,23 +385,19 @@ const Dashboard = ({ user, setUser }) => {
               {...enter}
               className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"
             >
-              <div>
-                <p className="mb-3 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#858791]">
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/80" />{" "}
-                  
-                  Dashboard
-                </p>
-                <h1 className="text-[35px] font-semibold leading-[1.03] tracking-[-0.055em] text-white sm:text-[47px] lg:text-[56px]">
-                  Welcome, {firstName}
-                  <span className="mt-1 block font-serif font-normal italic tracking-[-0.055em] text-[#A1A1AA]">
-                    your next chapter starts here.
-                  </span>
-                </h1>
-                <p className="mt-4 max-w-xl text-sm leading-6 text-[#92949B]">
-                  Your work, learning progress and account activity — together
-                  in one place.
-                </p>
-              </div>
+              <PageHeader
+                size="hero"
+                eyebrow="Dashboard"
+                title={
+                  <>
+                    Welcome, {firstName}
+                    <span className="mt-1 block font-serif font-normal italic tracking-[-0.055em] text-[#A1A1AA]">
+                      your next chapter starts here.
+                    </span>
+                  </>
+                }
+                description="Your work, learning progress and account activity — together in one place."
+              />
             </motion.div>
 
             <AnimatePresence initial={false}>
@@ -449,7 +431,7 @@ const Dashboard = ({ user, setUser }) => {
                     type="button"
                     key={stat.label}
                     onClick={() => navigate(stat.action)}
-                    className="group relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] p-5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.14] hover:bg-[#111315]"
+                    className="group relative min-w-0 overflow-hidden rounded-[20px] border border-white/[0.09] bg-gradient-to-br from-white/[0.035] to-transparent p-4 text-left shadow-[0_8px_30px_rgba(0,0,0,0.10)] transition-[transform,border-color,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:border-white/[0.16] hover:shadow-[0_12px_34px_rgba(0,0,0,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 sm:p-5"
                   >
                     <div
                       aria-hidden="true"
@@ -459,11 +441,11 @@ const Dashboard = ({ user, setUser }) => {
                       <span className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[#92949B]">
                         {stat.label}
                       </span>
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.055] text-white">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white/90 transition-colors duration-200 group-hover:border-white/[0.16]  group-hover:bg-white/[0.08] group-hover:text-white">
                         <Icon size={16} />
                       </span>
                     </div>
-                    <p className="relative mt-5 text-[27px] font-medium tracking-[-0.04em] text-white">
+                    <p className="relative mt-5 break-words text-2xl font-medium tracking-[-0.04em] text-white sm:text-[27px]">
                       {loading ? (
                         <span className="inline-block h-7 w-20 animate-pulse rounded bg-white/[0.055]" />
                       ) : (
@@ -874,7 +856,8 @@ const Dashboard = ({ user, setUser }) => {
                 onClick={() => navigate("/builder/dashboard")}
                 className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition active:scale-[0.98]"
               >
-                <FiFileText size={14} /> Resume Builder <FiArrowRight size={13} />
+                <FiFileText size={14} /> Resume Builder{" "}
+                <FiArrowRight size={13} />
               </button>
             </div>
           </nav>

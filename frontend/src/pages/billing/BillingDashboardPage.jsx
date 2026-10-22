@@ -15,6 +15,8 @@ import {
 } from "react-icons/fi";
 
 import Sidebar from "../../components/SideBar";
+import Surface from "../../components/ui/Surface";
+
 import {
   getBillingSummary,
   getBillingTransactions,
@@ -149,24 +151,6 @@ function StatusLabel({ status }) {
   );
 }
 
-function Surface({ children, className = "" }) {
-  return (
-    <section
-      className={`relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] ${className}`}
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 75% 85% at 100% 0%, rgba(255,255,255,0.055), transparent 68%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 48%)",
-        }}
-      />
-
-      <div className="relative">{children}</div>
-    </section>
-  );
-}
 
 export default function BillingDashboardPage({ user, setUser }) {
   const navigate = useNavigate();

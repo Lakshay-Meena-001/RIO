@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { motion } from "framer-motion";
+import Surface from "../../components/ui/Surface.jsx";
 import {
   FiArrowLeft,
   FiBookOpen,
@@ -21,6 +22,7 @@ import {
   updateRoadmapTopicStatus,
 } from "../../api/roadmap.api.js";
 
+
 const STATUS = {
   NOT_STARTED: "not_started",
   IN_PROGRESS: "in_progress",
@@ -33,23 +35,7 @@ const titleCase = (value = "") =>
   String(value)
     .replace(/[-_]/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
-const Surface = ({ children, className = "" }) => (
-  <section
-    className={cx(
-      "relative overflow-hidden rounded-[22px] border border-white/[0.11] bg-[#111315] shadow-[0_22px_60px_rgba(0,0,0,0.18)]",
-      className,
-    )}
-  >
-    <div
-      className="pointer-events-none absolute inset-0"
-      style={{
-        background:
-          "radial-gradient(ellipse 70% 95% at 100% 0%, rgba(255,255,255,0.075) 0%, rgba(255,255,255,0.025) 38%, transparent 70%), linear-gradient(135deg, rgba(255,255,255,0.025), transparent 48%)",
-      }}
-    />
-    <div className="relative">{children}</div>
-  </section>
-);
+
 
 export default function RoadmapDetailPage({
   roadmapId: roadmapIdOverride,
@@ -390,7 +376,7 @@ export default function RoadmapDetailPage({
   if (!canonical || !userRoadmap)
     return (
       <main className="flex min-h-[60vh] items-center justify-center px-5 text-white">
-        <Surface className="w-full max-w-lg p-7 text-center">
+        <Surface variant="roadmap" className="w-full max-w-lg p-7 text-center">
           <FiLayers className="mx-auto" size={22} />
           <h1 className="mt-4 text-xl font-semibold">Roadmap unavailable</h1>
           <p className="mt-2 text-sm leading-6 text-[#92949B]">
@@ -507,7 +493,7 @@ export default function RoadmapDetailPage({
           </div>
         )}
 
-        <Surface
+        <Surface variant="roadmap"
           className={cx(
             "mt-8 overflow-hidden p-5 shadow-[0_18px_60px_rgba(0,0,0,0.12)] transition-colors sm:mt-9 sm:p-7",
             isRoadmapComplete
@@ -662,7 +648,7 @@ export default function RoadmapDetailPage({
                               ? `${summary.completed} completed`
                               : "Not started";
                 return (
-                  <Surface
+                  <Surface variant="roadmap"
                     key={phase.id}
                     className={cx(
                       "group overflow-hidden border-white/[0.085] shadow-[0_10px_35px_rgba(0,0,0,0.08)] transition-colors hover:border-white/[0.14]",
@@ -869,7 +855,7 @@ export default function RoadmapDetailPage({
               })}
             </div>
           ) : (
-            <Surface className="p-6">
+            <Surface variant="roadmap" className="p-6">
               <FiBookOpen className="text-[#92949B]" />
               <p className="mt-3 text-sm text-[#92949B]">
                 No phases are available for this roadmap yet.

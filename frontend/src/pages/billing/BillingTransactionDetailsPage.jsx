@@ -24,6 +24,8 @@ import {
   cancelBillingPayment,
 } from "../../api/billing.api";
 
+import Surface from "../../components/ui/Surface";
+
 const cx = (...v) => v.filter(Boolean).join(" ");
 const unwrap = (r) => r?.data?.data ?? r?.data ?? r ?? {};
 const getItems = (r) => {
@@ -176,26 +178,7 @@ const stateTone = (t) => {
     ? "border-rose-300/20 bg-rose-300/[.08] text-rose-200"
     : "border-emerald-300/20 bg-emerald-300/[.08] text-emerald-200";
 };
-function Surface({ children, className = "" }) {
-  return (
-    <section
-      className={cx(
-        "relative overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315] shadow-[0_22px_60px_rgba(0,0,0,.18)]",
-        className,
-      )}
-    >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 70% 95% at 100% 0%, rgba(255,255,255,.075) 0%, rgba(255,255,255,.025) 38%, transparent 70%), linear-gradient(135deg, rgba(255,255,255,.025), transparent 48%)",
-        }}
-      />
-      <div className="relative">{children}</div>
-    </section>
-  );
-}
+
 function Badge({ transaction }) {
   const s = statusOf(transaction);
   const Icon = PENDING.has(s)
@@ -816,7 +799,7 @@ export default function BillingHistoryPage({ user }) {
               )}
               {selected ? (
                 <div className="space-y-4">
-                  <Surface className="p-4 sm:p-7">
+                  <Surface variant="roadmap" className="rounded-[24px] shadow-[0_22px_60px_rgba(0,0,0,.18)] p-4 sm:p-7">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3.5">
                         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-[#D4D4D8] sm:h-12 sm:w-12 sm:rounded-2xl">
@@ -859,7 +842,7 @@ export default function BillingHistoryPage({ user }) {
                       </p>
                     </div>
                   </Surface>
-                  <Surface className="p-5 sm:p-7">
+                  <Surface variant="roadmap" className="rounded-[24px] shadow-[0_22px_60px_rgba(0,0,0,.18)] p-5 sm:p-7">
                     <div className="flex items-center gap-2">
                       <FiFileText className="text-[#92949B]" />
                       <h3 className="text-sm font-semibold">
@@ -1054,7 +1037,7 @@ export default function BillingHistoryPage({ user }) {
                   </Surface>
                 </div>
               ) : (
-                <Surface className="flex min-h-[330px] flex-col items-center justify-center p-8 text-center">
+                <Surface variant="roadmap" className="flex min-h-[330px] rounded-[24px] shadow-[0_22px_60px_rgba(0,0,0,.18)] flex-col items-center justify-center p-8 text-center">
                   <span className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/[.035] text-[#858994]">
                     <FiActivity size={22} />
                   </span>
