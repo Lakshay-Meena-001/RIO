@@ -11,9 +11,7 @@ import {
   FiCreditCard,
   FiFileText,
   FiLayers,
-  FiMenu,
   FiPlay,
-  FiRefreshCw,
   FiTarget,
   FiTrendingUp,
   FiZap,
@@ -28,14 +26,14 @@ const ease = [0.22, 1, 0.36, 1];
 
 const Surface = ({ children, className = "" }) => (
   <section
-    className={`relative overflow-hidden rounded-[24px] border border-white/[0.09] bg-[#111315]/95 shadow-[0_22px_70px_rgba(0,0,0,0.18)] ${className}`}
+    className={`relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] ${className}`}
   >
     <div
       aria-hidden="true"
       className="pointer-events-none absolute inset-0"
       style={{
         background:
-          "radial-gradient(ellipse 78% 85% at 100% 0%, rgba(255,255,255,0.055), transparent 66%), linear-gradient(135deg, rgba(255,255,255,0.025), transparent 48%)",
+          "radial-gradient(ellipse 75% 85% at 100% 0%, rgba(255,255,255,0.055), transparent 68%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 48%)",
       }}
     />
     <div className="relative">{children}</div>
@@ -341,20 +339,13 @@ const Dashboard = ({ user, setUser }) => {
       };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#0b0c0e] text-white selection:bg-white/30 selection:text-white">
+    <div className="relative min-h-screen overflow-hidden bg-[#17191C] text-white selection:bg-white/30 selection:text-white">
       <div aria-hidden="true" className="pointer-events-none fixed inset-0">
         <div
           className="absolute inset-0"
           style={{
             background:
-              "radial-gradient(ellipse 62% 48% at 95% 0%, rgba(255,255,255,0.055), transparent 68%), radial-gradient(ellipse 55% 52% at 0% 100%, rgba(255,255,255,0.025), transparent 70%), linear-gradient(135deg,#111214 0%,#0b0c0e 52%,#101113 100%)",
-          }}
-        />
-        <div
-          className="absolute inset-0 opacity-[0.018]"
-          style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180' viewBox='0 0 180 180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+              "radial-gradient(ellipse 75% 50% at 85% 0%, rgba(255,255,255,0.045), transparent 70%), radial-gradient(ellipse 55% 40% at 0% 100%, rgba(255,255,255,0.02), transparent 72%)",
           }}
         />
       </div>
@@ -371,69 +362,59 @@ const Dashboard = ({ user, setUser }) => {
         <main
           className={`min-w-0 flex-1 transition-[margin-left] duration-300 ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
-          <header className="fixed left-3 right-3 top-3 z-20 flex h-14 items-center justify-between rounded-full border border-white/[0.09] bg-[#111315]/85 px-3 shadow-[0_12px_45px_rgba(0,0,0,0.24)] backdrop-blur-2xl md:hidden">
+          <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-full border border-white/[0.10] bg-[#17191C]/85 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
             <button
               type="button"
               onClick={() => setMobileOpen(true)}
               aria-label="Open navigation"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition hover:bg-white/[0.1]"
             >
-              <FiMenu size={18} />
+              <span className="text-lg">☰</span>
             </button>
-            <span className="text-sm font-semibold tracking-[0.22em]">
-              RIO <span className="text-white">/</span> WORKSPACE
-            </span>
+
+            <div className="flex flex-col items-center justify-center leading-none">
+              <span
+                className="text-[16px] tracking-tight text-white"
+                style={{ fontFamily: '"Zen Dots", sans-serif' }}
+              >
+                RIO
+              </span>
+              <span className="mt-1 text-[7px] font-medium tracking-[0.12em] text-white/55">
+                CAREER INTELLIGENCE
+              </span>
+            </div>
+
             <button
               type="button"
-              onClick={() => setRefreshKey((value) => value + 1)}
-              aria-label="Refresh dashboard"
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"
+              onClick={() => navigate("/profile")}
+              aria-label="Open profile"
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition hover:bg-white/[0.1]"
             >
-              <FiRefreshCw
-                size={15}
-                className={refreshing ? "animate-spin" : ""}
-              />
+              {firstName.charAt(0).toUpperCase()}
             </button>
           </header>
 
-          <div className="mx-auto w-full max-w-[1540px] px-4 pb-10 pt-[88px] sm:px-6 lg:px-9 lg:py-9">
+          <div className="mx-auto w-full max-w-[1540px] px-4 pb-8 pt-[88px] sm:px-6 md:pb-10 lg:px-9 lg:py-9">
             <motion.div
               {...enter}
               className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"
             >
               <div>
-                <p className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.26em] text-white">
-                  <span className="h-px w-6 bg-white/70" /> Personal workspace
+                <p className="mb-3 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#858791]">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white/80" />{" "}
+                  
+                  Dashboard
                 </p>
-                <h1 className="text-[32px] font-medium leading-tight tracking-[-0.045em] text-white sm:text-[42px]">
-                  Welcome back,{" "}
-                  <span className="font-light text-white">{firstName}</span>
+                <h1 className="text-[35px] font-semibold leading-[1.03] tracking-[-0.055em] text-white sm:text-[47px] lg:text-[56px]">
+                  Welcome, {firstName}
+                  <span className="mt-1 block font-serif font-normal italic tracking-[-0.055em] text-[#A1A1AA]">
+                    your next chapter starts here.
+                  </span>
                 </h1>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-[#8c8d91]">
+                <p className="mt-4 max-w-xl text-sm leading-6 text-[#92949B]">
                   Your work, learning progress and account activity — together
                   in one place.
                 </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRefreshKey((value) => value + 1)}
-                  disabled={refreshing}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/[0.11] bg-white/[0.035] px-4 text-xs font-medium text-[#dedede] transition hover:bg-white/[0.07] disabled:opacity-60"
-                >
-                  <FiRefreshCw
-                    size={13}
-                    className={refreshing ? "animate-spin" : ""}
-                  />{" "}
-                  {refreshing ? "Refreshing" : "Refresh"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => navigate("/mock-interview/new")}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-[#e4e4e7] px-5 text-xs font-semibold text-[#171511] transition hover:bg-[#ffffff]"
-                >
-                  <FiPlay size={13} /> Start interview
-                </button>
               </div>
             </motion.div>
 
@@ -459,7 +440,7 @@ const Dashboard = ({ user, setUser }) => {
 
             <motion.div
               {...enter}
-              className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+              className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4"
             >
               {stats.map((stat) => {
                 const Icon = stat.icon;
@@ -468,34 +449,34 @@ const Dashboard = ({ user, setUser }) => {
                     type="button"
                     key={stat.label}
                     onClick={() => navigate(stat.action)}
-                    className="group relative overflow-hidden rounded-[21px] border border-white/[0.085] bg-[#111315]/90 p-5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-[#151618]"
+                    className="group relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] p-5 text-left transition duration-200 hover:-translate-y-0.5 hover:border-white/[0.14] hover:bg-[#111315]"
                   >
                     <div
                       aria-hidden="true"
-                      className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/[0.035] blur-2xl transition group-hover:bg-white/[0.09]"
+                      className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/[0.045] blur-2xl transition group-hover:bg-white/[0.09]"
                     />
                     <div className="relative flex items-start justify-between gap-3">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[#77797d]">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[#92949B]">
                         {stat.label}
                       </span>
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/[0.055] text-white">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.055] text-white">
                         <Icon size={16} />
                       </span>
                     </div>
                     <p className="relative mt-5 text-[27px] font-medium tracking-[-0.04em] text-white">
                       {loading ? (
-                        <span className="inline-block h-7 w-20 animate-pulse rounded bg-white/[0.08]" />
+                        <span className="inline-block h-7 w-20 animate-pulse rounded bg-white/[0.055]" />
                       ) : (
                         stat.value
                       )}
                     </p>
                     <div className="relative mt-2 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-[#77797d]">
+                      <span className="text-[11px] text-[#92949B]">
                         {loading ? "Loading live data…" : stat.note}
                       </span>
                       <FiArrowRight
                         size={14}
-                        className="text-[#68696d] transition group-hover:translate-x-1 group-hover:text-white"
+                        className="text-[#92949B] transition group-hover:translate-x-1 group-hover:text-white"
                       />
                     </div>
                   </button>
@@ -513,17 +494,17 @@ const Dashboard = ({ user, setUser }) => {
                     <h2 className="mt-2 text-xl font-medium tracking-[-0.03em] sm:text-2xl">
                       Your next move
                     </h2>
-                    <p className="mt-2 max-w-xl text-xs leading-5 text-[#85868a]">
+                    <p className="mt-2 max-w-xl text-xs leading-5 text-[#92949B]">
                       Jump back into an active session or keep building momentum
                       across your workspace.
                     </p>
                   </div>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/15 bg-white/[0.055] text-white">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.055] text-white">
                     <FiTarget size={18} />
                   </span>
                 </div>
                 {activeInterview ? (
-                  <div className="mt-6 rounded-2xl border border-white/20 bg-white/[0.045] p-4 sm:p-5">
+                  <div className="mt-6 rounded-2xl border border-white/[0.14] bg-white/[0.055] p-4 sm:p-5">
                     <div className="flex items-start gap-3">
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
                         <FiPlay size={17} />
@@ -532,13 +513,13 @@ const Dashboard = ({ user, setUser }) => {
                         <p className="text-sm font-semibold text-white">
                           Active mock interview
                         </p>
-                        <p className="mt-1 text-xs text-[#929398]">
+                        <p className="mt-1 text-xs text-[#92949B]">
                           {activeInterview?.role ||
                             activeInterview?.title ||
                             "Resume your interview session"}
                         </p>
                       </div>
-                      <span className="rounded-full border border-white/20 px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-white">
+                      <span className="rounded-full border border-white/[0.14] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-white">
                         In progress
                       </span>
                     </div>
@@ -551,7 +532,7 @@ const Dashboard = ({ user, setUser }) => {
                             : "/mock-interview",
                         )
                       }
-                      className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full bg-[#e4e4e7] px-4 text-xs font-semibold text-[#171511] hover:bg-[#ffffff]"
+                      className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full bg-white px-4 text-xs font-semibold text-[#17191C] hover:bg-white"
                     >
                       Resume interview <FiArrowRight size={14} />
                     </button>
@@ -567,13 +548,13 @@ const Dashboard = ({ user, setUser }) => {
                             : "/roadmap",
                         )
                       }
-                      className="group rounded-2xl border border-white/[0.09] bg-white/[0.025] p-4 text-left transition hover:border-white/20 hover:bg-white/[0.045]"
+                      className="group rounded-2xl border border-white/[0.10] bg-white/[0.045] p-4 text-left transition hover:border-white/[0.14] hover:bg-white/[0.055]"
                     >
                       <div className="flex items-center justify-between">
                         <FiBookOpen size={17} className="text-white" />
                         <FiArrowRight
                           size={14}
-                          className="text-[#68696d] transition group-hover:translate-x-1 group-hover:text-white"
+                          className="text-[#92949B] transition group-hover:translate-x-1 group-hover:text-white"
                         />
                       </div>
                       <p className="mt-4 text-sm font-medium text-white">
@@ -582,7 +563,7 @@ const Dashboard = ({ user, setUser }) => {
                           latestRoadmap?.title ||
                           "Explore your roadmap"}
                       </p>
-                      <p className="mt-1 text-[11px] text-[#828388]">
+                      <p className="mt-1 text-[11px] text-[#92949B]">
                         {latestRoadmap
                           ? `${getRoadmapProgress(latestRoadmap)}% progress · continue learning`
                           : "Choose a learning path to get started"}
@@ -595,13 +576,13 @@ const Dashboard = ({ user, setUser }) => {
                           latestResume ? "/builder/dashboard" : "/builder",
                         )
                       }
-                      className="group rounded-2xl border border-white/[0.09] bg-white/[0.025] p-4 text-left transition hover:border-white/20 hover:bg-white/[0.045]"
+                      className="group rounded-2xl border border-white/[0.10] bg-white/[0.045] p-4 text-left transition hover:border-white/[0.14] hover:bg-white/[0.055]"
                     >
                       <div className="flex items-center justify-between">
                         <FiFileText size={17} className="text-white" />
                         <FiArrowRight
                           size={14}
-                          className="text-[#68696d] transition group-hover:translate-x-1 group-hover:text-white"
+                          className="text-[#92949B] transition group-hover:translate-x-1 group-hover:text-white"
                         />
                       </div>
                       <p className="mt-4 text-sm font-medium text-white">
@@ -609,7 +590,7 @@ const Dashboard = ({ user, setUser }) => {
                           ? getResumeTitle(latestResume)
                           : "Build your resume"}
                       </p>
-                      <p className="mt-1 text-[11px] text-[#828388]">
+                      <p className="mt-1 text-[11px] text-[#92949B]">
                         {latestResume
                           ? "Open your resume workspace"
                           : "Create and refine your professional profile"}
@@ -617,16 +598,16 @@ const Dashboard = ({ user, setUser }) => {
                     </button>
                   </div>
                 )}
-                <div className="mt-6 border-t border-white/[0.075] pt-5">
+                <div className="mt-6 border-t border-white/[0.10] pt-5">
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#77797d]">
+                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#92949B]">
                       Workspace completion
                     </span>
                     <span className="text-xs font-medium text-white">
                       {profileCompletion}%
                     </span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.055]">
                     <motion.div
                       initial={false}
                       animate={{ width: `${profileCompletion}%` }}
@@ -634,7 +615,7 @@ const Dashboard = ({ user, setUser }) => {
                       className="h-full rounded-full bg-gradient-to-r from-[#a1a1aa] to-[#f4f4f5]"
                     />
                   </div>
-                  <p className="mt-2 text-[10px] text-[#77797d]">
+                  <p className="mt-2 text-[10px] text-[#92949B]">
                     Based on available account profile fields, not an assessment
                     score.
                   </p>
@@ -675,37 +656,37 @@ const Dashboard = ({ user, setUser }) => {
                   ].map((item) => (
                     <div key={item.label}>
                       <div className="mb-2 flex items-center justify-between gap-3">
-                        <span className="text-xs font-medium text-[#dedede]">
+                        <span className="text-xs font-medium text-white">
                           {item.label}
                         </span>
                         <span className="text-xs font-semibold text-white">
                           {loading ? "—" : `${item.value}%`}
                         </span>
                       </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.07]">
+                      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.055]">
                         <motion.div
                           initial={false}
                           animate={{ width: `${loading ? 0 : item.value}%` }}
                           transition={{ duration: 0.6, ease }}
-                          className="h-full rounded-full bg-[#e4e4e7]"
+                          className="h-full rounded-full bg-white"
                         />
                       </div>
-                      <p className="mt-2 text-[10px] text-[#77797d]">
+                      <p className="mt-2 text-[10px] text-[#92949B]">
                         {loading ? "Loading" : item.detail}
                       </p>
                     </div>
                   ))}
                 </div>
-                <div className="mt-6 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+                <div className="mt-6 rounded-2xl border border-white/[0.10] bg-white/[0.045] p-4">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.08] text-white">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.055] text-white">
                       <FiZap size={16} />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-medium text-white">
                         Keep your progress real
                       </p>
-                      <p className="mt-1 text-[10px] leading-4 text-[#77797d]">
+                      <p className="mt-1 text-[10px] leading-4 text-[#92949B]">
                         Stats update from your saved activity; unavailable
                         services are not replaced with sample numbers.
                       </p>
@@ -729,7 +710,7 @@ const Dashboard = ({ user, setUser }) => {
                   <button
                     type="button"
                     onClick={() => navigate("/mock-interview/history")}
-                    className="inline-flex items-center gap-1 text-[11px] text-[#999a9e] transition hover:text-white"
+                    className="inline-flex items-center gap-1 text-[11px] text-[#92949B] transition hover:text-white"
                   >
                     View history <FiChevronRight size={14} />
                   </button>
@@ -738,10 +719,10 @@ const Dashboard = ({ user, setUser }) => {
                   <div className="mt-5 space-y-4">
                     {[0, 1, 2].map((key) => (
                       <div key={key} className="flex gap-3">
-                        <div className="h-10 w-10 animate-pulse rounded-xl bg-white/[0.06]" />
+                        <div className="h-10 w-10 animate-pulse rounded-xl bg-white/[0.055]" />
                         <div className="flex-1 space-y-2 py-1">
-                          <div className="h-3 w-1/2 animate-pulse rounded bg-white/[0.06]" />
-                          <div className="h-2.5 w-1/3 animate-pulse rounded bg-white/[0.04]" />
+                          <div className="h-3 w-1/2 animate-pulse rounded bg-white/[0.055]" />
+                          <div className="h-2.5 w-1/3 animate-pulse rounded bg-white/[0.045]" />
                         </div>
                       </div>
                     ))}
@@ -757,18 +738,18 @@ const Dashboard = ({ user, setUser }) => {
                           onClick={() => navigate(item.action)}
                           className="flex w-full items-center gap-3 py-4 text-left first:pt-1 last:pb-1"
                         >
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-white">
+                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white">
                             <Icon size={16} />
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-xs font-medium text-[#e8e8e8]">
+                            <span className="block truncate text-xs font-medium text-white">
                               {item.title}
                             </span>
-                            <span className="mt-1 block truncate text-[10px] capitalize text-[#77797d]">
+                            <span className="mt-1 block truncate text-[10px] capitalize text-[#92949B]">
                               {item.detail}
                             </span>
                           </span>
-                          <span className="shrink-0 text-[10px] text-[#77797d]">
+                          <span className="shrink-0 text-[10px] text-[#92949B]">
                             {formatRelativeDate(item.date)}
                           </span>
                         </button>
@@ -776,12 +757,12 @@ const Dashboard = ({ user, setUser }) => {
                     })}
                   </div>
                 ) : (
-                  <div className="mt-5 rounded-2xl border border-dashed border-white/[0.1] px-4 py-8 text-center">
-                    <FiActivity className="mx-auto text-[#66686c]" size={20} />
-                    <p className="mt-3 text-xs font-medium text-[#dedede]">
+                  <div className="mt-5 rounded-2xl border border-dashed border-white/[0.10] px-4 py-8 text-center">
+                    <FiActivity className="mx-auto text-[#92949B]" size={20} />
+                    <p className="mt-3 text-xs font-medium text-white">
                       No recent activity yet
                     </p>
-                    <p className="mt-1 text-[10px] text-[#77797d]">
+                    <p className="mt-1 text-[10px] text-[#92949B]">
                       Your saved interviews, roadmaps, resumes and billing
                       events will appear here.
                     </p>
@@ -835,22 +816,22 @@ const Dashboard = ({ user, setUser }) => {
                         type="button"
                         key={item.title}
                         onClick={() => navigate(item.to)}
-                        className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-3 text-left transition hover:border-white/[0.07] hover:bg-white/[0.035]"
+                        className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-3 text-left transition hover:border-white/[0.10] hover:bg-white/[0.045]"
                       >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025] text-white">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white">
                           <Icon size={15} />
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-xs font-medium text-[#e4e4e4]">
+                          <span className="block text-xs font-medium text-white">
                             {item.title}
                           </span>
-                          <span className="mt-1 block text-[10px] text-[#77797d]">
+                          <span className="mt-1 block text-[10px] text-[#92949B]">
                             {item.desc}
                           </span>
                         </span>
                         <FiArrowRight
                           size={14}
-                          className="text-[#65666a] transition group-hover:translate-x-0.5 group-hover:text-white"
+                          className="text-[#92949B] transition group-hover:translate-x-0.5 group-hover:text-white"
                         />
                       </button>
                     );
@@ -859,16 +840,16 @@ const Dashboard = ({ user, setUser }) => {
                 <button
                   type="button"
                   onClick={() => navigate("/builder/dashboard")}
-                  className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/20 bg-white/[0.06] px-4 text-xs font-semibold text-[#d8c79e] transition hover:bg-white/[0.1]"
+                  className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.055] px-4 text-xs font-semibold text-[var(--accent)] transition hover:bg-white/[0.1]"
                 >
                   Open your workspace <FiArrowDownRight size={14} />
                 </button>
               </Surface>
             </div>
 
-            <footer className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-white/[0.07] py-5 text-[10px] text-[#66686c] sm:flex-row">
+            <footer className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-white/[0.10] py-5 text-[10px] text-[#92949B] sm:flex-row">
               <span>
-                RIO Workspace <span className="mx-1 text-white">/</span> Your
+                RIO Workspace <span className="mx-1 text-white">.</span> Your
                 progress, in one place
               </span>
               <span className="inline-flex items-center gap-1.5">
@@ -876,6 +857,27 @@ const Dashboard = ({ user, setUser }) => {
               </span>
             </footer>
           </div>
+          <nav
+            aria-label="Dashboard quick actions"
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl md:hidden"
+          >
+            <div className="mx-auto flex max-w-md items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/mock-interview/new")}
+                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.045] px-3 py-3 text-xs font-semibold text-[#E4E4E7] transition active:scale-[0.98]"
+              >
+                <FiPlay size={13} /> Start interview
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/builder/dashboard")}
+                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition active:scale-[0.98]"
+              >
+                <FiFileText size={14} /> Resume Builder <FiArrowRight size={13} />
+              </button>
+            </div>
+          </nav>
         </main>
       </div>
     </div>

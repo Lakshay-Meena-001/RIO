@@ -38,3 +38,9 @@ export const deductBalance = async (data) => {
     throw error;
   }
 };
+
+// Save professional profile fields to the authenticated user's database record.
+export const updateProfessionalProfile = async (profileData) => {
+  const response = await api.patch("/api/profile", profileData);
+  return response.data;
+};

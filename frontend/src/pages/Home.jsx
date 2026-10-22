@@ -17,11 +17,18 @@ import { SiFirebase } from "react-icons/si";
 import Loginmodel from "../components/LoginModel";
 
 const RioLogo = ({ compact = false }) => (
-  <span
-    className={`${compact ? "text-[17px]" : "text-[20px]"} font-bold tracking-[0.22em] text-white`}
-    style={{ fontFamily: '"Zen Dots", sans-serif' }}
-  >
-    RIO
+  <span className="inline-flex flex-col items-center">
+    <span
+      className={`${compact ? "text-[17px]" : "text-[20px]"}  font-bold tracking-[0.22em] text-white`}
+      style={{ fontFamily: '"Zen Dots", sans-serif' }}
+    >
+      RIO
+    </span>
+    {!compact && (
+      <span className="mt-0.5 text-[7px] font-semibold uppercase tracking-[0.18em] text-[#71717A]">
+        Career Intelligence
+      </span>
+    )}
   </span>
 );
 
@@ -228,7 +235,7 @@ const Home = ({ setUser, user }) => {
         </div>
 
         {/* Desktop navbar */}
-        <nav className="fixed left-4 right-4 top-4 z-40 hidden h-[68px] rounded-2xl border border-white/[0.12] bg-[#17191C]/62 shadow-[0_18px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-[32px] backdrop-saturate-150 lg:block xl:left-8 xl:right-8">
+        <nav className="fixed left-4 right-4 top-4 z-40 hidden h-[68px] rounded-full border border-white/[0.12] bg-[#17191C]/62 shadow-[0_18px_55px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-[32px] backdrop-saturate-150 lg:block xl:left-8 xl:right-8">
           <div className="mx-auto flex h-full w-full max-w-[1440px] items-center justify-between px-6 lg:px-10">
             <RioLogo />
 
@@ -353,7 +360,7 @@ const Home = ({ setUser, user }) => {
                 </button>
               </div>
 
-              <div className="mx-auto mt-10 flex w-full max-w-[600px] justify-center divide-x divide-white/10 border-y border-white/[0.08] py-6 lg:mx-0 lg:mt-12 lg:justify-start lg:py-7">
+              <div className="mx-auto mt-10 flex w-full max-w-[200px] justify-center divide-x divide-white/10 border-y border-white/[0.08] py-6 lg:mx-0 lg:mt-12 lg:justify-start lg:py-7">
                 <div className="pr-5 sm:pr-8">
                   <p className="text-2xl font-semibold tracking-tight text-white">
                     AI
@@ -390,6 +397,51 @@ const Home = ({ setUser, user }) => {
 
               <div className="absolute left-[15%] top-[18%] h-[390px] w-[330px] -rotate-6 rounded-[32px] border border-white/10 bg-white/[0.035] shadow-[0_30px_100px_rgba(0,0,0,0.32)] backdrop-blur-xl">
                 <div className="absolute inset-4 rounded-[24px] border border-white/[0.06] bg-gradient-to-b from-white/[0.06] to-transparent" />
+                <div className="absolute inset-x-7 top-7">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/[0.48]">
+                      Skill analysis
+                    </p>
+                    <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[8px] text-white/[0.58]">
+                      RIO / 01
+                    </span>
+                  </div>
+                  <div className="mt-4 rounded-2xl border border-white/[0.08] bg-[#111315]/55 p-4">
+                    <div className="flex items-end gap-2">
+                      {[34, 54, 42, 76, 61].map(
+                        (height, index) => (
+                          <div
+                            key={index}
+                            className="flex h-[74px] flex-1 items-end"
+                          >
+                            <div
+                              className="w-full rounded-t-sm bg-white"
+                              style={{
+                                height: `${height}%`,
+                                opacity: 0.18 + (height / 100) * 0.58,
+                              }}
+                            />
+                          </div>
+                        ),
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between border-t border-white/[0.08] pt-3 text-[8px] text-white/[0.42]">
+                      <span>DSA</span>
+                      <span>Design</span>
+                      <span>Communication</span>
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-2 font-mono text-[9px] text-white/[0.42]">
+                    <p>
+                      <span className="text-white/[0.72]">signal</span> =
+                      assess(skills)
+                    </p>
+                    <p>
+                      <span className="text-white/[0.72]">next_step</span> =
+                      find_gaps()
+                    </p>
+                  </div>
+                </div>
                 <div className="absolute bottom-7 left-7 right-7">
                   <div className="h-1 w-12 rounded-full bg-white" />
                   <p className="mt-4 text-xs font-semibold uppercase tracking-[0.18em] text-white/[0.62]">
@@ -410,11 +462,19 @@ const Home = ({ setUser, user }) => {
                 }}
                 className="absolute bottom-[12%] right-[2%] h-[300px] w-[290px] rounded-[30px] border border-white/12 bg-[#111315]/70 p-6 shadow-[0_35px_90px_rgba(0,0,0,0.42)] backdrop-blur-2xl"
               >
-                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/[0.78]">
-                  Progress map
-                </p>
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/[0.78]">
+                    Progress map
+                  </p>
+                  <span className="flex items-center gap-1.5 text-[8px] uppercase tracking-[0.12em] text-white/[0.42]">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white/70" />
+                    Skill signals
+                  </span>
+                </div>
 
-                <div className="mt-7 space-y-4">
+               
+
+                <div className="mt-5 space-y-4">
                   {skills.slice(0, 3).map((skill) => (
                     <div key={skill.name}>
                       <div className="mb-2 flex justify-between text-[10px] text-white/[0.58]">

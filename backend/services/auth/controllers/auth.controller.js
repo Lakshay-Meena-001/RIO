@@ -538,6 +538,93 @@ export const completeProfile = async (req, res) => {
   }
 };
 
+// Update the authenticated user's professional profile without changing account identity fields.
+export const updateProfessionalProfile = async (req, res) => {
+  try {
+    const authenticatedSession = await getAuthenticatedSession(req);
+    if (!authenticatedSession) {
+      return res.status(401).json({
+        success: false,
+        message: "Your session has expired. Please sign in again.",
+      });
+    }
+
+    const { sessionId, data: sessionData } = authenticatedSession;
+    const user = await User.findById(sessionData.userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User account not found." });
+    }
+
+    const allowed = {
+      headline: { max: 160 },
+      bio: { max: 1000 },
+      location: { max: 100 },
+      currentRole: { max: 100 },
+      targetRole: { max: 100 },
+      linkedinUrl: { max: 300 },
+      githubUrl: { max: 300 },
+      portfolioUrl: { max: 300 },
+    };
+
+    for (const [field, rules] of Object.entries(allowed)) {
+      if (req.body?.[field] === undefined) continue;
+      if (typeof req.body[field] !== "string") {
+        return res
+          .status(400)
+          .json({ success: false, message: `${field} must be text.` });
+      }
+      const value = req.body[field].trim();
+      if (value.length > rules.max) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: `${field} must be ${rules.max} characters or fewer.`,
+          });
+      }
+      user[field] = value;
+    }
+
+    if (req.body?.skills !== undefined) {
+      if (
+        !Array.isArray(req.body.skills) ||
+        req.body.skills.length > 100 ||
+        req.body.skills.some(
+          (skill) => typeof skill !== "string" || skill.trim().length > 50,
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Skills must be a list of up to 100 entries, each 50 characters or fewer.",
+        });
+      }
+      user.skills = [
+        ...new Set(
+          req.body.skills.map((skill) => skill.trim()).filter(Boolean),
+        ),
+      ];
+    }
+
+    await user.save();
+    await syncUserSessions(sessionId, user);
+
+    return res.status(200).json({
+      success: true,
+      message: "Professional profile saved successfully.",
+      user: buildPublicUser(user),
+    });
+  } catch (error) {
+    console.error("Professional profile update failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to save your professional profile. Please try again.",
+    });
+  }
+};
+
 // Destroy the Redis session, remove it from the user's
 // session index, and clear the browser cookie.
 export const logout = async (req, res) => {

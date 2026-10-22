@@ -70,6 +70,13 @@ app.get("/health", (req, res) => {
 
 // Auth service.
 app.use("/api/auth", proxy(AUTH_SERVICE_URL));
+app.patch(
+  "/api/profile",
+  isAuth,
+  proxy(AUTH_SERVICE_URL, {
+    proxyReqPathResolver: () => "/auth/professional-profile",
+  }),
+);
 
 // Resume service.
 app.use(

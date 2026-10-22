@@ -9,17 +9,16 @@ import {
   FiClock,
   FiFileText,
   FiMap,
-  FiRefreshCw,
   FiTarget,
   FiTrendingUp,
   FiZap,
+  FiUser,
 } from "react-icons/fi";
 import Sidebar from "../components/SideBar";
 import { getUserRoadmaps } from "../api/roadmap.api.js";
 import { getInterviewHistory } from "../api/interview.api.js";
 import { getResumes } from "../api/resume.api.js";
 
-const GOLD = "#e4e4e7";
 const unwrap = (r) => r?.data?.data ?? r?.data ?? r ?? {};
 const arrayFrom = (payload, keys) => {
   for (const key of keys)
@@ -40,9 +39,15 @@ const dateLabel = (value) => {
 };
 const Surface = ({ children, className = "" }) => (
   <section
-    className={`relative overflow-hidden rounded-[22px] border border-white/[.09] bg-[#111214] shadow-[0_18px_55px_rgba(0,0,0,.16)] ${className}`}
+    className={`relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] ${className}`}
   >
-    <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(255,255,255,.045),transparent_48%)]" />
+    <div
+      className="pointer-events-none absolute inset-0"
+      style={{
+        background:
+          "radial-gradient(ellipse 75% 85% at 100% 0%, rgba(255,255,255,0.055), transparent 68%), linear-gradient(135deg, rgba(255,255,255,0.02), transparent 48%)",
+      }}
+    />
     <div className="relative">{children}</div>
   </section>
 );
@@ -52,7 +57,7 @@ const ProgressBar = ({ value = 0 }) => (
       className="h-full rounded-full transition-all duration-700"
       style={{
         width: `${Math.max(0, Math.min(100, value))}%`,
-        background: `linear-gradient(90deg,${GOLD},#ffffff)`,
+        background: "linear-gradient(90deg, #D4D4D8, #FFFFFF)",
       }}
     />
   </div>
@@ -250,105 +255,137 @@ export default function ProgressPage({ user, setUser }) {
   ];
 
   return (
-    <div className="min-h-screen bg-[#090A0B] text-white">
-      <Sidebar
-        user={user}
-        setUser={setUser}
-        mobileOpen={mobileOpen}
-        setMobileOpen={setMobileOpen}
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
+    <div className="rio-progress relative min-h-screen overflow-x-clip bg-[#17191C] text-white">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 75% 50% at 85% 0%, rgba(255,255,255,0.045), transparent 70%), radial-gradient(ellipse 55% 40% at 0% 100%, rgba(255,255,255,0.02), transparent 72%)",
+        }}
       />
+      <div className="relative z-20">
+        <Sidebar
+          user={user}
+          setUser={setUser}
+          mobileOpen={mobileOpen}
+          setMobileOpen={setMobileOpen}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+        />
+      </div>
+      {/* mx-auto w-full max-w-[1480px] px-5 pb-6 pt-[88px] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10 */}
       <main
-        className={`min-h-screen px-4 pb-12 pt-5 transition-[margin] duration-300 sm:px-7 lg:px-10 ${sidebarOpen ? "lg:ml-[260px]" : "lg:ml-[88px]"}`}
+        className={`relative z-10 min-h-screen px-5 pb-6 pt-[88px] transition-[margin] duration-300 sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10 ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
       >
-        <div className="mx-auto max-w-[1450px]">
-          <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-full border border-white/[0.10] bg-[#17191C]/85 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Open navigation"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition hover:bg-white/[0.1]"
+          >
+            <span className="text-lg">☰</span>
+          </button>
+          <div className="absolute left-1/2 flex -translate-x-1/2 flex-col items-center justify-center leading-none">
+            <span
+              className="text-[16px] tracking-tight text-white"
+              style={{ fontFamily: '"Zen Dots", sans-serif' }}
+            >
+              RIO
+            </span>
+            <span className="mt-1 text-[7px] font-medium tracking-[0.12em] text-white/55">
+              CAREER INTELLIGENCE
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => navigate("/profile")}
+            aria-label="Open profile"
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition hover:bg-white/[0.1]"
+          >
+            <FiUser size={16} />
+          </button>
+        </header>
+        <div className="mx-auto w-full max-w-[1600px]">
+          <div className="mb-8 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
             <div>
-              <div className="mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.24em] text-white/40">
-                <span
-                  className="h-1.5 w-1.5 rounded-full"
-                  style={{ background: GOLD }}
-                />{" "}
-                Career intelligence <span className="text-white/20">/</span>{" "}
-                Progress
+              <div className="mb-3 flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[.22em] text-[#858791]">
+                <span className="h-1.5 w-1.5 rounded-full bg-white/80" /> <span className="text-white/20"></span> Progress
               </div>
-              <h1 className="text-3xl font-semibold tracking-[-.045em] sm:text-[42px]">
-                Your progress<span style={{ color: GOLD }}>.</span>
+              <h1 className="text-[35px] font-semibold leading-[1.03] tracking-[-0.055em] sm:text-[47px] lg:text-[56px]">
+                Your progress,
+                <span className="mt-1 block font-serif font-normal italic tracking-[-0.055em] text-[#A1A1AA]">
+                  steadily building.
+                </span>
               </h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-white/45">
+              <p className="mt-4 max-w-xl text-sm leading-6 text-[#92949B]">
                 A clear view of the work you’ve put in, the skills you’re
                 building, and what to focus on next.
               </p>
             </div>
-            <button
-              onClick={loadProgress}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[.035] px-4 py-2.5 text-xs font-semibold text-white/75 transition hover:border-white/20 hover:text-white disabled:opacity-50"
-            >
-              <FiRefreshCw className={loading ? "animate-spin" : ""} /> Refresh
-              data
-            </button>
           </div>
           <Surface className="mb-6">
             <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[1.4fr_.8fr] lg:items-center">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/[.07] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.15em] text-white">
+                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[.055] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[.15em] text-[#D4D4D8]">
                   <FiZap /> Your learning snapshot
                 </div>
                 <h2 className="mt-4 text-2xl font-semibold tracking-[-.035em] sm:text-3xl">
                   Small steps.{" "}
-                  <span style={{ color: GOLD }}>Real momentum.</span>
+                  <span className="font-serif font-normal italic text-[#A1A1AA]">
+                    Real momentum.
+                  </span>
                 </h2>
-                <p className="mt-2 max-w-lg text-sm leading-6 text-white/45">
+                <p className="mt-2 max-w-lg text-sm leading-6 text-[#92949B]">
                   Hey {firstName}, keep your momentum going by finishing a
                   phase, reviewing an interview, or polishing your resume.
                 </p>
-                <div className="mt-5 flex flex-wrap gap-2">
+                <div className="mt-5 hidden  flex flex-wrap gap-2">
                   <button
                     onClick={() => navigate("/roadmap")}
-                    className="inline-flex items-center gap-2 rounded-xl bg-[#e4e4e7] px-4 py-2.5 text-xs font-bold text-[#17140A] transition hover:bg-[#ffffff]"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.06)] transition hover:shadow-[0_14px_34px_rgba(255,255,255,0.10)] sm:px-5"
                   >
                     Continue learning <FiArrowRight />
                   </button>
                   <button
                     onClick={() => navigate("/mock-interview")}
-                    className="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-semibold text-white/70 hover:border-white/20 hover:text-white"
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white sm:px-5"
                   >
                     Practice interview
                   </button>
                 </div>
               </div>
-              <div className="rounded-2xl border border-white/[.08] bg-black/20 p-5">
+              <div className="rounded-[18px] border border-white/[0.08] bg-white/[0.015] p-5">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-white/50">
                     Learning progress average
                   </span>
-                  <FiTrendingUp style={{ color: GOLD }} />
+                  <FiTrendingUp className="text-[#D4D4D8]" />
                 </div>
                 <div className="mt-3 flex items-end gap-2">
                   <span className="text-5xl font-semibold tracking-[-.06em]">
                     {loading ? "—" : `${avgProgress}%`}
                   </span>
-                  <span className="mb-1 text-xs text-white/35">
+                  <span className="mb-1 text-xs text-[#777A82]">
                     across active roadmaps
                   </span>
                 </div>
                 <div className="mt-4">
                   <ProgressBar value={avgProgress} />
                 </div>
-                <p className="mt-3 text-[11px] leading-5 text-white/35">
+                <p className="mt-3 text-[11px] leading-5 text-[#777A82]">
                   Calculated from saved roadmap progress. No placeholder scores.
                 </p>
               </div>
             </div>
           </Surface>
           {error && (
-            <div className="mb-5 rounded-xl border border-white/20 bg-white/[.06] px-4 py-3 text-xs leading-5 text-white">
+            <div className="mb-5 rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3 text-xs leading-5 text-[#D4D4D8]">
               {error}
             </div>
           )}
-          <div className="mb-7 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mb-7 grid grid-cols-2 gap-3 xl:grid-cols-4">
             {stats.map((s, index) => {
               const Icon = s.icon;
               return (
@@ -359,20 +396,19 @@ export default function ProgressPage({ user, setUser }) {
                   transition={{ delay: index * 0.05 }}
                 >
                   <Surface className="h-full">
-                    <div className="p-5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-white/45">{s.label}</span>
-                        <span
-                          className="rounded-xl border border-white/15 bg-white/[.06] p-2"
-                          style={{ color: GOLD }}
-                        >
+                    <div className="p-3 sm:p-5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] leading-4 text-[#92949B] sm:text-xs">
+                          {s.label}
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-white/[0.055] p-2 text-[#D4D4D8]">
                           <Icon size={16} />
                         </span>
                       </div>
-                      <div className="mt-5 text-3xl font-semibold tracking-[-.045em]">
+                      <div className="mt-4 text-2xl font-semibold tracking-[-.045em] sm:mt-5 sm:text-3xl">
                         {loading ? "—" : s.value}
                       </div>
-                      <p className="mt-2 text-[11px] text-white/35">
+                      <p className="mt-2 text-[10px] leading-4 text-[#777A82] sm:text-[11px]">
                         {loading ? "Loading saved data…" : s.note}
                       </p>
                     </div>
@@ -383,10 +419,10 @@ export default function ProgressPage({ user, setUser }) {
           </div>
           <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
             <Surface>
-              <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-4 sm:px-6">
+              <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4 sm:px-6">
                 <div>
                   <h3 className="text-sm font-semibold">Learning paths</h3>
-                  <p className="mt-1 text-[11px] text-white/35">
+                  <p className="mt-1 text-[11px] text-[#777A82]">
                     Progress from your saved roadmaps
                   </p>
                 </div>
@@ -399,7 +435,7 @@ export default function ProgressPage({ user, setUser }) {
               </div>
               <div className="p-5 sm:p-6">
                 {loading ? (
-                  <div className="py-8 text-center text-xs text-white/40">
+                  <div className="py-8 text-center text-xs text-[#777A82]">
                     Loading your learning paths…
                   </div>
                 ) : roadmapStats.length ? (
@@ -411,17 +447,14 @@ export default function ProgressPage({ user, setUser }) {
                             <p className="truncate text-sm font-medium text-white/85">
                               {r.title}
                             </p>
-                            <p className="mt-1 text-[10px] text-white/35">
+                            <p className="mt-1 text-[10px] text-[#777A82]">
                               {r.category} ·{" "}
                               {r.total
                                 ? `${r.done}/${r.total} phases complete`
                                 : "Phase progress not available"}
                             </p>
                           </div>
-                          <span
-                            className="shrink-0 text-sm font-semibold"
-                            style={{ color: GOLD }}
-                          >
+                          <span className="shrink-0 text-[#D4D4D8] text-sm font-semibold">
                             {r.progress}%
                           </span>
                         </div>
@@ -432,13 +465,13 @@ export default function ProgressPage({ user, setUser }) {
                 ) : (
                   <div className="rounded-xl border border-dashed border-white/10 px-4 py-8 text-center">
                     <FiBookOpen
-                      className="mx-auto mb-3 text-white/30"
+                      className="mx-auto mb-3 text-[#777A82]"
                       size={22}
                     />
                     <p className="text-sm text-white/70">
                       Your learning journey starts here
                     </p>
-                    <p className="mt-1 text-xs text-white/35">
+                    <p className="mt-1 text-xs text-[#777A82]">
                       Create a roadmap to see real progress in this space.
                     </p>
                     <button
@@ -452,18 +485,18 @@ export default function ProgressPage({ user, setUser }) {
               </div>
             </Surface>
             <Surface>
-              <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-4 sm:px-6">
+              <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4 sm:px-6">
                 <div>
                   <h3 className="text-sm font-semibold">Recent activity</h3>
-                  <p className="mt-1 text-[11px] text-white/35">
+                  <p className="mt-1 text-[11px] text-[#777A82]">
                     Latest saved work across your workspace
                   </p>
                 </div>
-                <FiClock className="text-white/35" />
+                <FiClock className="text-[#777A82]" />
               </div>
               <div className="p-5 sm:p-6">
                 {loading ? (
-                  <div className="py-8 text-center text-xs text-white/40">
+                  <div className="py-8 text-center text-xs text-[#777A82]">
                     Loading activity…
                   </div>
                 ) : recent.length ? (
@@ -476,17 +509,17 @@ export default function ProgressPage({ user, setUser }) {
                           onClick={() => navigate(item.path)}
                           className="group flex w-full items-start gap-3 text-left"
                         >
-                          <span className="mt-0.5 rounded-xl border border-white/[.08] bg-white/[.035] p-2.5 text-white">
+                          <span className="mt-0.5 rounded-xl border border-white/[0.08] bg-white/[0.035] p-2.5 text-[#D4D4D8]">
                             <Icon size={15} />
                           </span>
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-xs font-medium text-white/80 group-hover:text-white">
                               {item.title}
                             </span>
-                            <span className="mt-1 block truncate text-[10px] capitalize text-white/35">
+                            <span className="mt-1 block truncate text-[10px] capitalize text-[#777A82]">
                               {String(item.detail).replaceAll("_", " ")}
                             </span>
-                            <span className="mt-1.5 block text-[10px] text-white/25">
+                            <span className="mt-1.5 block text-[10px] text-[#777A82]">
                               {dateLabel(item.date)}
                             </span>
                           </span>
@@ -498,13 +531,13 @@ export default function ProgressPage({ user, setUser }) {
                 ) : (
                   <div className="py-8 text-center">
                     <FiActivity
-                      className="mx-auto mb-3 text-white/25"
+                      className="mx-auto mb-3 text-[#777A82]"
                       size={22}
                     />
                     <p className="text-xs text-white/60">
                       No recent activity found
                     </p>
-                    <p className="mt-1 text-[10px] text-white/30">
+                    <p className="mt-1 text-[10px] text-[#777A82]">
                       Activity will appear as you use RIO.
                     </p>
                   </div>
@@ -515,43 +548,64 @@ export default function ProgressPage({ user, setUser }) {
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <button
               onClick={() => navigate("/builder/dashboard")}
-              className="group flex items-center gap-4 rounded-2xl border border-white/[.08] bg-[#111214] p-5 text-left transition hover:border-white/25"
+              className="group flex items-center gap-4 rounded-[22px] border border-white/[0.10] bg-[#111315] p-5 text-left transition hover:border-white/25"
             >
-              <span className="rounded-xl border border-white/15 bg-white/[.06] p-3 text-white">
+              <span className="rounded-xl border border-white/10 bg-white/[0.055] p-3 text-[#D4D4D8]">
                 <FiFileText size={18} />
               </span>
               <span className="flex-1">
                 <span className="block text-sm font-semibold">
                   Resume workspace
                 </span>
-                <span className="mt-1 block text-xs text-white/35">
+                <span className="mt-1 block text-xs text-[#777A82]">
                   {resumes.length} saved resume{resumes.length === 1 ? "" : "s"}{" "}
                   found
                 </span>
               </span>
-              <FiArrowRight className="text-white/25 transition group-hover:text-white" />
+              <FiArrowRight className="text-[#777A82] transition group-hover:text-white" />
             </button>
             <button
               onClick={() => navigate("/mock-interview/history")}
-              className="group flex items-center gap-4 rounded-2xl border border-white/[.08] bg-[#111214] p-5 text-left transition hover:border-white/25"
+              className="group flex items-center gap-4 rounded-[22px] border border-white/[0.10] bg-[#111315] p-5 text-left transition hover:border-white/25"
             >
-              <span className="rounded-xl border border-white/15 bg-white/[.06] p-3 text-white">
+              <span className="rounded-xl border border-white/10 bg-white/[0.055] p-3 text-[#D4D4D8]">
                 <FiCheckCircle size={18} />
               </span>
               <span className="flex-1">
                 <span className="block text-sm font-semibold">
                   Interview reports
                 </span>
-                <span className="mt-1 block text-xs text-white/35">
+                <span className="mt-1 block text-xs text-[#777A82]">
                   Review completed practice sessions
                 </span>
               </span>
-              <FiArrowRight className="text-white/25 transition group-hover:text-white" />
+              <FiArrowRight className="text-[#777A82] transition group-hover:text-white" />
             </button>
           </div>
           <p className="mt-7 text-center text-[10px] tracking-wide text-white/20">
             RIO · CAREER INTELLIGENCE · YOUR DATA, YOUR PROGRESS
           </p>
+          <nav
+            aria-label="Progress quick actions"
+            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl md:hidden"
+          >
+            <div className="mx-auto flex max-w-md items-center gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/roadmap")}
+                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition active:scale-[0.98]"
+              >
+                Continue learning <FiArrowRight />
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/mock-interview")}
+                className="flex min-w-0 flex-1 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.045] px-3 py-3 text-xs font-semibold text-white transition active:scale-[0.98]"
+              >
+                Practice interview
+              </button>
+            </div>
+          </nav>
         </div>
       </main>
     </div>

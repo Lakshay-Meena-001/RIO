@@ -13,10 +13,8 @@ import {
   FiPlus,
   FiLogOut,
   FiMap,
-  FiSettings,
   FiStar,
   FiUser,
-  FiX,
 } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -120,11 +118,7 @@ function Sidebar({
       icon: FiUser,
       path: "/profile",
     },
-    {
-      label: "Settings",
-      icon: FiSettings,
-      path: "/settings",
-    },
+    
   ];
 
   const isActive = (path) => {
@@ -208,7 +202,7 @@ function Sidebar({
     >
       <div className="relative shrink-0 text-left">
         <div
-          className={`leading-none tracking-tight text-white ${
+          className={`leading-none tracking-tight text-[var(--sidebar-text)] ${
             isExpanded ? "text-[17px]" : "text-[16px]"
           }`}
           style={{ fontFamily: '"Zen Dots", sans-serif' }}
@@ -217,7 +211,7 @@ function Sidebar({
         </div>
 
         <div
-          className={`pointer-events-none absolute left-0 top-[calc(100%+4px)] whitespace-nowrap text-[8px] font-semibold uppercase tracking-[0.20em] text-[#71717A] transition-[opacity,transform] duration-300 ease-out ${
+          className={`pointer-events-none absolute left-0 top-[calc(100%+4px)] whitespace-nowrap text-[8px] font-semibold uppercase tracking-[0.20em] text-[var(--sidebar-muted)] transition-[opacity,transform] duration-300 ease-out ${
             !isExpanded
               ? "translate-x-0 opacity-0"
               : animateBrand
@@ -249,12 +243,12 @@ function Sidebar({
             type="button"
             onClick={() => handleNavigation(item.path)}
             title={!isExpanded ? item.label : undefined}
-            className={`group relative flex w-full items-center rounded-xl transition-[opacity,transform,background-color,color] duration-300 ease-out ${
+            className={`group relative flex w-full items-center rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sidebar-muted-strong)] transition-[opacity,transform,background-color,color,box-shadow] duration-300 ease-out hover:shadow-sm ${
               isExpanded ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-3"
             } ${itemAnimationClass} ${
               active
-                ? "bg-white/[0.12] text-white"
-                : "text-[#85858D] hover:bg-white/[0.06] hover:text-[#ffffff]"
+                ? "bg-[var(--sidebar-active)] text-[var(--sidebar-text)]"
+                : "text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text)]"
             }`}
             style={
               stagger && isExpanded
@@ -263,7 +257,7 @@ function Sidebar({
             }
           >
             {active && (
-              <span className="absolute left-0 h-5 w-[2px] rounded-full bg-[#e4e4e7]" />
+              <span className="absolute left-0 h-5 w-[2px] rounded-full bg-[var(--sidebar-text)]" />
             )}
 
             <Icon size={17} strokeWidth={1.7} className="shrink-0" />
@@ -297,12 +291,12 @@ function Sidebar({
             type="button"
             onClick={() => handleNavigation(item.path)}
             title={!isExpanded ? item.label : undefined}
-            className={`group relative flex w-full items-center rounded-xl transition-[opacity,transform,background-color,color] duration-300 ease-out ${
+            className={`group relative flex w-full items-center rounded-xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--sidebar-muted-strong)] transition-[opacity,transform,background-color,color,box-shadow] duration-300 ease-out hover:shadow-sm ${
               isExpanded ? "gap-3 px-3 py-2.5" : "justify-center px-2 py-3"
             } ${itemAnimationClass} ${
               active
-                ? "bg-white/[0.12] text-white"
-                : "text-[#85858D] hover:bg-white/[0.06] hover:text-[#ffffff]"
+                ? "bg-[var(--sidebar-active)] text-[var(--sidebar-text)]"
+                : "text-[var(--sidebar-muted)] hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text)]"
             }`}
             style={
               stagger && isExpanded
@@ -311,7 +305,7 @@ function Sidebar({
             }
           >
             {active && (
-              <span className="absolute left-0 h-5 w-[2px] rounded-full bg-[#e4e4e7]" />
+              <span className="absolute left-0 h-5 w-[2px] rounded-full bg-[var(--sidebar-text)]" />
             )}
 
             <Icon size={17} strokeWidth={1.7} className="shrink-0" />
@@ -334,28 +328,28 @@ function Sidebar({
           <button
             type="button"
             onClick={() => handleNavigation("/billing?addBalance=1")}
-            className="group flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition-colors duration-200 hover:bg-white/[0.045]"
+            className="group flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition-[background-color,transform] duration-200 hover:-translate-y-px hover:bg-[var(--sidebar-hover)]"
             title="Manage your balance"
           >
-            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-white/[0.13] text-white transition-colors group-hover:bg-white/[0.20]">
+            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-xl bg-[var(--sidebar-icon-bg)] text-[var(--sidebar-text)] transition-colors group-hover:bg-[var(--sidebar-icon-hover)]">
               <FiCreditCard size={19} strokeWidth={1.7} />
             </div>
 
             <div className="min-w-0 flex-1">
-              <span className="block text-[9px] font-medium uppercase tracking-[0.13em] text-[#A1A1AA]">
+              <span className="block text-[9px] font-medium uppercase tracking-[0.13em] text-[var(--sidebar-muted-strong)]">
                 Available Balance
               </span>
 
-              <span className="mt-1 block truncate text-[15px] font-semibold leading-none tracking-tight text-white">
+              <span className="mt-1 block truncate text-[15px] font-semibold leading-none tracking-tight text-[var(--sidebar-text)]">
                 {balance}{" "}
-                <span className="text-[11px] font-medium text-[#A1A1AA]">
+                <span className="text-[11px] font-medium text-[var(--sidebar-muted-strong)]">
                   INR
                 </span>
               </span>
             </div>
 
             <span
-              className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[#e4e4e7] text-[#17191C] transition-transform duration-200 group-hover:scale-105"
+              className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-[var(--sidebar-avatar-bg)] text-[var(--sidebar-avatar-text)] transition-transform duration-200 group-hover:scale-105"
               aria-hidden="true"
             >
               <FiPlus size={18} strokeWidth={2} />
@@ -368,7 +362,7 @@ function Sidebar({
           onClick={() => handleNavigation("/billing?addBalance=1")}
           title={`Available balance: ${balance} INR`}
           aria-label={`Manage balance: ${balance} INR`}
-          className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-white/[0.13] text-white transition-colors hover:bg-white/[0.20]"
+          className="mx-auto flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--sidebar-icon-bg)] text-[var(--sidebar-text)] transition-colors hover:bg-[var(--sidebar-icon-hover)]"
         >
           <FiCreditCard size={18} strokeWidth={1.7} />
         </button>
@@ -377,7 +371,7 @@ function Sidebar({
   );
 
   const userSection = (isExpanded) => (
-    <div className="shrink-0 border-t border-white/[0.08] p-3">
+    <div className="shrink-0 border-t border-[var(--sidebar-border)] p-3">
       <div className="relative h-[62px]">
         <div
           className={`absolute inset-0 transition-[opacity,transform] duration-300 ease-out ${
@@ -386,18 +380,18 @@ function Sidebar({
               : "pointer-events-none -translate-x-2 opacity-0"
           }`}
         >
-          <div className="rounded-2xl border border-white/[0.08] bg-white/[0.035] p-3">
+          <div className="rounded-2xl border border-[var(--sidebar-border)] bg-[var(--sidebar-card)] p-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e4e4e7] text-xs font-bold text-[#17191C]">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--sidebar-text)] text-xs font-bold text-[var(--sidebar-bg)]">
                 {initials}
               </div>
 
               <div className="min-w-0 flex-1">
-                <span className="block truncate text-[14px] font-bold leading-tight text-[#A1A1AA]">
+                <span className="block truncate text-[14px] font-bold leading-tight text-[var(--sidebar-muted-strong)]">
                   {firstName}
                 </span>
 
-                <p className="mt-1 truncate text-[10px] text-[#71717A]">
+                <p className="mt-1 truncate text-[10px] text-[var(--sidebar-muted)]">
                   {user?.email || "RIO member"}
                 </p>
               </div>
@@ -405,7 +399,7 @@ function Sidebar({
               <button
                 type="button"
                 onClick={handleLogout}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#71717A] transition-colors hover:bg-white/[0.08] hover:text-white"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--sidebar-muted)] transition-colors hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text)]"
                 aria-label="Logout"
                 title="Logout"
               >
@@ -425,7 +419,7 @@ function Sidebar({
           <button
             type="button"
             onClick={() => handleNavigation("/profile")}
-            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#e4e4e7] text-xs font-bold text-[#17191C]"
+            className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--sidebar-text)] text-xs font-bold text-[var(--sidebar-bg)]"
             title={firstName}
           >
             {initials}
@@ -459,26 +453,28 @@ function Sidebar({
     <div className="flex h-full flex-col">
       {/* Brand */}
       <div
-        className={`flex h-[72px] shrink-0 items-center border-b border-white/[0.08] ${
+        className={`flex h-[72px] shrink-0 items-center border-b border-[var(--sidebar-border)] ${
           isExpanded ? "justify-between px-4" : "justify-between px-2"
         }`}
       >
         {brand(isExpanded, animateDesktopContent)}
 
-        {showDesktopToggle && (
-          <button
-            type="button"
-            onClick={() => setSidebarOpen((value) => !value)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#71717A] transition-colors hover:bg-white/[0.08] hover:text-white"
-            aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
-          >
-            {isExpanded ? (
-              <FiChevronLeft size={16} />
-            ) : (
-              <FiChevronRight size={16} />
-            )}
-          </button>
-        )}
+        <div className="flex shrink-0 items-center gap-1">
+          {showDesktopToggle && (
+            <button
+              type="button"
+              onClick={() => setSidebarOpen((value) => !value)}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--sidebar-muted)] transition-colors hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text)]"
+              aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
+            >
+              {isExpanded ? (
+                <FiChevronLeft size={16} />
+              ) : (
+                <FiChevronRight size={16} />
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Navigation */}
@@ -496,8 +492,8 @@ function Sidebar({
             <p
               className={
                 animateDesktopContent
-                  ? "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B] transition-[opacity,transform] duration-300 translate-x-0 opacity-100 delay-[280ms]"
-                  : "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B]"
+                  ? "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[var(--sidebar-label)] transition-[opacity,transform] duration-300 translate-x-0 opacity-100 delay-[280ms]"
+                  : "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[var(--sidebar-label)]"
               }
             >
               Workspace
@@ -509,14 +505,16 @@ function Sidebar({
             animateDesktopContent && isExpanded,
           )}
 
-          {isExpanded && <div className="my-5 h-px bg-white/[0.07]" />}
+          {isExpanded && (
+            <div className="my-5 h-px bg-[var(--sidebar-border)]" />
+          )}
 
           {isExpanded && (
             <p
               className={
                 animateDesktopContent
-                  ? "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B] transition-[opacity,transform] duration-300 translate-x-0 opacity-100 delay-[500ms]"
-                  : "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[#52525B]"
+                  ? "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[var(--sidebar-label)] transition-[opacity,transform] duration-300 translate-x-0 opacity-100 delay-[500ms]"
+                  : "px-3 pb-2 text-[9px] font-semibold uppercase tracking-[0.2em] text-[var(--sidebar-label)]"
               }
             >
               Account
@@ -529,7 +527,7 @@ function Sidebar({
         {!isExpanded && (
           <div className="absolute inset-x-0 top-0">
             {renderNavigationItems(false)}
-            <div className="my-5 h-px bg-white/[0.07]" />
+            <div className="my-5 h-px bg-[var(--sidebar-border)]" />
             {renderAccountItems(false)}
           </div>
         )}
@@ -544,7 +542,7 @@ function Sidebar({
     <>
       {/* Desktop sidebar */}
       <aside
-        className={`fixed left-0 top-0 z-[9999] hidden h-screen shrink-0 overflow-hidden border-r border-white/[0.08] bg-[#111315] transition-[width] duration-300 md:block ${
+        className={`fixed left-0 top-0 z-[9999] hidden h-screen shrink-0 overflow-hidden border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] shadow-[var(--shadow-lg)] transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:block ${
           sidebarOpen ? "w-[250px]" : "w-[76px]"
         }`}
       >
@@ -587,19 +585,9 @@ function Sidebar({
                 onTouchStart={handleSidebarTouchStart}
                 onTouchEnd={handleSidebarTouchEnd}
                 data-mobile-sidebar="true"
-                className="fixed inset-y-0 left-0 z-[9999] w-[285px] border-r border-white/[0.1] bg-[#111315] shadow-2xl md:hidden"
+                className="fixed inset-y-0 left-0 z-[9999] w-[285px] border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] shadow-2xl md:hidden"
               >
-                <div className="relative h-full">
-                  {/* Mobile close */}
-                  <button
-                    type="button"
-                    onClick={() => setMobileOpen(false)}
-                    className="absolute right-3 top-5 z-[9999] flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.14] bg-white/[0.05] text-[#A1A1AA] transition-colors hover:text-white"
-                    aria-label="Close navigation"
-                  >
-                    <FiX size={17} />
-                  </button>
-
+                <div className="h-full">
                   {sidebarContent(true, false, false)}
                 </div>
               </motion.aside>

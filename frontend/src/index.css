@@ -1,44 +1,59 @@
 @import "tailwindcss";
 
-:root,
-:root[data-theme="dark"] {
+:root {
   color-scheme: dark;
 
-  --bg: #090a0c;
-  --bg-secondary: #111214;
-  --surface: #17181b;
-  --surface-elevated: #1e2024;
-  --surface-hover: #27292e;
+  /* RIO — Obsidian editorial palette */
+  --bg: #0b0b0c;
+  --bg-secondary: #111112;
+  --surface: #171718;
+  --surface-elevated: #202021;
+  --surface-hover: #29292a;
 
-  --text: #f4f4f5;
-  --muted: #a1a1aa;
-  --muted-strong: #d4d4d8;
+  --text: #f2f0eb;
+  --muted: #a5a29b;
+  --muted-strong: #d2cfc8;
 
-  --border: rgba(255, 255, 255, 0.085);
-  --border-strong: rgba(255, 255, 255, 0.15);
-  --glass: rgba(255, 255, 255, 0.035);
-  --glass-strong: rgba(255, 255, 255, 0.065);
-  --button: rgba(255, 255, 255, 0.055);
-  --button-hover: rgba(255, 255, 255, 0.1);
+  --border: rgba(242, 240, 235, 0.09);
+  --border-strong: rgba(242, 240, 235, 0.16);
+  --glass: rgba(242, 240, 235, 0.035);
+  --glass-strong: rgba(242, 240, 235, 0.065);
+  --button: rgba(242, 240, 235, 0.06);
+  --button-hover: rgba(242, 240, 235, 0.11);
 
-  --accent: #f4f4f5;
-  --accent-foreground: #111214;
-  --focus-ring: rgba(244, 244, 245, 0.7);
-  --selection: rgba(255, 255, 255, 0.12);
+  --accent: #f2f0eb;
+  --accent-foreground: #171716;
+  --focus-ring: rgba(220, 215, 204, 0.75);
+  --selection: rgba(220, 215, 204, 0.18);
 
-  --status-pending: #eab308;
-  --status-completed: #22c55e;
-  --status-expired: #a1a1aa;
-  --status-failed: #ef4444;
-  --status-processing: #60a5fa;
+  --status-pending: #d6a85c;
+  --status-completed: #78b89a;
+  --status-expired: #a5a29b;
+  --status-failed: #e07e79;
+  --status-processing: #8caee8;
 
-  --page-gradient: linear-gradient(145deg, #090a0c 0%, #111214 52%, #0b0c0e 100%);
-  --surface-gradient: linear-gradient(145deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012));
-  --accent-gradient: linear-gradient(180deg, #ffffff, #e8e8e8);
+  --page-gradient:
+    radial-gradient(
+      ellipse at 12% 0%,
+      rgba(116, 108, 91, 0.12),
+      transparent 38%
+    ),
+    radial-gradient(
+      ellipse at 88% 18%,
+      rgba(90, 90, 94, 0.09),
+      transparent 34%
+    ),
+    linear-gradient(145deg, #0b0b0c 0%, #101011 48%, #0b0b0c 100%);
+  --surface-gradient: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.055),
+    rgba(255, 255, 255, 0.012)
+  );
+  --accent-gradient: linear-gradient(180deg, #f4f1e9, #d8d3c8);
 
-  --shadow-sm: 0 4px 16px rgba(0, 0, 0, 0.16);
-  --shadow-md: 0 8px 28px rgba(0, 0, 0, 0.22);
-  --shadow-lg: 0 18px 55px rgba(0, 0, 0, 0.32);
+  --shadow-sm: 0 4px 18px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 10px 32px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 22px 65px rgba(0, 0, 0, 0.4);
 
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -47,46 +62,25 @@
 
   --ease-fast: 160ms ease;
   --ease-normal: 240ms ease;
+
+  --sidebar-bg: #101011;
+  --sidebar-text: #f2f0eb;
+  --sidebar-muted: #9a978f;
+  --sidebar-muted-strong: #c9c5bd;
+  --sidebar-label: #77756f;
+  --sidebar-border: rgba(242, 240, 235, 0.085);
+  --sidebar-hover: rgba(242, 240, 235, 0.065);
+  --sidebar-active: rgba(242, 240, 235, 0.11);
+  --sidebar-card: rgba(242, 240, 235, 0.035);
+  --sidebar-icon-bg: rgba(242, 240, 235, 0.12);
+  --sidebar-icon-hover: rgba(242, 240, 235, 0.19);
+  --sidebar-avatar-bg: #e8e3d8;
+  --sidebar-avatar-text: #171716;
 }
 
-:root[data-theme="light"] {
-  color-scheme: light;
-
-  --bg: #f7f7f8;
-  --bg-secondary: #f0f0f2;
-  --surface: #ffffff;
-  --surface-elevated: #ffffff;
-  --surface-hover: #f1f1f3;
-
-  --text: #18181b;
-  --muted: #71717a;
-  --muted-strong: #3f3f46;
-
-  --border: rgba(24, 24, 27, 0.09);
-  --border-strong: rgba(24, 24, 27, 0.15);
-  --glass: rgba(24, 24, 27, 0.025);
-  --glass-strong: rgba(24, 24, 27, 0.045);
-  --button: #f4f4f5;
-  --button-hover: #e4e4e7;
-
-  --accent: #18181b;
-  --accent-foreground: #ffffff;
-  --focus-ring: rgba(24, 24, 27, 0.58);
-  --selection: rgba(24, 24, 27, 0.12);
-
-  --status-pending: #a16207;
-  --status-completed: #15803d;
-  --status-expired: #71717a;
-  --status-failed: #b91c1c;
-  --status-processing: #1d4ed8;
-
-  --page-gradient: linear-gradient(145deg, #fafafa 0%, #f4f4f5 52%, #fafafa 100%);
-  --surface-gradient: linear-gradient(145deg, #ffffff, #f4f4f5);
-  --accent-gradient: linear-gradient(180deg, #27272a, #18181b);
-
-  --shadow-sm: 0 4px 16px rgba(24, 24, 27, 0.035);
-  --shadow-md: 0 8px 28px rgba(24, 24, 27, 0.055);
-  --shadow-lg: 0 18px 55px rgba(24, 24, 27, 0.1);
+html {
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
 }
 
 * {
@@ -169,7 +163,12 @@ body,
   border-radius: var(--radius-md);
   font: inherit;
   cursor: pointer;
-  transition: background var(--ease-normal), border-color var(--ease-normal), color var(--ease-normal), transform var(--ease-fast), box-shadow var(--ease-normal);
+  transition:
+    background var(--ease-normal),
+    border-color var(--ease-normal),
+    color var(--ease-normal),
+    transform var(--ease-fast),
+    box-shadow var(--ease-normal);
 }
 
 .btn-primary {
@@ -245,7 +244,12 @@ body,
   max-width: 1000px;
   max-height: 1000px;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.055), rgba(190, 190, 190, 0.025) 30%, transparent 68%);
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0.055),
+    rgba(190, 190, 190, 0.025) 30%,
+    transparent 68%
+  );
   opacity: 0.55;
   pointer-events: none;
   animation: hero-gradient 22s ease-in-out infinite;
@@ -262,6 +266,34 @@ body,
     transform: translate(-50%, -50%) scale(1.04);
     opacity: 0.65;
   }
+}
+
+/* Premium shared primitives — consume these across every page. */
+.theme-page {
+  background: var(--page-gradient);
+  color: var(--text);
+}
+.theme-surface {
+  background: var(--surface-gradient);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.theme-surface-elevated {
+  background: linear-gradient(145deg, var(--surface-elevated), var(--surface));
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+.theme-display {
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+.theme-muted {
+  color: var(--muted);
+}
+.theme-border {
+  border-color: var(--border);
 }
 
 @media (max-width: 768px) {
@@ -286,4 +318,42 @@ body,
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* RIO Dashboard + Progress theme bridge.
+   These two legacy pages use fixed light-on-dark Tailwind utilities. Scope
+   compatibility styles to these pages so established pages remain untouched. */
+
+@media (max-width: 767px) {
+  .rio-dashboard,
+  .rio-progress {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .rio-dashboard main,
+  .rio-progress main {
+    min-width: 0;
+  }
+}
+
+/* Shared Dashboard/Progress mobile app bar. Scoped to avoid changing other pages. */
+.rio-mobile-header {
+  color: var(--text, #f5f5f5);
+  background: color-mix(in srgb, var(--surface, #17191c) 88%, transparent);
+  border-color: var(--border, rgba(255, 255, 255, 0.1));
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+.rio-mobile-header button {
+  color: var(--text, #f5f5f5);
+  background: var(--glass, rgba(255, 255, 255, 0.055));
+  border-color: var(--border, rgba(255, 255, 255, 0.1));
+}
+.rio-mobile-header button:hover:not(:disabled) {
+  background: var(--button-hover, rgba(255, 255, 255, 0.1));
+}
+.rio-mobile-header__brand {
+  color: var(--text, #fff);
+}
+.rio-mobile-header__caption {
+  color: var(--muted, rgba(255, 255, 255, 0.55));
 }
