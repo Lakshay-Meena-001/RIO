@@ -847,7 +847,13 @@ const Interview = ({ setUser }) => {
           draftSaveTimeoutRef.current = null;
         }
 
-        if (currentQuestion?.questionId) {
+        const deadlineReached =
+          interview?.startedAt &&
+          Date.now() >=
+            new Date(interview.startedAt).getTime() +
+              Number(interview.timeLimit || 30) * 60 * 1000;
+
+        if (currentQuestion?.questionId && !timerExpired && !deadlineReached) {
           await flushDraftSave(currentQuestion.questionId, answer);
         }
 
@@ -1108,8 +1114,9 @@ const Interview = ({ setUser }) => {
 
     await handleSubmitInterview({
       automatic: true,
+      timerExpired: remainingSeconds === 0,
     });
-  }, [handleSubmitInterview]);
+  }, [handleSubmitInterview, remainingSeconds]);
 
   const handleRetryAutoSubmit = useCallback(async () => {
     setAutoSubmitFailed(false);

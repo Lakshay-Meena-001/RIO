@@ -1,9 +1,10 @@
+import mongoose from "mongoose";
 import * as interviewService from "../services/interview.service.js";
 
 const getUserId = (req) => {
   const userId = req.headers["x-user-id"];
 
-  if (!userId) {
+  if (typeof userId !== "string" || !mongoose.Types.ObjectId.isValid(userId)) {
     const error = new Error("User authentication required.");
     error.statusCode = 401;
     throw error;
@@ -12,11 +13,7 @@ const getUserId = (req) => {
   return userId;
 };
 
-/*
-|--------------------------------------------------------------------------
-| Start Interview
-|--------------------------------------------------------------------------
-*/
+// Start Interview
 
 export const startInterview = async (req, res, next) => {
   try {
@@ -52,11 +49,7 @@ export const replaceActiveInterview = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Begin Interview
-|--------------------------------------------------------------------------
-*/
+// Begin Interview
 
 export const beginInterview = async (req, res, next) => {
   try {
@@ -78,15 +71,8 @@ export const beginInterview = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Next Question
-|--------------------------------------------------------------------------
-|
-| Navigation only.
-| No question generation happens here.
-|
-*/
+//  Next Question, Navigation only.
+//  No question generation happens here.
 
 export const getNextQuestion = async (req, res, next) => {
   try {
@@ -105,11 +91,7 @@ export const getNextQuestion = async (req, res, next) => {
   }
 };
 
-/*
- * |--------------------------------------------------------------------------
- * | Save Draft Answer
- * |--------------------------------------------------------------------------
- */
+// Save Draft Answer
 
 export const saveDraftAnswer = async (req, res, next) => {
   try {
@@ -134,15 +116,8 @@ export const saveDraftAnswer = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Previous Question
-|--------------------------------------------------------------------------
-|
-| Navigation only.
-| No LLM call happens here.
-|
-*/
+// Previous Question Navigation only.
+// No LLM call happens here.
 
 export const getPreviousQuestion = async (req, res, next) => {
   try {
@@ -164,15 +139,8 @@ export const getPreviousQuestion = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Jump To Question
-|--------------------------------------------------------------------------
-|
-| Navigation only.
-| No LLM call happens here.
-|
-*/
+// Jump To Question, Navigation only.
+//  No LLM call happens here.
 
 export const jumpToQuestion = async (req, res, next) => {
   try {
@@ -196,15 +164,8 @@ export const jumpToQuestion = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Final Submit Interview
-|--------------------------------------------------------------------------
-|
-| Evaluates all remaining unsubmitted questions and
-| generates the final interview report.
-|
-*/
+// Final Submit Interview, Evaluates all remaining unsubmitted questions and
+// generates the final interview report.
 
 export const submitInterview = async (req, res, next) => {
   try {
@@ -240,11 +201,7 @@ export const submitInterview = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Get Interview
-|--------------------------------------------------------------------------
-*/
+// Get Interview
 
 export const getInterview = async (req, res, next) => {
   try {
@@ -262,11 +219,8 @@ export const getInterview = async (req, res, next) => {
   }
 };
 
-/*
- * =========================================================
- * GET ACTIVE INTERVIEW
- * =========================================================
- */
+// GET ACTIVE INTERVIEW
+
 export const getActiveInterview = async (req, res, next) => {
   try {
     const userId = getUserId(req);
@@ -282,11 +236,7 @@ export const getActiveInterview = async (req, res, next) => {
   }
 };
 
-/*
- * =========================================================
- * GET RECENTLY TERMINATED INTERVIEW
- * =========================================================
- */
+// GET RECENTLY TERMINATED INTERVIEW
 
 export const getRecentlyTerminatedInterview = async (req, res, next) => {
   try {
@@ -304,11 +254,7 @@ export const getRecentlyTerminatedInterview = async (req, res, next) => {
   }
 };
 
-/*
- * =========================================================
- * DISMISS TERMINATION NOTICE
- * =========================================================
- */
+//DISMISS TERMINATION NOTICE
 
 export const dismissTerminationNotice = async (req, res, next) => {
   try {
@@ -330,11 +276,7 @@ export const dismissTerminationNotice = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Interview History
-|--------------------------------------------------------------------------
-*/
+//Interview History
 
 export const getInterviewHistory = async (req, res, next) => {
   try {
@@ -351,11 +293,7 @@ export const getInterviewHistory = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Quit Interview
-|--------------------------------------------------------------------------
-*/
+// Quit Interview
 
 export const quitInterview = async (req, res, next) => {
   try {
@@ -374,11 +312,7 @@ export const quitInterview = async (req, res, next) => {
   }
 };
 
-/*
-|--------------------------------------------------------------------------
-| Delete Interview
-|--------------------------------------------------------------------------
-*/
+// Delete Interview
 
 export const deleteInterview = async (req, res, next) => {
   try {

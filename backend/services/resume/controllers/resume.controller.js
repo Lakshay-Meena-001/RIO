@@ -1,58 +1,152 @@
 import crypto from "node:crypto";
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import { resumeAgent } from "../agents/resume.agent.js";
 import extractText from "../config/pdf.js";
 import Resume from "../models/resume.model.js";
 import redis from "../../../shared/redis/redis.js";
+import { z } from "zod";
 
 const RESUME_SCORER_PRICE = 100;
+const CACHE_TTL_SECONDS = 60 * 60;
+const ANALYSIS_LOCK_MS = 120000;
+const BILLING_LOCK_MS = 30000;
+const RESUME_SCORER_ACTION = "resume-scorer";
+
+const optionalText = (max = 10000) => z.string().max(max).optional();
+const optionalTextList = (maxItems = 100, maxText = 500) =>
+  z.array(z.string().max(maxText)).max(maxItems).optional();
+
+const resumeUpdateSchema = z.object({
+  resumeId: z
+    .string()
+    .regex(/^[a-f\d]{24}$/i)
+    .optional(),
+  profile: z
+    .object({
+      name: optionalText(200),
+      email: optionalText(320),
+      phone: optionalText(100),
+      location: optionalText(300),
+      linkedIn: optionalText(1000),
+      github: optionalText(1000),
+      portfolio: optionalText(1000),
+      leetcode: optionalText(1000),
+    })
+    .strict()
+    .optional(),
+  summary: optionalText(10000),
+  education: z
+    .array(
+      z
+        .object({
+          institution: optionalText(500),
+          degree: optionalText(300),
+          field: optionalText(300),
+          startDate: optionalText(100),
+          endDate: optionalText(100),
+          description: optionalText(5000),
+        })
+        .strict(),
+    )
+    .max(50)
+    .optional(),
+  experience: z
+    .array(
+      z
+        .object({
+          company: optionalText(500),
+          role: optionalText(300),
+          location: optionalText(300),
+          startDate: optionalText(100),
+          endDate: optionalText(100),
+          description: optionalText(10000),
+          technologies: optionalTextList(100, 100),
+        })
+        .strict(),
+    )
+    .max(100)
+    .optional(),
+  projects: z
+    .array(
+      z
+        .object({
+          title: optionalText(500),
+          description: optionalText(10000),
+          technologies: optionalTextList(100, 100),
+          url: optionalText(1000),
+          githubUrl: optionalText(1000),
+          startDate: optionalText(100),
+          endDate: optionalText(100),
+        })
+        .strict(),
+    )
+    .max(100)
+    .optional(),
+  skills: optionalTextList(200, 150),
+  certifications: optionalTextList(100, 500),
+  achievements: optionalTextList(100, 1000),
+  languages: optionalTextList(50, 150),
+});
+
+const getBillingTransactionId = (userId, fingerprint) =>
+  `resume-scorer:${userId}:${fingerprint}`;
 
 const deductResumeScorerBalance = async (userId, fingerprint) => {
   const authServiceUrl =
     process.env.AUTH_SERVICE_URL?.trim() || "http://localhost:8001";
+  const internalSecret = process.env.AUTH_INTERNAL_SECRET?.trim();
 
-  const internalSecret = process.env.AUTH_INTERNAL_SECRET;
-
-  if (!internalSecret?.trim()) {
-    throw new Error("AUTH_INTERNAL_SECRET is missing in Resume service.");
+  if (!internalSecret) {
+    const error = new Error(
+      "AUTH_INTERNAL_SECRET is missing in Resume service.",
+    );
+    error.status = 503;
+    throw error;
   }
 
-  // Stable ID: retry of the same user's same resume reuses
-  // the original transaction instead of charging twice.
-  const transactionId = `resume-scorer:${userId}:${fingerprint}`;
+  const transactionId = getBillingTransactionId(userId, fingerprint);
+  let response;
 
-  const response = await fetch(
-    `${authServiceUrl.replace(/\/+$/, "")}/internal/deduct-resume-scorer`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-user-id": userId,
-        "x-internal-service-secret": internalSecret,
+  try {
+    response = await fetch(
+      `${authServiceUrl.replace(/\/+$/, "")}/internal/deduct-resume-scorer`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": userId,
+          "x-internal-service-secret": internalSecret,
+        },
+        body: JSON.stringify({
+          amount: RESUME_SCORER_PRICE,
+          action: RESUME_SCORER_ACTION,
+          transactionId,
+        }),
+        signal: AbortSignal.timeout(15000),
       },
-      body: JSON.stringify({
-        amount: RESUME_SCORER_PRICE,
-        action: "resume-scorer",
-        transactionId,
-      }),
-      signal: AbortSignal.timeout(15000),
-    },
-  );
+    );
+  } catch (cause) {
+    const error = new Error("Resume Scorer billing service is unavailable.", {
+      cause,
+    });
+    error.status = 503;
+    throw error;
+  }
 
   const result = await response.json().catch(() => ({}));
 
   if (!response.ok || result.success !== true) {
     const error = new Error(result.message || "Resume Scorer billing failed.");
-
-    error.status = response.status || 503;
+    error.status =
+      response.status >= 400 && response.status < 500 ? response.status : 503;
     throw error;
   }
 
-  return result;
+  return { ...result, transactionId };
 };
 
 const resumeCacheKey = (userId, resumeId) => `resume:${userId}:${resumeId}`;
-
 const legacyResumeCacheKey = (userId) => `resume:${userId}`;
 
 const isValidObjectId = (value) =>
@@ -60,24 +154,29 @@ const isValidObjectId = (value) =>
 
 const getUserId = (req) => {
   const value = req.internalUserId;
-
-  if (typeof value !== "string" || !isValidObjectId(value)) {
-    return null;
-  }
-
-  return value;
+  return typeof value === "string" && isValidObjectId(value) ? value : null;
 };
 
 const normalizeResumeText = (value = "") =>
-  String(value).replace(/\r\n/g, "\n").trim().replace(/\s+/g, " ");
+  String(value)
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[\t ]+/g, " ").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 
 const getContentFingerprint = (text) =>
-  crypto.createHash("sha256").update(text).digest("hex");
+  crypto
+    .createHash("sha256")
+    .update(String(text).replace(/\s+/g, " ").trim())
+    .digest("hex");
 
 const logError = (operation, error) => {
   console.error(`[Resume] ${operation}:`, {
     message: error?.message,
     code: error?.code,
+    status: error?.status,
   });
 };
 
@@ -92,7 +191,7 @@ const safeCacheGet = async (key) => {
 
 const safeCacheSet = async (key, value) => {
   try {
-    await redis.set(key, value);
+    await redis.set(key, value, "EX", CACHE_TTL_SECONDS);
   } catch (error) {
     logError("Redis write failed", error);
   }
@@ -100,9 +199,7 @@ const safeCacheSet = async (key, value) => {
 
 const safeCacheDelete = async (...keys) => {
   try {
-    if (keys.length) {
-      await redis.del(...keys);
-    }
+    if (keys.length) await redis.del(...keys);
   } catch (error) {
     logError("Redis invalidation failed", error);
   }
@@ -124,23 +221,322 @@ const deleteTempFile = async (filePath) => {
   try {
     await fs.unlink(filePath);
   } catch (error) {
-    if (error.code !== "ENOENT") {
+    if (error.code !== "ENOENT")
       logError("Temporary file cleanup failed", error);
-    }
   }
 };
 
-const sendServerError = (res, operation) => {
-  return res.status(500).json({
+const sendServerError = (res, operation) =>
+  res.status(500).json({
     success: false,
     message: `Failed to ${operation}. Please try again.`,
   });
+
+const visibleResumeCondition = {
+  $or: [
+    { idempotencyKey: { $exists: false } },
+    { idempotencyKey: null },
+    { "billing.status": "charged", "processing.status": "completed" },
+  ],
 };
+
+const getVisibleResumeFilter = (userId, extra = {}) => ({
+  ...extra,
+  userId,
+  ...visibleResumeCondition,
+});
+
+const getBalanceDeductionSummary = (billingResult) => {
+  if (!billingResult || billingResult.alreadyProcessed === true) return null;
+
+  return {
+    service: "Resume Scorer",
+    previousBalance: billingResult.previousBalance,
+    deductedAmount: billingResult.deductedAmount,
+    balance: billingResult.balance,
+  };
+};
+
+const claimResumeLock = async (userId, resume, stage, lockDurationMs) => {
+  const lockToken = randomUUID();
+  const now = new Date();
+  const claimedResume = await Resume.findOneAndUpdate(
+    {
+      _id: resume._id,
+      userId,
+      idempotencyKey: resume.idempotencyKey,
+      "billing.status": { $ne: "charged" },
+      $or: [
+        { "processing.lockExpiresAt": { $exists: false } },
+        { "processing.lockExpiresAt": null },
+        { "processing.lockExpiresAt": { $lte: now } },
+      ],
+    },
+    {
+      $set: {
+        "processing.status": "processing",
+        "processing.stage": stage,
+        "processing.lockToken": lockToken,
+        "processing.lockExpiresAt": new Date(now.getTime() + lockDurationMs),
+      },
+    },
+    { new: true },
+  ).select("+idempotencyKey +processing.lockToken +processing.lockExpiresAt");
+
+  if (!claimedResume) {
+    const latest = await Resume.findById(resume._id).select("+idempotencyKey");
+    if (
+      latest?.billing?.status === "charged" &&
+      latest?.processing?.status === "completed"
+    ) {
+      return { resume: latest, lockToken: null, alreadyCompleted: true };
+    }
+
+    const error = new Error(
+      "Resume processing is already in progress. Retry shortly.",
+    );
+    error.status = 503;
+    throw error;
+  }
+
+  return { resume: claimedResume, lockToken, alreadyCompleted: false };
+};
+
+const analyzeReservedResume = async (userId, resume, lockToken) => {
+  let analyzedResume;
+
+  try {
+    analyzedResume = await resumeAgent(resume.extractedText);
+  } catch (cause) {
+    await Resume.updateOne(
+      {
+        _id: resume._id,
+        userId,
+        idempotencyKey: resume.idempotencyKey,
+        "processing.lockToken": lockToken,
+        "billing.status": { $ne: "charged" },
+      },
+      {
+        $set: {
+          "processing.status": "failed",
+          "processing.stage": "analysis_failed",
+          "processing.error":
+            "Resume analysis could not be completed. Retry the upload.",
+        },
+        $unset: {
+          "processing.lockToken": 1,
+          "processing.lockExpiresAt": 1,
+        },
+      },
+    );
+
+    const error = new Error("Resume analysis provider failed.", { cause });
+    error.status = 503;
+    throw error;
+  }
+
+  const preparedResume = await Resume.findOneAndUpdate(
+    {
+      _id: resume._id,
+      userId,
+      idempotencyKey: resume.idempotencyKey,
+      "processing.lockToken": lockToken,
+      "billing.status": { $ne: "charged" },
+    },
+    {
+      $set: {
+        ...analyzedResume,
+        "processing.status": "pending",
+        "processing.stage": "billing",
+        "processing.parser": "pdf-parse",
+        "processing.analyzedAt": new Date(),
+        "processing.error": "",
+      },
+      $unset: {
+        "processing.lockToken": 1,
+        "processing.lockExpiresAt": 1,
+      },
+    },
+    { new: true, runValidators: true },
+  ).select("+idempotencyKey");
+
+  if (!preparedResume) {
+    const error = new Error("Resume analysis could not be saved safely.");
+    error.status = 503;
+    throw error;
+  }
+
+  return preparedResume;
+};
+
+const finalizePendingResume = async (userId, resume) => {
+  if (!resume.idempotencyKey) {
+    // Legacy records were created before this idempotent workflow existed.
+    // Never charge them again merely because their old billing field is pending.
+    return { resume, billingResult: null };
+  }
+
+  if (
+    resume.billing?.status === "charged" &&
+    resume.processing?.status === "completed"
+  ) {
+    return { resume, billingResult: null };
+  }
+
+  const claim = await claimResumeLock(
+    userId,
+    resume,
+    "billing",
+    BILLING_LOCK_MS,
+  );
+  if (claim.alreadyCompleted) {
+    return { resume: claim.resume, billingResult: null };
+  }
+
+  let billingResult;
+  try {
+    billingResult = await deductResumeScorerBalance(
+      userId,
+      claim.resume.contentFingerprint,
+    );
+  } catch (error) {
+    const definiteRejection = error.status === 400;
+    await Resume.updateOne(
+      {
+        _id: claim.resume._id,
+        userId,
+        idempotencyKey: claim.resume.idempotencyKey,
+        "processing.lockToken": claim.lockToken,
+        "billing.status": { $ne: "charged" },
+      },
+      {
+        $set: {
+          "billing.status": definiteRejection ? "failed" : "pending",
+          "processing.status": definiteRejection ? "failed" : "pending",
+          "processing.stage": definiteRejection ? "billing_failed" : "billing",
+          "processing.error": definiteRejection
+            ? "Billing was rejected; resolve the billing issue and retry."
+            : "Billing result was not confirmed; retry to reconcile safely.",
+        },
+        $unset: {
+          "processing.lockToken": 1,
+          "processing.lockExpiresAt": 1,
+        },
+      },
+    );
+    await safeCacheDelete(
+      legacyResumeCacheKey(userId),
+      resumeCacheKey(userId, String(resume._id)),
+    );
+
+    if (definiteRejection) throw error;
+    error.status = 503;
+    throw error;
+  }
+
+  try {
+    const completedResume = await Resume.findOneAndUpdate(
+      {
+        _id: claim.resume._id,
+        userId,
+        idempotencyKey: claim.resume.idempotencyKey,
+        "processing.lockToken": claim.lockToken,
+      },
+      {
+        $set: {
+          "billing.status": "charged",
+          "billing.transactionId": billingResult.transactionId,
+          "billing.amount": RESUME_SCORER_PRICE,
+          "billing.chargedAt": new Date(),
+          "processing.status": "completed",
+          "processing.stage": "completed",
+          "processing.analyzedAt": new Date(),
+          "processing.error": "",
+        },
+        $unset: {
+          "processing.lockToken": 1,
+          "processing.lockExpiresAt": 1,
+        },
+      },
+      { new: true, runValidators: true },
+    ).select("+idempotencyKey");
+
+    if (!completedResume) {
+      const error = new Error(
+        "Resume processing record could not be finalized.",
+      );
+      error.status = 503;
+      throw error;
+    }
+
+    await cacheResume(userId, completedResume);
+    return { resume: completedResume, billingResult };
+  } catch (cause) {
+    const error = new Error(
+      "Billing was confirmed, but the resume could not be finalized. Retry the same upload to reconcile it.",
+      { cause },
+    );
+    error.status = 503;
+    throw error;
+  }
+};
+
+const processExistingResume = async (userId, resume) => {
+  if (!resume.idempotencyKey) {
+    return { resume, billingResult: null };
+  }
+
+  if (
+    resume.billing?.status === "charged" &&
+    resume.processing?.status === "completed"
+  ) {
+    return { resume, billingResult: null };
+  }
+
+  if (["billing", "billing_failed"].includes(resume.processing?.stage)) {
+    return finalizePendingResume(userId, resume);
+  }
+
+  const claim = await claimResumeLock(
+    userId,
+    resume,
+    "analyzing",
+    ANALYSIS_LOCK_MS,
+  );
+  if (claim.alreadyCompleted) {
+    return { resume: claim.resume, billingResult: null };
+  }
+
+  const preparedResume = await analyzeReservedResume(
+    userId,
+    claim.resume,
+    claim.lockToken,
+  );
+  return finalizePendingResume(userId, preparedResume);
+};
+
+const respondWithResume = (
+  res,
+  { resume, reused, billingResult, status = 200 },
+) =>
+  res.status(status).json({
+    success: true,
+    reused,
+    message: reused
+      ? "This resume already exists. Existing analysis reused."
+      : "Resume analyzed and saved successfully",
+    data: resume,
+    balanceDeduction: getBalanceDeductionSummary(billingResult),
+  });
+
+const getExistingResume = async (userId, contentFingerprint) =>
+  Resume.findOne({ userId, contentFingerprint })
+    .select("+idempotencyKey +processing.lockToken +processing.lockExpiresAt")
+    .sort({ idempotencyKey: -1, updatedAt: -1 });
 
 // POST /api/resumes/upload
 export const uploadResume = async (req, res) => {
   const filePath = req.file?.path;
-  let billingResult = null;
 
   try {
     const userId = getUserId(req);
@@ -161,6 +557,7 @@ export const uploadResume = async (req, res) => {
 
     const extractedText = await extractText(filePath);
     const normalizedText = normalizeResumeText(extractedText);
+    const maxTextLength = Number(process.env.RESUME_MAX_TEXT_LENGTH ?? 50000);
 
     if (!normalizedText) {
       return res.status(400).json({
@@ -168,8 +565,6 @@ export const uploadResume = async (req, res) => {
         message: "Could not extract readable text from the resume PDF",
       });
     }
-
-    const maxTextLength = Number(process.env.RESUME_MAX_TEXT_LENGTH ?? 50000);
 
     if (
       !Number.isInteger(maxTextLength) ||
@@ -182,110 +577,121 @@ export const uploadResume = async (req, res) => {
       });
     }
 
-    // Indexed fingerprint lookup instead of loading every resume.
     const contentFingerprint = getContentFingerprint(normalizedText);
-
-    const existingResume = await Resume.findOne({
-      userId,
-      contentFingerprint,
-    }).sort({ updatedAt: -1 });
+    const existingResume = await getExistingResume(userId, contentFingerprint);
 
     if (existingResume) {
-      await cacheResume(userId, existingResume);
-
-      return res.status(200).json({
-        success: true,
+      const result = await processExistingResume(userId, existingResume);
+      return respondWithResume(res, {
+        ...result,
         reused: true,
-        message: "This resume already exists. Existing analysis reused.",
-        data: existingResume,
-        balanceDeduction: null,
+        status: 200,
       });
     }
 
-    // AI runs only when no matching resume exists.
-    const analyzedResume = await resumeAgent(normalizedText);
-
-    // Create the report only after AI analysis succeeds.
-    const resume = await Resume.create({
-      ...analyzedResume,
-      userId,
-      extractedText: normalizedText,
-      contentFingerprint,
-    });
+    // Reserve this user/content pair before the LLM call. A unique sparse index
+    // plus a short-lived MongoDB lease prevents concurrent uploads from running
+    // duplicate LLM analysis or creating duplicate reports.
+    const idempotencyKey = `${userId}:${contentFingerprint}`;
+    const analysisLockToken = randomUUID();
+    const now = new Date();
+    let resume;
 
     try {
-      billingResult = await deductResumeScorerBalance(
+      resume = await Resume.create({
         userId,
+        extractedText: normalizedText,
         contentFingerprint,
-      );
-    } catch (billingError) {
-      console.error("[Resume] Billing failed:", {
-        message: billingError.message,
-        status: billingError.status,
+        idempotencyKey,
+        processing: {
+          status: "processing",
+          stage: "analyzing",
+          parser: "pdf-parse",
+          analyzedAt: null,
+          error: "",
+          lockToken: analysisLockToken,
+          lockExpiresAt: new Date(now.getTime() + ANALYSIS_LOCK_MS),
+        },
+        billing: {
+          status: "pending",
+          transactionId: getBillingTransactionId(userId, contentFingerprint),
+          amount: RESUME_SCORER_PRICE,
+          chargedAt: null,
+        },
       });
-      // Do not leave an unpaid report accessible.
-      await Resume.deleteOne({
-        _id: resume._id,
-        userId,
-      });
+    } catch (error) {
+      if (error?.code !== 11000) throw error;
 
-      await safeCacheDelete(
-        legacyResumeCacheKey(userId),
-        resumeCacheKey(userId, String(resume._id)),
-      );
-
-      return res.status(billingError.status === 400 ? 400 : 503).json({
-        success: false,
-        message:
-          billingError.status === 400
-            ? billingError.message
-            : "Billing could not be confirmed. Please retry safely.",
+      const racedResume = await getExistingResume(userId, contentFingerprint);
+      if (!racedResume) throw error;
+      const result = await processExistingResume(userId, racedResume);
+      return respondWithResume(res, {
+        ...result,
+        reused: true,
+        status: 200,
       });
     }
 
-    await cacheResume(userId, resume);
-
-    return res.status(201).json({
-      success: true,
+    const preparedResume = await analyzeReservedResume(
+      userId,
+      resume,
+      analysisLockToken,
+    );
+    const result = await finalizePendingResume(userId, preparedResume);
+    return respondWithResume(res, {
+      ...result,
       reused: false,
-      message: "Resume analyzed and saved successfully",
-      data: resume,
-      balanceDeduction:
-        billingResult && billingResult.alreadyProcessed !== true
-          ? {
-              service: "Resume Scorer",
-              previousBalance: billingResult.previousBalance,
-              deductedAmount: billingResult.deductedAmount,
-              balance: billingResult.balance,
-            }
-          : null,
+      status: 201,
     });
   } catch (error) {
     logError("Upload failed", error);
+    const clientInputCodes = new Set([
+      "PDF_EMPTY",
+      "INVALID_PDF",
+      "PDF_NO_READABLE_TEXT",
+      "PDF_EXTRACTION_FAILED",
+      "RESUME_TEXT_TOO_LONG",
+    ]);
+    const status = Number.isInteger(error?.status)
+      ? error.status
+      : error?.code === "PDF_TOO_LARGE"
+        ? 413
+        : clientInputCodes.has(error?.code)
+          ? 400
+          : 500;
 
-    return res.status(error.status || 500).json({
+    return res.status(status).json({
       success: false,
+      code:
+        error?.code ||
+        (status === 503
+          ? "RESUME_TEMPORARILY_UNAVAILABLE"
+          : "RESUME_ANALYSIS_FAILED"),
       message:
-        error.status && error.status < 500
+        status === 400 || status === 409
           ? error.message
-          : "Failed to analyze the resume. Please try again.",
+          : status === 413
+            ? "The uploaded PDF exceeds the allowed size."
+            : status === 503
+              ? "Resume analysis or billing is temporarily unavailable. Retry the same upload safely."
+              : "Failed to analyze the resume. Please try again.",
     });
   } finally {
     await deleteTempFile(filePath);
   }
 };
 
-// GET /api/resumes/get-resume
-// Backward-compatible endpoint: returns the latest resume.
+// GET /api/resumes/get-resume: backward-compatible latest-resume endpoint.
 export const getResume = async (req, res) => {
   try {
     const userId = getUserId(req);
-
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authenticated user identity is required",
-      });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message: "Authenticated user identity is required",
+        });
     }
 
     const cacheKey = legacyResumeCacheKey(userId);
@@ -294,42 +700,34 @@ export const getResume = async (req, res) => {
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-
         if (
           String(parsed?.userId) === userId &&
           isValidObjectId(String(parsed?._id))
         ) {
-          return res.status(200).json({
-            success: true,
-            source: "redis",
-            data: parsed,
-          });
+          return res
+            .status(200)
+            .json({ success: true, source: "redis", data: parsed });
         }
       } catch {
-        // Malformed cache: fall through to MongoDB.
+        // Invalid cache data falls through to MongoDB.
       }
-
       await safeCacheDelete(cacheKey);
     }
 
-    const resume = await Resume.findOne({ userId }).sort({
+    const resume = await Resume.findOne(getVisibleResumeFilter(userId)).sort({
       updatedAt: -1,
     });
 
     if (!resume) {
-      return res.status(404).json({
-        success: false,
-        message: "Resume not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Resume not found" });
     }
 
     await cacheResume(userId, resume);
-
-    return res.status(200).json({
-      success: true,
-      source: "mongodb",
-      data: resume,
-    });
+    return res
+      .status(200)
+      .json({ success: true, source: "mongodb", data: resume });
   } catch (error) {
     logError("Get latest resume failed", error);
     return sendServerError(res, "fetch the resume");
@@ -340,25 +738,24 @@ export const getResume = async (req, res) => {
 export const listResumes = async (req, res) => {
   try {
     const userId = getUserId(req);
-
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authenticated user identity is required",
-      });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message: "Authenticated user identity is required",
+        });
     }
 
-    const resumes = await Resume.find({ userId })
+    const resumes = await Resume.find(getVisibleResumeFilter(userId))
       .select(
         "_id profile.name profile.email createdAt updatedAt processing.status",
       )
       .sort({ updatedAt: -1 })
+      .limit(100)
       .lean();
 
-    return res.status(200).json({
-      success: true,
-      data: resumes,
-    });
+    return res.status(200).json({ success: true, data: resumes });
   } catch (error) {
     logError("List resumes failed", error);
     return sendServerError(res, "list resumes");
@@ -372,17 +769,17 @@ export const getResumeById = async (req, res) => {
     const { resumeId } = req.params;
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authenticated user identity is required",
-      });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message: "Authenticated user identity is required",
+        });
     }
-
     if (!isValidObjectId(resumeId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid resume ID",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid resume ID" });
     }
 
     const cacheKey = resumeCacheKey(userId, resumeId);
@@ -391,60 +788,58 @@ export const getResumeById = async (req, res) => {
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-
         if (
           String(parsed?._id) === resumeId &&
           String(parsed?.userId) === userId
         ) {
-          return res.status(200).json({
-            success: true,
-            source: "redis",
-            data: parsed,
-          });
+          return res
+            .status(200)
+            .json({ success: true, source: "redis", data: parsed });
         }
       } catch {
-        // Malformed cache: fall through to MongoDB.
+        // Invalid cache data falls through to MongoDB.
       }
-
       await safeCacheDelete(cacheKey);
     }
 
-    // Ownership is enforced in the database query itself.
-    const resume = await Resume.findOne({
-      _id: resumeId,
-      userId,
-    });
+    const resume = await Resume.findOne(
+      getVisibleResumeFilter(userId, { _id: resumeId }),
+    );
 
     if (!resume) {
-      return res.status(404).json({
-        success: false,
-        message: "Resume not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Resume not found" });
     }
 
     await safeCacheSet(cacheKey, JSON.stringify(resume));
-
-    return res.status(200).json({
-      success: true,
-      source: "mongodb",
-      data: resume,
-    });
+    return res
+      .status(200)
+      .json({ success: true, source: "mongodb", data: resume });
   } catch (error) {
     logError("Get resume by ID failed", error);
     return sendServerError(res, "fetch the resume");
   }
 };
 
-// PATCH /api/resumes/update
-// Supports legacy requests without resumeId.
+// PATCH /api/resumes/update; legacy requests without resumeId update the latest resume.
 export const updateResume = async (req, res) => {
   try {
     const userId = getUserId(req);
-
     if (!userId) {
-      return res.status(401).json({
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message: "Authenticated user identity is required",
+        });
+    }
+
+    const parsedBody = resumeUpdateSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return res.status(400).json({
         success: false,
-        message: "Authenticated user identity is required",
+        message: "Resume update contains invalid or unsupported fields.",
       });
     }
 
@@ -459,14 +854,7 @@ export const updateResume = async (req, res) => {
       certifications,
       achievements,
       languages,
-    } = req.body || {};
-
-    if (resumeId !== undefined && !isValidObjectId(resumeId)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid resume ID",
-      });
-    }
+    } = parsedBody.data;
 
     const editableFields = {
       profile,
@@ -479,48 +867,40 @@ export const updateResume = async (req, res) => {
       achievements,
       languages,
     };
-
     const updateData = Object.fromEntries(
       Object.entries(editableFields).filter(([, value]) => value !== undefined),
     );
 
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No editable resume fields were provided",
-      });
+    if (!Object.keys(updateData).length) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "No editable resume fields were provided",
+        });
     }
 
-    // Never accept userId or extractedText from the request body.
-    const filter = resumeId ? { _id: resumeId, userId } : { userId };
-
+    const filter = getVisibleResumeFilter(
+      userId,
+      resumeId ? { _id: resumeId } : {},
+    );
     const resume = await Resume.findOneAndUpdate(
       filter,
       { $set: updateData },
-      {
-        new: true,
-        runValidators: true,
-        sort: { updatedAt: -1 },
-      },
-    );
+      { new: true, runValidators: true, sort: { updatedAt: -1 } },
+    ).select("+idempotencyKey");
 
     if (!resume) {
-      return res.status(404).json({
-        success: false,
-        message: "Resume not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Resume not found" });
     }
 
-    // Update the specific cache and replace the legacy latest-resume cache.
-    // Redis failures must not turn a successful MongoDB update into a 500.
-    await safeCacheDelete(legacyResumeCacheKey(userId));
-
-    await safeCacheSet(
+    await safeCacheDelete(
+      legacyResumeCacheKey(userId),
       resumeCacheKey(userId, String(resume._id)),
-      JSON.stringify(resume),
     );
-
-    await safeCacheSet(legacyResumeCacheKey(userId), JSON.stringify(resume));
+    await cacheResume(userId, resume);
 
     return res.status(200).json({
       success: true,
@@ -529,6 +909,14 @@ export const updateResume = async (req, res) => {
     });
   } catch (error) {
     logError("Update resume failed", error);
+    if (error?.name === "ValidationError" || error?.name === "CastError") {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Resume update contains invalid field values",
+        });
+    }
     return sendServerError(res, "update the resume");
   }
 };
@@ -539,43 +927,75 @@ export const deleteResume = async (req, res) => {
     const { resumeId } = req.params;
 
     if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized",
-      });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message: "Authenticated user identity is required",
+        });
     }
-
-    // Validate ID without using an unimported mongoose variable.
     if (!isValidObjectId(resumeId)) {
-      return res.status(400).json({
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid resume ID" });
+    }
+
+    const existing = await Resume.findOne({ _id: resumeId, userId }).select(
+      "+idempotencyKey billing.status processing.status +processing.lockExpiresAt",
+    );
+
+    if (!existing) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Resume not found" });
+    }
+
+    const canDeleteFailedRecord =
+      existing.idempotencyKey &&
+      existing.billing?.status === "failed" &&
+      existing.processing?.status === "failed";
+
+    if (
+      existing.idempotencyKey &&
+      existing.billing?.status !== "charged" &&
+      !canDeleteFailedRecord
+    ) {
+      return res.status(409).json({
         success: false,
-        message: "Invalid resume ID",
+        message:
+          "Resume analysis is still being finalized. Retry deletion shortly.",
       });
     }
 
-    // Delete only the resume owned by the authenticated user.
-    const deletedResume = await Resume.findOneAndDelete({
+    const deleteFilter = {
       _id: resumeId,
       userId,
-    });
-
+      ...(canDeleteFailedRecord
+        ? {
+            "billing.status": "failed",
+            "processing.status": "failed",
+            $or: [
+              { "processing.lockExpiresAt": { $exists: false } },
+              { "processing.lockExpiresAt": { $lte: new Date() } },
+            ],
+          }
+        : {}),
+    };
+    const deletedResume = await Resume.findOneAndDelete(deleteFilter);
     if (!deletedResume) {
-      return res.status(404).json({
-        success: false,
-        message: "Resume not found",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "Resume not found" });
     }
 
-    // Clear the corresponding cache entries.
     await safeCacheDelete(
       resumeCacheKey(userId, resumeId),
       legacyResumeCacheKey(userId),
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Resume deleted successfully",
-    });
+    return res
+      .status(200)
+      .json({ success: true, message: "Resume deleted successfully" });
   } catch (error) {
     logError("Delete resume failed", error);
     return sendServerError(res, "delete resume");

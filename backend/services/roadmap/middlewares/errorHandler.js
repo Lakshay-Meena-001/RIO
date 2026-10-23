@@ -29,7 +29,15 @@ export function errorHandler(error, req, res, next) {
     return next(error);
   }
 
-  const statusCode = error.statusCode || HTTP_STATUS_BY_CODE[error.code] || 500;
+  const statusCode =
+    error.statusCode ||
+    (error.type === "entity.too.large" ? 413 : null) ||
+    (error.type === "entity.parse.failed" ? 400 : null) ||
+    (error.name === "ValidationError" ? 400 : null) ||
+    (error.name === "CastError" ? 400 : null) ||
+    (error.code === 11000 ? 409 : null) ||
+    HTTP_STATUS_BY_CODE[error.code] ||
+    500;
 
   // Log the complete error on the server, never expose internal details.
   if (statusCode >= 500) {
@@ -48,7 +56,13 @@ export function errorHandler(error, req, res, next) {
     message:
       statusCode >= 500
         ? "The roadmap service could not complete the request."
-        : error.message || "The request could not be completed.",
+        : statusCode === 413
+          ? "Request body is too large."
+          : statusCode === 400 && error.type === "entity.parse.failed"
+            ? "Request body contains invalid JSON."
+            : statusCode === 409
+              ? "The request conflicts with existing data."
+              : error.message || "The request could not be completed.",
   });
 }
 

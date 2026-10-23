@@ -1,13 +1,6 @@
 import summaryPrompt from "../prompts/summary.prompt.js";
 import { summarySchema } from "../validators/interview.schema.js";
-import { ChatGroq } from "@langchain/groq";
-
-const summaryLlm = new ChatGroq({
-  model: "openai/gpt-oss-120b",
-  temperature: 0.2,
-  maxTokens: 1500,
-  maxRetries: 2,
-});
+import { summaryLlm } from "../config/llm.js";
 
 export const summaryAgent = async (data) => {
   try {
@@ -38,7 +31,7 @@ export const summaryAgent = async (data) => {
     // 7. Return only validated data
     return validatedSummary;
   } catch (error) {
-    console.error("Summary Agent Error:", error);
+    console.error("Summary Agent Error:", error.message);
 
     const agentError = new Error("Failed to generate interview summary.");
 

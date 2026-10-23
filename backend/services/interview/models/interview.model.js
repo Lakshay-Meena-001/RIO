@@ -221,6 +221,7 @@ const questionSchema = new mongoose.Schema(
     answer: {
       type: String,
       default: "",
+      maxlength: 20000,
     },
 
     /*
@@ -491,6 +492,11 @@ const interviewSchema = new mongoose.Schema(
       default: null,
     },
 
+    terminationNoticeDismissed: {
+      type: Boolean,
+      default: false,
+    },
+
     /*
      * -----------------------------------------------------
      * Navigation
@@ -660,6 +666,15 @@ const interviewSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: {
+      transform(_document, value) {
+        delete value.finalizationKey;
+        delete value.finalizationStartedAt;
+        delete value.finalizationLeaseUntil;
+        delete value.__v;
+        return value;
+      },
+    },
   },
 );
 
@@ -673,6 +688,13 @@ const interviewSchema = new mongoose.Schema(
 interviewSchema.index({
   userId: 1,
   createdAt: -1,
+});
+
+interviewSchema.index({
+  userId: 1,
+  status: 1,
+  terminationReason: 1,
+  endedAt: -1,
 });
 
 /*

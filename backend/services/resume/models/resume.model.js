@@ -1,9 +1,7 @@
 import mongoose from "mongoose";
 import crypto from "node:crypto";
 
-// ============================================================
 // SUB-SCHEMAS
-// ============================================================
 
 const educationSchema = new mongoose.Schema(
   {
@@ -43,9 +41,7 @@ const projectSchema = new mongoose.Schema(
   { _id: false },
 );
 
-// ============================================================
 // FINGERPRINT HELPERS
-// ============================================================
 
 const normalizeResumeText = (text = "") =>
   String(text).replace(/\r\n/g, "\n").trim().replace(/\s+/g, " ");
@@ -53,9 +49,7 @@ const normalizeResumeText = (text = "") =>
 const createResumeFingerprint = (text = "") =>
   crypto.createHash("sha256").update(normalizeResumeText(text)).digest("hex");
 
-// ============================================================
 // RESUME SCHEMA
-// ============================================================
 
 const resumeSchema = new mongoose.Schema(
   {
@@ -75,6 +69,13 @@ const resumeSchema = new mongoose.Schema(
     contentFingerprint: {
       type: String,
       default: "",
+    },
+
+    // Per-user idempotency key. Sparse uniqueness keeps legacy documents
+    // without this field valid while preventing concurrent duplicate uploads.
+    idempotencyKey: {
+      type: String,
+      select: false,
     },
 
     // Archive/soft-delete support.
@@ -167,10 +168,24 @@ const resumeSchema = new mongoose.Schema(
         enum: ["pending", "processing", "completed", "failed"],
         default: "pending",
       },
+      stage: {
+        type: String,
+        enum: [
+          "",
+          "analyzing",
+          "analysis_failed",
+          "billing",
+          "billing_failed",
+          "completed",
+        ],
+        default: "",
+      },
 
       parser: { type: String, default: "" },
       analyzedAt: { type: Date, default: null },
       error: { type: String, default: "" },
+      lockToken: { type: String, default: undefined, select: false },
+      lockExpiresAt: { type: Date, default: undefined, select: false },
     },
     billing: {
       status: {
@@ -200,6 +215,16 @@ const resumeSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: {
+      transform: (_document, value) => {
+        delete value.idempotencyKey;
+        if (value.processing) {
+          delete value.processing.lockToken;
+          delete value.processing.lockExpiresAt;
+        }
+        return value;
+      },
+    },
   },
 );
 
@@ -215,17 +240,20 @@ resumeSchema.pre("validate", function () {
   }
 });
 
-// ============================================================
 // INDEXES
-// ============================================================
 
 // Supports user resume listing sorted by latest update.
 resumeSchema.index({ userId: 1, updatedAt: -1 });
 
 // Supports duplicate lookup by user and fingerprint.
-// Intentionally non-unique until existing data and duplicate behavior
-// have been checked and a safe migration has been planned.
 resumeSchema.index({ userId: 1, contentFingerprint: 1 });
+
+// Legacy documents do not have this key. New documents use it to make
+// concurrent uploads for the same user and resume content idempotent.
+resumeSchema.index(
+  { idempotencyKey: 1 },
+  { unique: true, sparse: true, name: "uniq_resume_idempotency_key" },
+);
 
 // Preserve the existing archive index from isArchived: true.
 

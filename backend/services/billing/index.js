@@ -28,12 +28,18 @@ const JSON_BODY_LIMIT = process.env.JSON_BODY_LIMIT || "100kb";
 app.disable("x-powered-by");
 app.use(helmet());
 
-// Health check
+// Readiness check: Billing requires MongoDB to serve requests safely.
 app.get("/health", (_req, res) => {
-  res.status(200).json({
-    success: true,
+  const databaseReady = mongoose.connection.readyState === 1;
+  const status = databaseReady ? "healthy" : "unavailable";
+
+  return res.status(databaseReady ? 200 : 503).json({
+    success: databaseReady,
     service: "billing",
-    status: "healthy",
+    status,
+    dependencies: {
+      mongodb: databaseReady ? "ready" : "unavailable",
+    },
   });
 });
 

@@ -11,6 +11,7 @@ import {
   getUserBalanceTransactionsInternal,
   creditBalanceInternal,
   getCurrentUser,
+  updateProfessionalProfile,
 } from "../controllers/auth.controller.js";
 
 import { internalAuthMiddleware } from "../middleware/internal-auth.middleware.js";
@@ -21,6 +22,7 @@ const authRouter = express.Router();
 authRouter.get("/me", getCurrentUser);
 authRouter.post("/login", googleAuth);
 authRouter.patch("/profile", completeProfile);
+authRouter.patch("/auth/professional-profile", updateProfessionalProfile);
 authRouter.post("/logout", logout);
 
 // Existing balance deduction route.

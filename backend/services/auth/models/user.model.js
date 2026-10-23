@@ -114,7 +114,7 @@ const userSchema = new mongoose.Schema(
       maxlength: 300,
     },
 
-     // User's available account balance.
+    // User's available account balance.
     balance: {
       type: Number,
       default: 1500,

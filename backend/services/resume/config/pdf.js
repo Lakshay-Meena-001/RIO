@@ -6,8 +6,8 @@ const MAX_FILE_SIZE_MB = Number(process.env.RESUME_MAX_FILE_SIZE_MB ?? 10);
 
 const MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 
-if (!Number.isFinite(MAX_FILE_SIZE_MB) || MAX_FILE_SIZE_MB <= 0) {
-  throw new Error("RESUME_MAX_FILE_SIZE_MB must be a positive number.");
+if (!Number.isInteger(MAX_FILE_SIZE_MB) || MAX_FILE_SIZE_MB <= 0) {
+  throw new Error("RESUME_MAX_FILE_SIZE_MB must be a positive integer.");
 }
 
 export const extractText = async (filePath) => {

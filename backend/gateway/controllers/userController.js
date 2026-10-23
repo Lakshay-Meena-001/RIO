@@ -1,103 +1,133 @@
 import "dotenv/config";
 
-const AUTH_SERVICE_URL = process.env.AUTH_SERVICE_URL;
-const AUTH_INTERNAL_SECRET = process.env.AUTH_INTERNAL_SECRET;
+const requestTimeoutMs = Number(process.env.AUTH_REQUEST_TIMEOUT_MS || 5000);
 
-export const getCurrentUser = async (req, res) => {
-  try {
-    // The identity comes from the authenticated server-side session.
-    const userId = req.user?.userId;
+export async function getCurrentUser(req, res) {
+  const userId = req.user?.userId;
 
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Authentication required.",
-      });
-    }
-
-    // Fail closed when internal service authentication is not configured.
-    if (
-      !AUTH_SERVICE_URL ||
-      typeof AUTH_INTERNAL_SECRET !== "string" ||
-      !AUTH_INTERNAL_SECRET.trim()
-    ) {
-      console.error("Auth Service configuration is missing in API Gateway.");
-
-      return res.status(503).json({
-        success: false,
-        message: "User information is temporarily unavailable.",
-      });
-    }
-
-    // Ask Auth Service for the authoritative MongoDB balance.
-    const response = await fetch(`${AUTH_SERVICE_URL}/internal/user-balance`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-internal-service-secret": AUTH_INTERNAL_SECRET,
-        "x-user-id": userId,
+  if (typeof userId !== "string" || !/^[a-f\d]{24}$/i.test(userId)) {
+    return res.status(401).json({
+      success: false,
+      error: {
+        code: "AUTHENTICATION_REQUIRED",
+        message: "Please sign in to continue.",
       },
-      body: "{}",
-      signal: AbortSignal.timeout(5000),
+      requestId: req.requestId,
     });
+  }
+
+  const authServiceUrl =
+    process.env.AUTH_SERVICE_URL?.trim() || "http://localhost:6001";
+  const internalSecret = process.env.AUTH_INTERNAL_SECRET?.trim();
+
+  if (!internalSecret) {
+    console.error("AUTH_INTERNAL_SECRET is not configured.");
+    return sendError(
+      res,
+      req,
+      503,
+      "SERVICE_CONFIGURATION_ERROR",
+      "User information is temporarily unavailable.",
+    );
+  }
+
+  try {
+    const response = await fetch(
+      `${authServiceUrl.replace(/\/$/, "")}/internal/user-balance`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-internal-service-secret": internalSecret,
+          "x-user-id": userId,
+          "x-request-id": req.requestId,
+        },
+        body: "{}",
+        signal: AbortSignal.timeout(requestTimeoutMs),
+      },
+    );
+
+    if (response.status === 404) {
+      return sendError(
+        res,
+        req,
+        404,
+        "USER_NOT_FOUND",
+        "The user account could not be found.",
+      );
+    }
 
     if (!response.ok) {
-      if (response.status === 404) {
-        return res.status(404).json({
-          success: false,
-          message: "User account not found.",
-        });
-      }
-
-      console.error(
-        `Auth Service balance lookup failed with status ${response.status}.`,
-      );
-
-      return res.status(503).json({
-        success: false,
-        message: "User information is temporarily unavailable.",
+      console.error("Auth Service user lookup failed", {
+        requestId: req.requestId,
+        status: response.status,
       });
+      return sendError(
+        res,
+        req,
+        502,
+        "AUTH_SERVICE_ERROR",
+        "User information is temporarily unavailable.",
+      );
     }
 
-    const balanceData = await response.json();
-    const balance = balanceData?.balance;
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      return sendError(
+        res,
+        req,
+        502,
+        "INVALID_AUTH_SERVICE_RESPONSE",
+        "User information is temporarily unavailable.",
+      );
+    }
 
-    // Never return an invalid or malformed balance as valid account data.
+    const balance = data?.balance;
     if (
-      balanceData?.success !== true ||
+      data?.success !== true ||
       !Number.isSafeInteger(balance) ||
       balance < 0
     ) {
-      console.error("Auth Service returned an invalid balance response.");
-
-      return res.status(502).json({
-        success: false,
-        message: "Unable to verify the current account balance.",
+      console.error("Auth Service returned an invalid user balance response.", {
+        requestId: req.requestId,
       });
+      return sendError(
+        res,
+        req,
+        502,
+        "INVALID_AUTH_SERVICE_RESPONSE",
+        "User information is temporarily unavailable.",
+      );
     }
 
-    // Preserve the existing session-backed profile fields,
-    // but always use the latest verified balance.
     return res.status(200).json({
       success: true,
-      user: {
-        ...req.user,
-        balance,
-      },
+      user: { ...req.user, balance },
+      requestId: req.requestId,
     });
   } catch (error) {
-    if (error.name === "TimeoutError" || error.name === "AbortError") {
-      return res.status(504).json({
-        success: false,
-        message: "User information request timed out.",
-      });
-    }
+    const timedOut = ["TimeoutError", "AbortError"].includes(error?.name);
+    const status = timedOut ? 504 : 503;
+    const code = timedOut ? "AUTH_SERVICE_TIMEOUT" : "AUTH_SERVICE_UNAVAILABLE";
+    const message = timedOut
+      ? "User information request timed out."
+      : "User information is temporarily unavailable.";
 
-    console.error("Get Current User Error:", error);
-
-    return res.status(503).json({
-      success: false,
-      message: "User information is temporarily unavailable.",
+    console.error("Auth Service user lookup failed", {
+      requestId: req.requestId,
+      error: error?.message,
     });
+
+    return sendError(res, req, status, code, message);
   }
-};
+}
+
+function sendError(res, req, status, code, message) {
+  return res.status(status).json({
+    success: false,
+    error: { code, message },
+    requestId: req.requestId,
+  });
+}

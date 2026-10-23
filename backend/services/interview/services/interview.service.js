@@ -5,19 +5,28 @@ import Interview from "../models/interview.model.js";
 
 import graph from "../graph/graph.js";
 import AppError from "../utils/error.js";
+import { normalizeDeductionResponse } from "../utils/payment.js";
 
 /*
- * =========================================================
  * CONSTANTS
- * =========================================================
  */
 
 const INTERVIEW_COMPLETION_COST = 100;
 const FINALIZATION_LOCK_TIMEOUT_MS = 30 * 60 * 1000;
 const FINALIZATION_LEASE_DURATION_MS = 2 * 60 * 1000;
 
-const AUTH_SERVICE_URL =
-  process.env.AUTH_SERVICE_URL || "http://localhost:8001";
+const AUTH_SERVICE_URL = (
+  process.env.AUTH_SERVICE_URL || "http://localhost:8001"
+).replace(/\/+$/, "");
+const AUTH_SERVICE_TIMEOUT_MS = 5000;
+const MAX_ANSWER_LENGTH = 20000;
+const EXPIRATION_GRACE_PERIOD_MS = 10000;
+
+const hasSuccessfulPayment = (status) =>
+  status === "deducted" || status === "charged";
+
+const hasPaymentInFlight = (status) =>
+  status === "deducting" || status === "charging";
 
 const refreshFinalizationLease = async (
   userId,
@@ -148,9 +157,7 @@ const startFinalizationLeaseHeartbeat = (
 };
 
 /*
- * =========================================================
  * BUILD GRAPH STATE
- * =========================================================
  *
  * Converts the MongoDB interview document into the state
  * expected by LangGraph.
@@ -222,9 +229,7 @@ function buildGraphState(interview, extraState = {}) {
 }
 
 /*
- * =========================================================
  * VALIDATE INTERVIEW ID
- * =========================================================
  */
 
 function validateInterviewId(interviewId) {
@@ -234,9 +239,7 @@ function validateInterviewId(interviewId) {
 }
 
 /*
- * =========================================================
  * GET INTERVIEW DEADLINE
- * =========================================================
  */
 
 function getInterviewDeadline(interview) {
@@ -251,9 +254,7 @@ function getInterviewDeadline(interview) {
 }
 
 /*
- * =========================================================
  * CREATE QUESTION RECORD
- * =========================================================
  *
  * The AI generates the question.
  *
@@ -330,9 +331,7 @@ function createQuestionRecord(question) {
 }
 
 /*
- * =========================================================
  * GET USER INTERVIEW
- * =========================================================
  */
 
 async function findUserInterview(userId, interviewId) {
@@ -349,9 +348,7 @@ async function findUserInterview(userId, interviewId) {
 }
 
 /*
- * =========================================================
  * EVALUATE ONE QUESTION
- * =========================================================
  *
  * This is the ONLY place where an individual answer goes
  * through LangGraph/LLM evaluation.
@@ -417,9 +414,7 @@ async function evaluateQuestion(interview, question) {
 }
 
 /*
- * =========================================================
  * MARK QUESTION SUBMITTED
- * =========================================================
  */
 
 function markQuestionSubmitted(question, evaluation) {
@@ -428,72 +423,6 @@ function markQuestionSubmitted(question, evaluation) {
   question.answerStatus = "submitted";
 
   question.submittedAt = new Date();
-}
-
-/*
- * =========================================================
- * ABANDON INTERVIEW ON SERVER ERROR
- * =========================================================
- *
- * Already submitted questions remain preserved.
- *
- * No completion.
- * No balance deduction.
- */
-async function abandonForServerError(
-  interview,
-  userId,
-  interviewId,
-  finalizationKey,
-) {
-  /*
-   * Never abandon an interview after its payment has
-   * already been deducted.
-   *
-   * The caller should recover/finalize such an interview
-   * instead of converting it into a failed interview.
-   */
-  if (
-    interview.paymentStatus === "deducted" ||
-    interview.paymentStatus === "deducting"
-  ) {
-    throw new AppError(
-      "Interview payment is already being processed. Finalization must continue.",
-      503,
-    );
-  }
-
-  const abandonedInterview = await Interview.findOneAndUpdate(
-    {
-      _id: interviewId,
-      userId,
-      status: "in-progress",
-      finalizationKey,
-    },
-    {
-      $set: {
-        status: "abandoned",
-        endedAt: new Date(),
-        terminationReason: "server-error",
-        finalizationKey: null,
-        finalizationStartedAt: null,
-        finalizationLeaseUntil: null,
-      },
-    },
-    {
-      returnDocument: "after",
-      runValidators: true,
-    },
-  );
-
-  if (!abandonedInterview) {
-    throw new AppError(
-      "Interview finalization ownership was lost. Please retry.",
-      409,
-    );
-  }
-
-  return abandonedInterview;
 }
 
 function generateFallbackReport(interview) {
@@ -634,21 +563,40 @@ function generateFallbackReport(interview) {
 }
 
 /*
- * =========================================================
  * GENERATE FINAL SUMMARY
- * =========================================================
  */
 
 async function generateInterviewSummary(interview) {
   try {
-    const summaryQuestions = interview.questions.map((question) => ({
-      questionId: question.questionId,
-      text: question.text,
-      section: question.section,
-      difficulty: question.difficulty,
-      answerStatus: question.answerStatus,
-      evaluation: question.evaluation,
-    }));
+    const summaryQuestions = interview.questions.map((question) => {
+      const evaluation = question.evaluation || {};
+
+      return {
+        questionId: question.questionId,
+        text: String(question.text || "").slice(0, 1200),
+        section: question.section,
+        difficulty: question.difficulty,
+        answerStatus: question.answerStatus,
+        evaluation:
+          question.answerStatus === "submitted"
+            ? {
+                score: evaluation.score,
+                correctness: evaluation.correctness,
+                clarity: evaluation.clarity,
+                relevance: evaluation.relevance,
+                communication: evaluation.communication,
+                logic: evaluation.logic,
+                complexity: evaluation.complexity,
+                edgeCases: evaluation.edgeCases,
+                codeQuality: evaluation.codeQuality,
+                feedback: String(evaluation.feedback || "").slice(0, 700),
+                strengths: (evaluation.strengths || []).slice(0, 3),
+                weaknesses: (evaluation.weaknesses || []).slice(0, 3),
+                recommendations: (evaluation.recommendations || []).slice(0, 3),
+              }
+            : null,
+      };
+    });
 
     const graphState = buildGraphState(interview, {
       action: "summary",
@@ -681,7 +629,10 @@ async function generateInterviewSummary(interview) {
      * so create a deterministic fallback report from
      * those evaluations.
      */
-    console.error("Summary generation failed. Using fallback report:", error);
+    console.error(
+      "Summary generation failed. Using fallback report:",
+      error.message,
+    );
 
     return generateFallbackReport(interview);
   }
@@ -711,11 +662,12 @@ async function getUserBalance(userId) {
       headers: {
         "Content-Type": "application/json",
         "x-user-id": userId.toString(),
-        "x-internal-service-secret": process.env.AUTH_INTERNAL_SECRET,
+        "x-internal-service-secret": process.env.AUTH_INTERNAL_SECRET?.trim(),
       },
+      signal: AbortSignal.timeout(AUTH_SERVICE_TIMEOUT_MS),
     });
   } catch (error) {
-    console.error("Auth Service balance request failed:", error);
+    console.error("Auth Service balance request failed:", error.message);
 
     throw new AppError(
       "Unable to verify your interview balance right now. Please try again.",
@@ -731,14 +683,27 @@ async function getUserBalance(userId) {
     data = null;
   }
 
-  if (!response.ok) {
+  if (!response.ok || data?.success !== true) {
     throw new AppError(
       data?.message || "Unable to verify your interview balance.",
-      response.status >= 500 ? 503 : response.status,
+      response.status >= 500
+        ? 503
+        : response.status >= 400
+          ? response.status
+          : 502,
     );
   }
 
-  return Number(data?.balance) || 0;
+  const balance = Number(data?.balance);
+
+  if (!Number.isFinite(balance) || balance < 0) {
+    throw new AppError(
+      "Auth Service returned an invalid balance response.",
+      502,
+    );
+  }
+
+  return balance;
 }
 
 async function deductInterviewBalance(userId, interviewId) {
@@ -751,8 +716,9 @@ async function deductInterviewBalance(userId, interviewId) {
       headers: {
         "Content-Type": "application/json",
         "x-user-id": userId.toString(),
-        "x-internal-service-secret": process.env.AUTH_INTERNAL_SECRET,
+        "x-internal-service-secret": process.env.AUTH_INTERNAL_SECRET?.trim(),
       },
+      signal: AbortSignal.timeout(AUTH_SERVICE_TIMEOUT_MS),
 
       body: JSON.stringify({
         amount: INTERVIEW_COMPLETION_COST,
@@ -761,7 +727,7 @@ async function deductInterviewBalance(userId, interviewId) {
       }),
     });
   } catch (error) {
-    console.error("Auth Service balance request failed:", error);
+    console.error("Auth Service balance request failed:", error.message);
 
     throw new AppError(
       "Unable to deduct interview balance right now. Please try again.",
@@ -800,17 +766,23 @@ async function deductInterviewBalance(userId, interviewId) {
     throw new AppError(message, 502);
   }
 
-  if (!data?.success) {
-    throw new AppError("Unable to deduct interview balance.", 502);
+  const normalizedResult = normalizeDeductionResponse(
+    data,
+    INTERVIEW_COMPLETION_COST,
+  );
+
+  if (!normalizedResult) {
+    throw new AppError(
+      "Auth Service returned an invalid deduction response.",
+      502,
+    );
   }
 
-  return data;
+  return normalizedResult;
 }
 
 /*
- * =========================================================
  * FINALIZE + DEDUCT BALANCE
- * =========================================================
  *
  * IMPORTANT:
  *
@@ -829,9 +801,7 @@ async function finalizeInterviewAndDeductBalance(
   finalizationKey = null,
 ) {
   /*
-   * ---------------------------------------------------------
    * Load the interview.
-   * ---------------------------------------------------------
    */
   let finalizationLeaseHeartbeat = null;
   let balanceDeduction = null;
@@ -846,30 +816,25 @@ async function finalizeInterviewAndDeductBalance(
   }
 
   /*
-   * ---------------------------------------------------------
    * Idempotent retry.
    *
    * If another request already completed the interview,
    * return the existing report.
    *
    * Do NOT deduct again here.
-   * ---------------------------------------------------------
    */
   if (interview.status === "completed" && interview.finalizedAt) {
     return interview;
   }
 
   /*
-   * ---------------------------------------------------------
    * Acquire finalization lock atomically.
-   * ---------------------------------------------------------
    *
    * Only one request can move this interview into the
    * finalization flow.
    *
    * Another simultaneous request will fail to acquire the
    * lock and must retry/read the latest interview state.
-   * ---------------------------------------------------------
    */
   if (!lockAlreadyAcquired) {
     finalizationKey = `finalize:${interviewId.toString()}:${crypto.randomUUID()}`;
@@ -960,16 +925,17 @@ async function finalizeInterviewAndDeductBalance(
     }
   }
   /*
-   * ---------------------------------------------------------
    * Payment lifecycle.
-   * ---------------------------------------------------------
    *
    * If this interview was already deducted during a previous
    * attempt, NEVER call Auth Service again.
    *
    * This makes finalization retry-safe.
-   * ---------------------------------------------------------
    */
+  if (hasSuccessfulPayment(interview.paymentStatus)) {
+    interview.paymentStatus = "deducted";
+  }
+
   if (interview.paymentStatus !== "deducted") {
     /*
      * Reuse the existing transaction ID when the interview
@@ -1088,12 +1054,10 @@ async function finalizeInterviewAndDeductBalance(
   }
 
   /*
-   * ---------------------------------------------------------
    * Payment is now complete.
    *
    * From this point onward, finalization must not perform
    * another payment operation.
-   * ---------------------------------------------------------
    */
   if (interview.paymentStatus === "deducted") {
     interview.paymentTransactionId =
@@ -1102,9 +1066,7 @@ async function finalizeInterviewAndDeductBalance(
   }
 
   /*
-   * ---------------------------------------------------------
    * Save final report.
-   * ---------------------------------------------------------
    */
   interview.overallScore = report.overallScore;
 
@@ -1127,12 +1089,10 @@ async function finalizeInterviewAndDeductBalance(
   interview.finalizedAt = new Date();
 
   /*
-   * ---------------------------------------------------------
    * Finalization completed successfully.
    *
    * The lock is no longer needed because the interview is
    * now permanently completed.
-   * ---------------------------------------------------------
    */
   const completedInterview = await Interview.findOneAndUpdate(
     {
@@ -1193,9 +1153,7 @@ async function finalizeInterviewAndDeductBalance(
 }
 
 /*
- * =========================================================
  * START INTERVIEW
- * =========================================================
  *
  * IMPORTANT:
  *
@@ -1416,7 +1374,7 @@ export const replaceActiveInterview = async (userId) => {
       },
       $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
       paymentStatus: {
-        $nin: ["deducting", "deducted"],
+        $nin: ["deducting", "deducted", "charging", "charged"],
       },
     },
     {
@@ -1439,9 +1397,7 @@ export const replaceActiveInterview = async (userId) => {
   return activeInterview;
 };
 /*
- * =========================================================
  * BEGIN INTERVIEW
- * =========================================================
  */
 export const beginInterview = async (userId, interviewId) => {
   validateInterviewId(interviewId);
@@ -1468,6 +1424,7 @@ export const beginInterview = async (userId, interviewId) => {
     },
     {
       returnDocument: "after",
+      runValidators: true,
     },
   );
 
@@ -1485,9 +1442,7 @@ export const beginInterview = async (userId, interviewId) => {
 };
 
 /*
- * =========================================================
  * GET ACTIVE INTERVIEW
- * =========================================================
  */
 export const getActiveInterview = async (userId) => {
   let interview = await Interview.findOne({
@@ -1535,9 +1490,7 @@ export const getActiveInterview = async (userId) => {
 };
 
 /*
- * =========================================================
  * GET RECENTLY TERMINATED INTERVIEW
- * =========================================================
  *
  * Returns only the latest interview that was automatically
  * terminated because the time limit was reached.
@@ -1551,35 +1504,43 @@ export const getRecentlyTerminatedInterview = async (userId) => {
     terminationReason: "time-limit",
   }).sort({ endedAt: -1 });
 
-  return interview || null;
+  if (!interview || interview.terminationNoticeDismissed) {
+    return null;
+  }
+
+  return interview;
 };
 /*
- * =========================================================
  * DISMISS TERMINATION NOTICE
- * =========================================================
  */
 
 export const dismissTerminationNotice = async (userId, interviewId) => {
   validateInterviewId(interviewId);
 
-  const deletedInterview = await Interview.findOneAndDelete({
-    _id: interviewId,
-    userId,
-    status: "abandoned",
-    terminationReason: "time-limit",
-  });
+  const dismissedInterview = await Interview.findOneAndUpdate(
+    {
+      _id: interviewId,
+      userId,
+      status: "abandoned",
+      terminationReason: "time-limit",
+      $or: [
+        { terminationNoticeDismissed: false },
+        { terminationNoticeDismissed: { $exists: false } },
+      ],
+    },
+    { $set: { terminationNoticeDismissed: true } },
+    { returnDocument: "after", runValidators: true },
+  );
 
-  if (!deletedInterview) {
+  if (!dismissedInterview) {
     throw new AppError("Termination notice not found.", 404);
   }
 
-  return deletedInterview;
+  return dismissedInterview;
 };
 
 /*
- * =========================================================
  * NEXT QUESTION
- * =========================================================
  *
  * Navigation ONLY.
  *
@@ -1639,9 +1600,7 @@ export const getNextQuestion = async (userId, interviewId) => {
 };
 
 /*
- * =========================================================
  * PREVIOUS QUESTION
- * =========================================================
  *
  * Navigation ONLY.
  *
@@ -1701,9 +1660,7 @@ export const getPreviousQuestion = async (userId, interviewId) => {
 };
 
 /*
- * =========================================================
  * JUMP TO QUESTION
- * =========================================================
  *
  * Navigation only.
  *
@@ -1768,9 +1725,7 @@ export const jumpToQuestion = async (userId, interviewId, index) => {
 };
 
 /*
- * =========================================================
  * SAVE DRAFT ANSWER
- * =========================================================
  *
  * Saves the candidate's current answer without evaluating it.
  *
@@ -1794,6 +1749,13 @@ export const saveDraftAnswer = async (
 
   if (typeof answer !== "string") {
     throw new AppError("Answer must be a string.", 400);
+  }
+
+  if (answer.length > MAX_ANSWER_LENGTH) {
+    throw new AppError(
+      `Answer must not exceed ${MAX_ANSWER_LENGTH} characters.`,
+      413,
+    );
   }
 
   const interview = await Interview.findOneAndUpdate(
@@ -1844,6 +1806,7 @@ export const saveDraftAnswer = async (
         },
       ],
       returnDocument: "after",
+      runValidators: true,
     },
   );
 
@@ -1883,9 +1846,7 @@ export const saveDraftAnswer = async (
   return interview;
 };
 /*
- * =========================================================
  * SUBMIT ENTIRE INTERVIEW
- * =========================================================
  *
  * This is the final submission.
  *
@@ -1907,12 +1868,30 @@ export const submitInterview = async (
 ) => {
   validateInterviewId(interviewId);
 
+  if (
+    draftAnswers !== undefined &&
+    (!draftAnswers ||
+      typeof draftAnswers !== "object" ||
+      Array.isArray(draftAnswers))
+  ) {
+    throw new AppError("draftAnswers must be an object.", 400);
+  }
+
+  if (draftAnswers) {
+    for (const value of Object.values(draftAnswers)) {
+      if (typeof value === "string" && value.length > MAX_ANSWER_LENGTH) {
+        throw new AppError(
+          `Answer must not exceed ${MAX_ANSWER_LENGTH} characters.`,
+          413,
+        );
+      }
+    }
+  }
+
   let interview = await findUserInterview(userId, interviewId);
 
   /*
-   * -------------------------------------------------------
    * Already completed
-   * -------------------------------------------------------
    *
    * Final submission is idempotent.
    *
@@ -1940,9 +1919,7 @@ export const submitInterview = async (
   }
 
   /*
-   * -------------------------------------------------------
    * Time check
-   * -------------------------------------------------------
    */
   const deadline = getInterviewDeadline(interview);
 
@@ -1953,7 +1930,6 @@ export const submitInterview = async (
 
   try {
     /*
-     * -----------------------------------------------------
      * Evaluate ONLY answered questions.
      *
      * Unanswered questions remain:
@@ -1962,7 +1938,6 @@ export const submitInterview = async (
      * submittedAt = null
      *
      * They are NOT sent to the LLM.
-     * -----------------------------------------------------
      */
 
     finalizationKey = `finalize:${interviewId.toString()}:${crypto.randomUUID()}`;
@@ -2088,14 +2063,12 @@ export const submitInterview = async (
     }
 
     /*
-     * -------------------------------------------------------
      * Persist the current frontend draft before finalization.
      *
      * This is intentionally NOT submitAnswer().
      *
      * Timer expiry must be able to capture the textarea draft
      * without passing through the normal active-answer endpoint.
-     * -------------------------------------------------------
      */
     if (draftAnswers && typeof draftAnswers === "object") {
       for (const question of interview.questions) {
@@ -2166,9 +2139,7 @@ export const submitInterview = async (
     }
 
     /*
-     * -----------------------------------------------------
      * Reload latest interview before report generation.
-     * -----------------------------------------------------
      */
     interview = await Interview.findOne({
       _id: interviewId,
@@ -2180,7 +2151,6 @@ export const submitInterview = async (
     }
 
     /*
-     * -----------------------------------------------------
      * IMPORTANT:
      *
      * We DO NOT require every question to be submitted.
@@ -2194,16 +2164,13 @@ export const submitInterview = async (
      * Q5 not answered
      *
      * This is a valid completed interview.
-     * -----------------------------------------------------
      */
 
     /*
-     * -----------------------------------------------------
      * Generate final report.
      *
      * If the LLM summary fails, generateInterviewSummary()
      * automatically creates a deterministic fallback report.
-     * -----------------------------------------------------
      */
     const evaluatedAnswerCount = interview.questions.filter(
       (question) =>
@@ -2291,9 +2258,7 @@ export const submitInterview = async (
     const report = await generateInterviewSummary(interview);
 
     /*
-     * -----------------------------------------------------
      * Finalize interview + deduct balance.
-     * -----------------------------------------------------
      *
      * The deadline may have been reached while answer
      * evaluation or summary generation was running.
@@ -2345,25 +2310,21 @@ export const submitInterview = async (
       finalizationLeaseHeartbeat = null;
     }
     /*
-     * -----------------------------------------------------
      * Business errors
-     * -----------------------------------------------------
      *
      * Insufficient balance, invalid state, etc. should not
      * automatically turn the interview into server-error.
      */
     if (
       error instanceof AppError &&
-      error.statusCode === 400 &&
-      error.message === "Insufficient balance."
+      error.statusCode >= 400 &&
+      error.statusCode < 500
     ) {
       throw error;
     }
 
     /*
-     * -----------------------------------------------------
      * Actual evaluation/server failure
-     * -----------------------------------------------------
      *
      * Successful evaluations remain preserved.
      *
@@ -2378,22 +2339,23 @@ export const submitInterview = async (
       });
 
       /*
-       * -------------------------------------------------------
        * Payment is already deducted.
        *
        * NEVER abandon the interview.
        *
        * A later retry must finish the interview without
        * deducting the user again.
-       * -------------------------------------------------------
        */
-      if (currentInterview?.paymentStatus === "deducted") {
+      if (
+        currentInterview &&
+        hasSuccessfulPayment(currentInterview.paymentStatus)
+      ) {
         const recoveredInterview = await Interview.findOneAndUpdate(
           {
             _id: interviewId,
             userId,
             status: "in-progress",
-            paymentStatus: "deducted",
+            paymentStatus: currentInterview.paymentStatus,
             finalizationKey,
           },
           {
@@ -2420,15 +2382,16 @@ export const submitInterview = async (
       }
 
       /*
-       * -------------------------------------------------------
        * Payment is currently being processed.
        *
        * Do NOT abandon the interview.
        *
        * The same payment transaction can safely be retried.
-       * -------------------------------------------------------
        */
-      if (currentInterview?.paymentStatus === "deducting") {
+      if (
+        currentInterview &&
+        hasPaymentInFlight(currentInterview.paymentStatus)
+      ) {
         /*
          * Payment may have succeeded remotely.
          * Keep paymentStatus = "deducting" and the same
@@ -2476,12 +2439,10 @@ export const submitInterview = async (
       }
 
       /*
-       * -------------------------------------------------------
        * No payment has been processed.
        *
        * A genuine server-side failure can safely abandon the
        * interview without deducting balance.
-       * -------------------------------------------------------
        */
       if (currentInterview && currentInterview.status === "in-progress") {
         // Release the finalization lock so the user can retry.
@@ -2530,16 +2491,14 @@ export const submitInterview = async (
     }
 
     throw new AppError(
-      "We couldn't complete your interview due to a server error. Your interview has been ended without deducting balance.",
+      "We couldn't complete your interview due to a server error. Your answers have been preserved; please retry. No balance was deducted.",
       502,
     );
   }
 };
 
 /*
- * =========================================================
  * EXPIRE INTERVIEW
- * =========================================================
  * Backend is the source of truth for time.
  *
  * When the deadline is reached:
@@ -2556,7 +2515,12 @@ async function expireInterviewIfNeeded(interview) {
 
   const deadline = getInterviewDeadline(interview);
 
-  if (!deadline || new Date() < deadline) {
+  // Give the browser's final-submit request a short window to deliver its
+  // latest in-memory drafts before server-side expiry takes ownership.
+  if (
+    !deadline ||
+    Date.now() < deadline.getTime() + EXPIRATION_GRACE_PERIOD_MS
+  ) {
     return false;
   }
 
@@ -2570,13 +2534,11 @@ async function expireInterviewIfNeeded(interview) {
 
   try {
     /*
-     * -----------------------------------------------------
      * Acquire the finalization lock BEFORE evaluating any
      * pending answers.
      *
      * This prevents timer expiry and manual final submission
      * from evaluating/finalizing the same interview concurrently.
-     * -----------------------------------------------------
      */
     finalizationKey = `finalize:${interview._id.toString()}:${crypto.randomUUID()}`;
 
@@ -2659,12 +2621,10 @@ async function expireInterviewIfNeeded(interview) {
     );
 
     /*
-     * -----------------------------------------------------
      * Evaluate only answered questions that have not
      * already been submitted.
      *
      * Unanswered questions remain Not Answered.
-     * -----------------------------------------------------
      */
     const pendingQuestions = interview.questions.filter(
       (question) =>
@@ -2714,9 +2674,7 @@ async function expireInterviewIfNeeded(interview) {
     }
 
     /*
-     * -----------------------------------------------------
      * Reload latest data.
-     * -----------------------------------------------------
      */
     const latestInterview = await Interview.findById(interview._id);
 
@@ -2725,9 +2683,7 @@ async function expireInterviewIfNeeded(interview) {
     }
 
     /*
-     * -----------------------------------------------------
      * Generate report.
-     * -----------------------------------------------------
      */
     const evaluatedAnswerCount = latestInterview.questions.filter(
       (question) =>
@@ -2737,7 +2693,6 @@ async function expireInterviewIfNeeded(interview) {
     ).length;
 
     /*
-     * -----------------------------------------------------
      * Timer expired without any attempted answer.
      *
      * This interview must:
@@ -2745,7 +2700,6 @@ async function expireInterviewIfNeeded(interview) {
      * - NOT deduct balance
      * - NOT become completed
      * - NOT appear as completed history
-     * -----------------------------------------------------
      */
     if (evaluatedAnswerCount === 0) {
       latestInterview.status = "abandoned";
@@ -2780,7 +2734,7 @@ async function expireInterviewIfNeeded(interview) {
             finalizationStartedAt: null,
             finalizationLeaseUntil: null,
             overallScore: 0,
-            sectionScores: [],
+            sectionScores: {},
             strengths: [],
             weaknesses: [],
             recommendations: [],
@@ -2818,9 +2772,7 @@ async function expireInterviewIfNeeded(interview) {
     const report = await generateInterviewSummary(latestInterview);
 
     /*
-     * -----------------------------------------------------
      * FINALIZE + DEDUCT BALANCE exactly once.
-     * -----------------------------------------------------
      */
     await finalizeInterviewAndDeductBalance(
       latestInterview.userId,
@@ -2847,12 +2799,9 @@ async function expireInterviewIfNeeded(interview) {
      *
      * Preserve whatever was already successfully evaluated.
      *
-     * Business errors such as insufficient balance is propagated
-     * to the caller and are NOT converted into server-error
-     * abandonment.
-     *
-     * Actual evaluation/server failures abandon the interview
-     * without deducting balance.
+     * Business errors are propagated to the caller.
+     * Evaluation/server failures preserve the interview and
+     * release the lock so finalization can be retried.
      */
 
     const currentInterview = await Interview.findById(interview._id);
@@ -2861,13 +2810,16 @@ async function expireInterviewIfNeeded(interview) {
       return false;
     }
 
-    if (currentInterview.paymentStatus === "deducted") {
+    if (
+      currentInterview &&
+      hasSuccessfulPayment(currentInterview.paymentStatus)
+    ) {
       const recoveredInterview = await Interview.findOneAndUpdate(
         {
           _id: interview._id,
           userId: interview.userId,
           status: "in-progress",
-          paymentStatus: "deducted",
+          paymentStatus: currentInterview.paymentStatus,
           finalizationKey,
         },
         {
@@ -2906,63 +2858,47 @@ async function expireInterviewIfNeeded(interview) {
       const currentInterview = await Interview.findById(interview._id);
 
       if (currentInterview && currentInterview.status === "in-progress") {
-        /*
-         * Payment has already been processed.
-         *
-         * NEVER abandon the interview.
-         * A later retry must finish finalization without
-         * deducting the user again.
-         */
-
-        if (currentInterview.paymentStatus === "deducting") {
-          const recoveredInterview = await Interview.findOneAndUpdate(
-            {
-              _id: interview._id,
-              userId: interview.userId,
-              status: "in-progress",
-              finalizationKey,
+        const releasedInterview = await Interview.findOneAndUpdate(
+          {
+            _id: interview._id,
+            userId: interview.userId,
+            status: "in-progress",
+            finalizationKey,
+          },
+          {
+            $set: {
+              finalizationKey: null,
+              finalizationStartedAt: null,
+              finalizationLeaseUntil: null,
             },
-            {
-              $set: {
-                finalizationKey: null,
-                finalizationStartedAt: null,
-                finalizationLeaseUntil: null,
-              },
-            },
-            {
-              returnDocument: "after",
-            },
-          );
-
-          if (!recoveredInterview) {
-            throw new AppError(
-              "Interview finalization ownership was lost. Please retry.",
-              409,
-            );
-          }
-
-          return true;
-        }
-
-        await abandonForServerError(
-          currentInterview,
-          currentInterview.userId,
-          interview._id,
-          finalizationKey,
+          },
+          {
+            returnDocument: "after",
+          },
         );
+
+        if (!releasedInterview) {
+          throw new AppError(
+            "Interview finalization ownership was lost. Please retry.",
+            409,
+          );
+        }
       }
-    } catch (abandonError) {
-      console.error("Failed to abandon expired interview:", abandonError);
+    } catch (recoveryError) {
+      console.error(
+        "Failed to release expired interview finalization lock:",
+        recoveryError.message,
+      );
     }
 
+    // Keep the interview and all successfully evaluated answers recoverable.
+    // The next request can retry expiry/finalization without losing progress.
     return true;
   }
 }
 
 /*
- * =========================================================
  * GET INTERVIEW
- * =========================================================
  */
 
 export const getInterview = async (userId, interviewId) => {
@@ -2985,9 +2921,7 @@ export const getInterview = async (userId, interviewId) => {
 };
 
 /*
- * =========================================================
  * QUIT INTERVIEW
- * =========================================================
  */
 
 export const quitInterview = async (userId, interviewId) => {
@@ -3002,7 +2936,7 @@ export const quitInterview = async (userId, interviewId) => {
       await expireInterviewIfNeeded(existingInterview);
 
       throw new AppError(
-        "Interview time limit has ended. The interview was finalized automatically.",
+        "Interview time limit has ended. Automatic finalization is in progress; please wait.",
         400,
       );
     }
@@ -3015,7 +2949,7 @@ export const quitInterview = async (userId, interviewId) => {
       status: "in-progress",
       $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
       paymentStatus: {
-        $nin: ["deducting", "deducted"],
+        $nin: ["deducting", "deducted", "charging", "charged"],
       },
     },
     {
@@ -3046,8 +2980,8 @@ export const quitInterview = async (userId, interviewId) => {
 
   if (
     existingInterview.finalizationKey ||
-    existingInterview.paymentStatus === "deducting" ||
-    existingInterview.paymentStatus === "deducted"
+    hasPaymentInFlight(existingInterview.paymentStatus) ||
+    hasSuccessfulPayment(existingInterview.paymentStatus)
   ) {
     throw new AppError(
       "Interview finalization is already in progress. Please wait for it to complete.",
@@ -3059,9 +2993,7 @@ export const quitInterview = async (userId, interviewId) => {
 };
 
 /*
- * =========================================================
  * INTERVIEW HISTORY
- * =========================================================
  */
 
 export const getInterviewHistory = async (userId) => {
@@ -3076,9 +3008,7 @@ export const getInterviewHistory = async (userId) => {
 };
 
 /*
- * =========================================================
  * DELETE INTERVIEW
- * =========================================================
  */
 
 export const deleteInterview = async (userId, interviewId) => {
@@ -3087,9 +3017,16 @@ export const deleteInterview = async (userId, interviewId) => {
   const deletedInterview = await Interview.findOneAndDelete({
     _id: interviewId,
     userId,
-    status: {
-      $in: ["completed", "abandoned"],
-    },
+    $nor: [{ paymentStatus: { $in: ["deducting", "charging"] } }],
+    $or: [
+      { status: "completed" },
+      {
+        status: "abandoned",
+        paymentStatus: {
+          $nin: ["deducting", "deducted", "charging", "charged"],
+        },
+      },
+    ],
   });
 
   if (deletedInterview) {
@@ -3102,8 +3039,8 @@ export const deleteInterview = async (userId, interviewId) => {
 
   if (
     interview.status === "in-progress" ||
-    interview.paymentStatus === "deducting" ||
-    interview.paymentStatus === "deducted" ||
+    hasPaymentInFlight(interview.paymentStatus) ||
+    hasSuccessfulPayment(interview.paymentStatus) ||
     interview.finalizationKey
   ) {
     throw new AppError(

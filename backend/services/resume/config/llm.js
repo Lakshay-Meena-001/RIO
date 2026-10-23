@@ -3,7 +3,7 @@ import { ChatGroq } from "@langchain/groq";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 
 const DEFAULT_TEMPERATURE = 0.2;
-const DEFAULT_MAX_TOKENS = 8000;
+const DEFAULT_MAX_TOKENS = 6000;
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_TIMEOUT_MS = 90000;
 
@@ -33,7 +33,6 @@ const maxRetries = Number(
 );
 
 function validateConfig() {
-  
   if (!["gemini", "groq"].includes(provider)) {
     throw new Error(
       `Unsupported Resume LLM provider: ${provider}. Use "gemini" or "groq".`,

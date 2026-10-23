@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import express from "express";
 import cors from "cors";
 import helmet from "helmet";
+import mongoose from "mongoose";
 
 import connectDatabase from "./config/db.js";
 import createRoadmapRouter from "./routes/roadmap.routes.js";
@@ -12,6 +13,9 @@ import { notFoundHandler, errorHandler } from "./middlewares/errorHandler.js";
 const app = express();
 
 const PORT = Number(process.env.PORT || 8004);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error("PORT must be an integer between 1 and 65535");
+}
 const HOST = process.env.HOST || "0.0.0.0";
 
 app.disable("x-powered-by");
@@ -33,10 +37,14 @@ app.use(
 );
 
 app.get("/health", (req, res) => {
-  res.status(200).json({
-    success: true,
+  // Liveness/readiness endpoint: report unavailable when MongoDB is disconnected.
+  const databaseReady = mongoose.connection.readyState === 1;
+
+  return res.status(databaseReady ? 200 : 503).json({
+    success: databaseReady,
     service: "roadmap",
-    status: "healthy",
+    status: databaseReady ? "healthy" : "not_ready",
+    dependencies: { mongodb: databaseReady ? "connected" : "disconnected" },
   });
 });
 

@@ -1,13 +1,15 @@
 import "dotenv/config";
 import crypto from "node:crypto";
 import express from "express";
+import mongoose from "mongoose";
 
 import { connectDatabase, disconnectDatabase } from "./config/db.js";
 import interviewRoutes from "./routes/interview.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
+import Interview from "./models/interview.model.js";
 
 const app = express();
-const PORT = process.env.PORT || 8003;
+const PORT = Number(process.env.PORT) || 8003;
 
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
@@ -51,11 +53,25 @@ function gatewayAuthMiddleware(req, res, next) {
   return next();
 }
 
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   return res.status(200).json({
     success: true,
     service: "interview-service",
-    status: "healthy",
+    status: "running",
+  });
+});
+
+app.get("/health", (_req, res) => {
+  const databaseReady = mongoose.connection.readyState === 1;
+  const healthy = databaseReady;
+
+  return res.status(healthy ? 200 : 503).json({
+    success: healthy,
+    service: "interview-service",
+    status: healthy ? "healthy" : "unavailable",
+    dependencies: {
+      mongodb: databaseReady ? "ready" : "unavailable",
+    },
   });
 });
 
@@ -79,7 +95,13 @@ async function startServer() {
       throw new Error("INTERVIEW_INTERNAL_SECRET must be configured");
     }
 
+    if (!process.env.AUTH_INTERNAL_SECRET?.trim()) {
+      throw new Error("AUTH_INTERNAL_SECRET must be configured");
+    }
+
     await connectDatabase();
+    await Interview.init();
+    console.log("Interview Service: MongoDB indexes verified.");
 
     server = app.listen(PORT, () => {
       console.log(`Interview service running on port ${PORT}`);
@@ -92,7 +114,7 @@ async function startServer() {
   } catch (error) {
     console.error("Interview service failed to start:", error.message);
     await disconnectDatabase().catch(() => {});
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 
@@ -113,10 +135,10 @@ async function shutdown(signal) {
     }
 
     await disconnectDatabase();
-    process.exit(0);
+    process.exitCode = 0;
   } catch (error) {
     console.error("Interview service shutdown failed:", error.message);
-    process.exit(1);
+    process.exitCode = 1;
   }
 }
 

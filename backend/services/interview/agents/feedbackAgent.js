@@ -1,4 +1,4 @@
-import llm from "../config/llm.js";
+import { evaluationLlm } from "../config/llm.js";
 import feedbackPrompt from "../prompts/feedback.prompt.js";
 import { feedbackSchema } from "../validators/interview.schema.js";
 
@@ -8,7 +8,7 @@ export const feedbackAgent = async (data) => {
     const prompt = feedbackPrompt(data);
 
     // 2. Ask LLM for evaluation
-    const response = await llm.invoke(prompt);
+    const response = await evaluationLlm.invoke(prompt);
 
     // 3. Convert response to string
     const content =
@@ -32,7 +32,7 @@ export const feedbackAgent = async (data) => {
     // 7. Return only validated data
     return validatedFeedback;
   } catch (error) {
-    console.error("Feedback Agent Error:", error);
+    console.error("Feedback Agent Error:", error.message);
 
     const agentError = new Error(
       "Failed to evaluate interview answer.",

@@ -1,56 +1,99 @@
 import proxy from "express-http-proxy";
 
-export const proxyWithHeaders = (
+const timeoutCodes = new Set([
+  "ETIMEDOUT",
+  "ESOCKETTIMEDOUT",
+  "ERR_SOCKET_TIMEOUT",
+]);
+
+export function proxyWithHeaders(
   serviceUrl,
   preservePath = false,
   options = {},
-) => {
+) {
   return proxy(serviceUrl, {
-    ...(preservePath && {
-      proxyReqPathResolver: (req) => {
-        return req.baseUrl + req.url;
-      },
-    }),
+    ...(preservePath
+      ? {
+          proxyReqPathResolver: (req) => `${req.baseUrl}${req.url}`,
+        }
+      : {}),
+    proxyReqOptDecorator(proxyRequestOptions, sourceRequest) {
+      const headers = proxyRequestOptions.headers || {};
+      proxyRequestOptions.headers = headers;
 
-    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
-      proxyReqOpts.headers = proxyReqOpts.headers || {};
+      delete headers["x-user-id"];
+      delete headers["x-internal-service-secret"];
 
-      // Remove any client-supplied identity or internal secret.
-      delete proxyReqOpts.headers["x-user-id"];
-      delete proxyReqOpts.headers["x-internal-service-secret"];
-
-      // Forward identity from the authenticated Gateway session.
-      const userId = srcReq.user?.userId ?? srcReq.user?.id ?? srcReq.user?._id;
-
-      if (userId != null && String(userId).trim()) {
-        proxyReqOpts.headers["x-user-id"] = String(userId);
+      const userId = sourceRequest.user?.userId;
+      if (typeof userId !== "string" || !/^[a-f\d]{24}$/i.test(userId)) {
+        const error = new Error("Authenticated user identity is missing.");
+        error.code = "ERR_GATEWAY_IDENTITY";
+        throw error;
       }
 
-      // Forward the internal secret only to configured services.
+      headers["x-user-id"] = userId;
+      headers["x-request-id"] = sourceRequest.requestId;
+
       if (options.forwardInternalSecret) {
-        const secretEnvName =
-          options.internalSecretEnv || "ROADMAP_INTERNAL_SECRET";
+        const secretName = options.internalSecretEnv;
+        const secret = secretName ? process.env[secretName]?.trim() : "";
 
-        const internalSecret = process.env[secretEnvName];
-
-        if (typeof internalSecret !== "string" || !internalSecret.trim()) {
-          throw new Error(
-            `${secretEnvName} is required for this internal service`,
+        if (!secret) {
+          const error = new Error(
+            `${secretName || "Internal service secret"} is not configured.`,
           );
+          error.code = "ERR_GATEWAY_CONFIG";
+          throw error;
         }
 
-        proxyReqOpts.headers["x-internal-service-secret"] = internalSecret;
+        headers["x-internal-service-secret"] = secret;
+      }
 
-        // Temporary safe diagnostic; never log the secret itself.
-        console.log("[Gateway internal auth]", {
-          secretEnvName,
-          secretConfigured: true,
-          secretLength: internalSecret.length,
-          userIdForwarded: Boolean(proxyReqOpts.headers["x-user-id"]),
+      return proxyRequestOptions;
+    },
+    proxyErrorHandler(error, res, next) {
+      if (res.headersSent) return next(error);
+
+      if (error?.code === "ERR_GATEWAY_IDENTITY") {
+        return res.status(401).json({
+          success: false,
+          error: {
+            code: "AUTHENTICATION_REQUIRED",
+            message: "Please sign in to continue.",
+          },
+          requestId: res.getHeader("x-request-id"),
         });
       }
 
-      return proxyReqOpts;
+      if (error?.code === "ERR_GATEWAY_CONFIG") {
+        console.error("Gateway service configuration error:", error.message);
+        return res.status(503).json({
+          success: false,
+          error: {
+            code: "SERVICE_CONFIGURATION_ERROR",
+            message: "This service is temporarily unavailable.",
+          },
+          requestId: res.getHeader("x-request-id"),
+        });
+      }
+
+      const timedOut = timeoutCodes.has(error?.code);
+      const status = timedOut ? 504 : 502;
+      const code = timedOut ? "UPSTREAM_TIMEOUT" : "UPSTREAM_UNAVAILABLE";
+      const message = timedOut
+        ? "A dependent service did not respond in time."
+        : "A dependent service is temporarily unavailable.";
+
+      console.error("Gateway proxy request failed", {
+        code: error?.code,
+        message: error?.message,
+      });
+
+      return res.status(status).json({
+        success: false,
+        error: { code, message },
+        requestId: res.getHeader("x-request-id"),
+      });
     },
   });
-};
+}

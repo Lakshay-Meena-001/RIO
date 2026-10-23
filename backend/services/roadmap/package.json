@@ -6,9 +6,10 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon index.js",
+    "dev": "node --watch index.js",
     "start": "node index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "check": "node --check index.js && node --check config/db.js && node --check config/llm.js && node --check constants/roadmap.constants.js && node --check controllers/roadmap.controller.js && node --check middlewares/errorHandler.js && node --check models/roadmap.model.js && node --check models/userRoadmap.model.js && node --check prompts/roadmap.generation.prompt.js && node --check routes/roadmap.routes.js && node --check services/roadmap.service.js && node --check services/roadmapAI.service.js && node --check services/roadmapCatalog.service.js && node --check services/roadmapProgress.service.js && node --check utils/ApiError.js && node --check validators/roadmap.validator.js && node --check tests/errorHandler.test.js"
   },
   "keywords": [
     "rio",

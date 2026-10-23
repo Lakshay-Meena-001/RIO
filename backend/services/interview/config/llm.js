@@ -1,10 +1,31 @@
 import { ChatGroq } from "@langchain/groq";
 
-const llm = new ChatGroq({
-  model: "openai/gpt-oss-120b",
-  temperature: 0.2,
-  maxTokens: 6000,
-  maxRetries: 2,
+const model = "openai/gpt-oss-120b";
+const temperature = 0.2;
+const maxRetries = 2;
+
+export const createQuestionGenerationLlm = (questionCount = 10) => {
+  const count =
+    Number.isInteger(questionCount) && questionCount > 0 ? questionCount : 10;
+
+  return new ChatGroq({
+    model,
+    temperature,
+    maxTokens: Math.min(18000, Math.max(6000, count * 360)),
+    maxRetries,
+  });
+};
+
+export const evaluationLlm = new ChatGroq({
+  model,
+  temperature,
+  maxTokens: 2500,
+  maxRetries,
 });
 
-export default llm;
+export const summaryLlm = new ChatGroq({
+  model,
+  temperature,
+  maxTokens: 1200,
+  maxRetries,
+});

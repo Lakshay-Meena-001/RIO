@@ -57,11 +57,11 @@ const questionSectionSchema = z.enum([
 export const projectContextSchema = z.object({
   source: z.enum(["resume", "github", "description"]).nullable().default(null),
 
-  projectName: z.string().trim().default(""),
+  projectName: z.string().trim().max(150).default(""),
 
-  description: z.string().trim().default(""),
+  description: z.string().trim().max(5000).default(""),
 
-  githubUrl: z.string().trim().default(""),
+  githubUrl: z.string().trim().max(500).default(""),
 });
 
 /*
@@ -71,7 +71,7 @@ export const projectContextSchema = z.object({
 */
 
 export const startInterviewSchema = z.object({
-  role: z.string().trim().min(1, "Role is required"),
+  role: z.string().trim().min(1, "Role is required").max(120),
 
   experienceLevel: experienceLevelSchema,
 
@@ -79,7 +79,7 @@ export const startInterviewSchema = z.object({
 
   interviewType: interviewTypeSchema,
 
-  subjects: z.array(coreSubjectSchema).default([]),
+  subjects: z.array(coreSubjectSchema).max(5).default([]),
 
   language: z.literal("english").default("english"),
 
@@ -96,7 +96,7 @@ export const startInterviewSchema = z.object({
 
   questionCount: z.number().int().min(1).max(50).default(10),
 
-  techStack: z.array(z.string().trim().min(1)).default([]),
+  techStack: z.array(z.string().trim().min(1).max(80)).max(20).default([]),
 
   projectContext: projectContextSchema.nullable().default(null),
 });
@@ -115,9 +115,9 @@ export const interviewQuestionSchema = z.object({
    *
    * Empty/not required for non-coding questions.
    */
-  title: z.string().trim().default(""),
+  title: z.string().trim().max(200).default(""),
 
-  text: z.string().trim().min(1),
+  text: z.string().trim().min(1).max(5000),
 
   section: questionSectionSchema,
 
@@ -128,7 +128,7 @@ export const interviewQuestionSchema = z.object({
   /*
    * Coding problem constraints.
    */
-  constraints: z.array(z.string()).default([]),
+  constraints: z.array(z.string().max(500)).max(20).default([]),
 
   /*
    * Coding problem examples.
@@ -136,13 +136,14 @@ export const interviewQuestionSchema = z.object({
   examples: z
     .array(
       z.object({
-        input: z.string().default(""),
-        output: z.string().default(""),
-        explanation: z.string().default(""),
+        input: z.string().max(1500).default(""),
+        output: z.string().max(1500).default(""),
+        explanation: z.string().max(1500).default(""),
       }),
     )
+    .max(5)
     .default([]),
-  starterCode: z.string().default(""),
+  starterCode: z.string().max(20000).default(""),
 });
 
 /*
@@ -187,15 +188,15 @@ export const feedbackSchema = z.object({
 
   codeQuality: z.number().min(0).max(10),
 
-  feedback: z.string(),
+  feedback: z.string().max(4000),
 
-  strengths: z.array(z.string()),
+  strengths: z.array(z.string().max(300)).max(5),
 
-  weaknesses: z.array(z.string()),
+  weaknesses: z.array(z.string().max(300)).max(5),
 
-  betterAnswer: z.string(),
+  betterAnswer: z.string().max(4000),
 
-  recommendations: z.array(z.string()),
+  recommendations: z.array(z.string().max(300)).max(5),
 });
 
 /*
@@ -209,11 +210,11 @@ export const summarySchema = z.object({
 
   sectionScores: z.record(z.string(), z.number().min(0).max(10)),
 
-  strengths: z.array(z.string()),
+  strengths: z.array(z.string().max(300)).max(5),
 
-  weaknesses: z.array(z.string()),
+  weaknesses: z.array(z.string().max(300)).max(5),
 
-  recommendations: z.array(z.string()).length(5),
+  recommendations: z.array(z.string().max(300)).length(5),
 
-  summary: z.string(),
+  summary: z.string().max(2000),
 });
