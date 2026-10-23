@@ -1,38 +1,46 @@
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
+import { Toaster } from "react-hot-toast";
 
 // Existing pages
-import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
-import ProgressPage from "./pages/ProgressPage";
+import Home from "./pages/home/Home";
+import Dashboard from "./pages/dashboard/Dashboard";
+import ProgressPage from "./pages/progress/ProgressPage";
 import RoadmapDashboardPage from "./pages/roadmap/RoadmapDashboardPage";
 import RoadmapBuilderPage from "./pages/roadmap/RoadmapBuilderPage";
 
 import BillingDashboardPage from "./pages/billing/BillingDashboardPage";
-import BillingHistoryPage from "./pages/billing/TransactionHistoryPage";
+import TransactionHistoryPage from "./pages/billing/TransactionHistoryPage";
 import BillingTransactionDetailsPage from "./pages/billing/BillingTransactionDetailsPage";
 
 // Mock Interview pages
-import InterviewDashboard from "./pages/InterviewDashboard";
-import NewInterview from "./pages/NewInterview";
-import LiveInterview from "./pages/LiveInterview";
-import InterviewHistory from "./pages/InterviewHistory";
+import InterviewDashboard from "./pages/interview/InterviewDashboard";
+import NewInterview from "./pages/interview/NewInterview";
+import LiveInterview from "./pages/interview/LiveInterview";
+import InterviewHistory from "./pages/interview/InterviewHistory";
 
 // APIs
-import { getCurrentUser } from "./api/user.api";
-import { getResume } from "./api/resume.api";
+import { getCurrentUser } from "./api/user/user.api";
+import { getResume } from "./api/resume/resume.api";
 
 // Redux
 import { setResume } from "./redux/resumeSlice";
 import RoadmapHistoryPage from "./pages/roadmap/RoadmapHistoryPage";
-import ScorerDashboard from "./pages/ScorerDashboard";
-import ScorerHistory from "./pages/ScorerHistory";
-import ScorerReport from "./pages/ScorerReport";
-import ResumeBuilderDashboard from "./pages/ResumeBuilderDashboard";
-import ResumeBuilder from "./pages/ResumeBuilder";
-import ResumeHistoryPage from "./pages/ResumeHistoryPage";
-import ProfilePage from "./pages/ProfilePage";
+import ScorerDashboard from "./pages/scorer/ScorerDashboard";
+import ScorerHistory from "./pages/scorer/ScorerHistory";
+import ScorerReport from "./pages/scorer/ScorerReport";
+import ResumeBuilderDashboard from "./pages/resume/ResumeBuilderDashboard";
+import ResumeBuilder from "./pages/resume/ResumeBuilder";
+import ResumeHistoryPage from "./pages/resume/ResumeHistoryPage";
+import ProfilePage from "./pages/home/ProfilePage";
+import AccountSettingsPage from "./pages/home/AccountSettingsPage";
 
 function LegacyRoadmapRedirect() {
   const { roadmapId } = useParams();
@@ -50,10 +58,9 @@ const App = () => {
   const [loading, setLoading] = useState(true);
 
   const dispatch = useDispatch();
+  const location = useLocation();
 
-  // --------------------------------------------------
   // Fetch current user
-  // --------------------------------------------------
 
   useEffect(() => {
     const getUser = async () => {
@@ -62,7 +69,9 @@ const App = () => {
 
         setUser(data?.user || null);
       } catch (error) {
-        console.error("Failed to fetch current user:", error);
+        if (![401, 404].includes(error?.response?.status)) {
+          console.error("Failed to fetch current user:", error);
+        }
         setUser(null);
       } finally {
         setLoading(false);
@@ -72,9 +81,7 @@ const App = () => {
     getUser();
   }, []);
 
-  // --------------------------------------------------
   // Fetch user's resume
-  // --------------------------------------------------
 
   useEffect(() => {
     if (!user) return;
@@ -87,16 +94,17 @@ const App = () => {
           dispatch(setResume(result.data));
         }
       } catch (error) {
-        console.error("Failed to fetch resume:", error);
+        // A new account without a resume is a normal empty state, not an error.
+        if (error?.response?.status !== 404) {
+          console.error("Failed to fetch resume:", error);
+        }
       }
     };
 
     getResumeData();
   }, [user, dispatch]);
 
-  // --------------------------------------------------
   // Initial loading
-  // --------------------------------------------------
 
   if (loading) {
     return (
@@ -112,257 +120,291 @@ const App = () => {
   const isProtected = isAuthenticated && isProfileComplete;
 
   return (
-    <Routes>
-      {/* ==================================================
+    <>
+      <Toaster
+        position="top-right"
+        gutter={10}
+        toastOptions={{
+          duration: 4500,
+          className: "rio-toast",
+          success: {
+            duration: 3500,
+            iconTheme: { primary: "#78b89a", secondary: "#111112" },
+          },
+          error: {
+            duration: 6500,
+            iconTheme: { primary: "#e07e79", secondary: "#111112" },
+          },
+        }}
+      />
+      <div key={location.pathname} className="rio-route-enter">
+        <Routes location={location}>
+          {/* 
           PUBLIC / HOME
-      ================================================== */}
-      <Route
-        path="/"
-        element={
-          isProfileComplete ? (
-            <Navigate to="/dashboard" replace />
-          ) : (
-            <Home user={user} setUser={setUser} />
-          )
-        }
-      />
-      {/* ==================================================
+      */}
+          <Route
+            path="/"
+            element={
+              isProfileComplete ? (
+                <Navigate to="/dashboard" replace />
+              ) : (
+                <Home user={user} setUser={setUser} />
+              )
+            }
+          />
+          {/* 
           GENERAL DASHBOARD
-      ================================================== */}
-      <Route
-        path="/dashboard"
-        element={
-          isProtected ? (
-            <Dashboard user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      {/* ==================================================
+       */}
+          <Route
+            path="/dashboard"
+            element={
+              isProtected ? (
+                <Dashboard user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          {/* 
           PROGRESS OVERVIEW
-      ================================================== */}
-      <Route
-        path="/progress"
-        element={
-          isProtected ? (
-            <ProgressPage user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+       */}
+          <Route
+            path="/progress"
+            element={
+              isProtected ? (
+                <ProgressPage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
 
-      {/* ==================================================
+          {/*
           RESUME SCORER
-      ================================================== */}
-      <Route
-        path="/scorer"
-        element={
-          isProtected ? (
-            <ScorerDashboard user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      <Route
-        path="/scorer/history"
-        element={<ScorerHistory user={user} setUser={setUser} />}
-      />
-      <Route
-        path="/scorer/score-report"
-        element={<ScorerReport user={user} setUser={setUser} />}
-      />
-      <Route
-        path="/scorer/report"
-        element={<ScorerReport user={user} setUser={setUser} />}
-      />
+       */}
+          <Route
+            path="/scorer"
+            element={
+              isProtected ? (
+                <ScorerDashboard user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/scorer/history"
+            element={<ScorerHistory user={user} setUser={setUser} />}
+          />
+          <Route
+            path="/scorer/score-report"
+            element={<ScorerReport user={user} setUser={setUser} />}
+          />
+          <Route
+            path="/scorer/report"
+            element={<ScorerReport user={user} setUser={setUser} />}
+          />
 
-      {/* ==================================================
+          {/*
           RESUME BUILDER DASHBOARD + EDITOR
-      ================================================== */}
-      <Route
-        path="/builder/dashboard"
-        element={
-          isProtected ? (
-            <ResumeBuilderDashboard user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      <Route
-        path="/builder"
-        element={
-          isProtected ? (
-            <ResumeBuilder user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      <Route
-        path="/builder/history"
-        element={
-          isProtected ? (
-            <ResumeHistoryPage user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+     */}
+          <Route
+            path="/builder/dashboard"
+            element={
+              isProtected ? (
+                <ResumeBuilderDashboard user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/builder"
+            element={
+              isProtected ? (
+                <ResumeBuilder user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/builder/history"
+            element={
+              isProtected ? (
+                <ResumeHistoryPage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
 
-      {/* ==================================================
+          {/* 
     ROADMAP
-================================================== */}
-      <Route
-        path="/roadmap"
-        element={
-          isProtected ? (
-            <RoadmapDashboardPage user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      <Route
-        path="/roadmap/new"
-        element={
-          isProtected ? (
-            <RoadmapBuilderPage user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      {/* Permanent roadmap learning workspace */}
-      <Route
-        path="/roadmap/history"
-        element={
-          isProtected ? (
-            <RoadmapHistoryPage user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      {/* Legacy roadmap URLs redirect into History */}
-      <Route
-        path="/roadmap/:roadmapId"
-        element={
-          isProtected ? <LegacyRoadmapRedirect /> : <Navigate to="/" replace />
-        }
-      />
+ */}
+          <Route
+            path="/roadmap"
+            element={
+              isProtected ? (
+                <RoadmapDashboardPage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/roadmap/new"
+            element={
+              isProtected ? (
+                <RoadmapBuilderPage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          {/* Permanent roadmap learning workspace */}
+          <Route
+            path="/roadmap/history"
+            element={
+              isProtected ? (
+                <RoadmapHistoryPage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          {/* Legacy roadmap URLs redirect into History */}
+          <Route
+            path="/roadmap/:roadmapId"
+            element={
+              isProtected ? (
+                <LegacyRoadmapRedirect />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
 
-      {/* ==================================================
+          {/*
           MOCK INTERVIEW
-      ================================================== */}
-      <Route
-        path="/mock-interview"
-        element={
-          isProtected ? (
-            <InterviewDashboard user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      {/* ==================================================
+      */}
+          <Route
+            path="/mock-interview"
+            element={
+              isProtected ? (
+                <InterviewDashboard user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          {/* 
           NEW INTERVIEW
-      ================================================== */}
-      <Route
-        path="/mock-interview/new"
-        element={
-          isProtected ? (
-            <NewInterview user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      {/* ==================================================
+       */}
+          <Route
+            path="/mock-interview/new"
+            element={
+              isProtected ? (
+                <NewInterview user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          {/*
           ACTIVE INTERVIEW
-      ================================================== */}
-      <Route
-        path="/mock-interview/:interviewId"
-        element={
-          isProtected ? (
-            <LiveInterview user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
-      {/* ==================================================
+      */}
+          <Route
+            path="/mock-interview/:interviewId"
+            element={
+              isProtected ? (
+                <LiveInterview user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          {/*
           INTERVIEW HISTORY
-      ================================================== */}
-      <Route
-        path="/mock-interview/history"
-        element={
-          isProtected ? (
-            <InterviewHistory user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+       */}
+          <Route
+            path="/mock-interview/history"
+            element={
+              isProtected ? (
+                <InterviewHistory user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
 
-      {/* ==================================================
+          {/* 
           BILLING
-      ================================================== */}
-      <Route
-        path="/billing"
-        element={
-          isProtected ? (
-            <BillingDashboardPage user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+      */}
+          <Route
+            path="/billing"
+            element={
+              isProtected ? (
+                <BillingDashboardPage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
 
-      <Route
-        path="/billing/history"
-        element={
-          isProtected ? (
-            <BillingHistoryPage user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+          <Route
+            path="/billing/history"
+            element={
+              isProtected ? (
+                <TransactionHistoryPage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
 
-      <Route
-        path="/billing/transactions/:transactionId"
-        element={
-          isProtected ? (
-            <BillingTransactionDetailsPage user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+          <Route
+            path="/billing/transactions/:transactionId"
+            element={
+              isProtected ? (
+                <BillingTransactionDetailsPage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
 
-      {/* ==================================================
+          {/* 
           PROFILE
-      ================================================== */}
-      <Route
-        path="/profile"
-        element={
-          isProtected ? (
-            <ProfilePage user={user} setUser={setUser} />
-          ) : (
-            <Navigate to="/" replace />
-          )
-        }
-      />
+   */}
+          <Route
+            path="/profile"
+            element={
+              isProtected ? (
+                <ProfilePage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              isProtected ? (
+                <AccountSettingsPage user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
+          />
 
-      {/* ==================================================
+          {/*
           FALLBACK
-      ================================================== */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+      */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </>
   );
 };
 

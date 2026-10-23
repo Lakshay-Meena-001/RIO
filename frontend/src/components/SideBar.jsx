@@ -1,7 +1,10 @@
+import React from "react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { logoutUser } from "../api/user.api.js";
+import { logoutUser } from "../api/user/user.api.js";
+import toast from "react-hot-toast";
+import ConfirmDialog from "./ui/ConfirmDialog.jsx";
 
 import {
   FiBarChart2,
@@ -15,6 +18,7 @@ import {
   FiMap,
   FiStar,
   FiUser,
+  FiSettings,
 } from "react-icons/fi";
 import { useNavigate, useLocation } from "react-router-dom";
 
@@ -30,6 +34,8 @@ function Sidebar({
   const location = useLocation();
 
   const touchStartX = useRef(null);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = React.useState(false);
+  const [logoutLoading, setLogoutLoading] = React.useState(false);
 
   useEffect(() => {
     if (!mobileOpen) {
@@ -118,7 +124,11 @@ function Sidebar({
       icon: FiUser,
       path: "/profile",
     },
-    
+    {
+      label: "Settings",
+      icon: FiSettings,
+      path: "/settings",
+    },
   ];
 
   const isActive = (path) => {
@@ -143,14 +153,26 @@ function Sidebar({
     setMobileOpen?.(false);
   };
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
+    // Close the mobile drawer first so the confirmation is never obscured by it.
+    setMobileOpen?.(false);
+    setLogoutConfirmOpen(true);
+  };
+
+  const confirmLogout = async () => {
+    setLogoutLoading(true);
     try {
       await logoutUser();
-
+      setLogoutConfirmOpen(false);
       setUser(null);
       setMobileOpen?.(false);
     } catch (error) {
-      console.error("Logout failed:", error);
+      toast.error(
+        error?.response?.data?.message ||
+          "Could not log out. Please try again.",
+      );
+    } finally {
+      setLogoutLoading(false);
     }
   };
 
@@ -391,9 +413,15 @@ function Sidebar({
                   {firstName}
                 </span>
 
-                <p className="mt-1 truncate text-[10px] text-[var(--sidebar-muted)]">
+                <button
+                  type="button"
+                  onClick={() => handleNavigation("/profile")}
+                  className="mt-1 block max-w-full truncate text-left text-[10px] text-[var(--sidebar-muted)] transition-colors hover:text-[var(--sidebar-text)] focus-visible:outline-none focus-visible:underline"
+                  aria-label="Open profile from account email"
+                  title="Open profile"
+                >
                   {user?.email || "RIO member"}
-                </p>
+                </button>
               </div>
 
               <button
@@ -540,6 +568,16 @@ function Sidebar({
 
   return (
     <>
+      <ConfirmDialog
+        open={logoutConfirmOpen}
+        onClose={() => !logoutLoading && setLogoutConfirmOpen(false)}
+        onConfirm={confirmLogout}
+        title="Log out of RIO?"
+        description="You can sign back in anytime to continue your career workspace."
+        confirmLabel="Log out"
+        loading={logoutLoading}
+        variant="primary"
+      />
       {/* Desktop sidebar */}
       <aside
         className={`fixed left-0 top-0 z-[9999] hidden h-screen shrink-0 overflow-hidden border-r border-[var(--sidebar-border)] bg-[var(--sidebar-bg)] shadow-[var(--shadow-lg)] transition-[width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:block ${

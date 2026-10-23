@@ -4,9 +4,10 @@ import { motion } from "framer-motion";
 
 import { useNavigate } from "react-router-dom";
 
-import { getUserRoadmaps } from "../../api/roadmap.api.js";
+import { getUserRoadmaps } from "../../api/roadmap/roadmap.api.js";
 
 import Sidebar from "../../components/SideBar";
+import MobileHeader from "../../components/MobileHeader";
 import Surface from "../../components/ui/Surface";
 
 import {
@@ -17,6 +18,7 @@ import {
   FiTrendingUp,
   FiCheckCircle,
 } from "react-icons/fi";
+import PageEyebrow from "../../components/ui/PageEyebrow";
 
 const RoadmapDashboardPage = ({
   user,
@@ -263,32 +265,10 @@ const RoadmapDashboardPage = ({
       </div>
 
       <div className="relative z-10">
-        <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-full border border-white/[0.1] bg-[#17191C]/70 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition duration-200 hover:bg-white/[0.1]"
-            aria-label="Open navigation"
-          >
-            <span className="text-lg">☰</span>
-          </button>
-
-          <div className="flex flex-col items-center justify-center leading-none">
-            <span
-              className="text-[16px] tracking-tight text-white"
-              style={{ fontFamily: '"Zen Dots", sans-serif' }}
-            >
-              RIO
-            </span>
-            <span className="mt-1 text-[7px] font-medium tracking-[0.12em] text-white/55">
-              CAREER INTELLIGENCE
-            </span>
-          </div>
-
-          <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-xs font-semibold">
-            {firstName.charAt(0).toUpperCase()}
-          </div>
-        </header>
+        <MobileHeader
+          onOpenNavigation={() => setMobileOpen(true)}
+          user={user}
+        />
 
         <div className="flex min-h-screen">
           <Sidebar
@@ -313,13 +293,7 @@ const RoadmapDashboardPage = ({
                 className="mb-10 flex flex-col gap-7 lg:mb-12 lg:flex-row lg:items-end lg:justify-between"
               >
                 <div className="max-w-3xl">
-                  <div className="mb-4 flex items-center gap-3">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
-
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8F9198]">
-                      Roadmap learning
-                    </p>
-                  </div>
+                  <PageEyebrow className="mb-4">Roadmap learning</PageEyebrow>
 
                   <h1 className="max-w-2xl text-[38px] font-semibold leading-[0.98] tracking-[-0.055em] text-white sm:text-[50px] lg:text-[58px]">
                     Build a career path

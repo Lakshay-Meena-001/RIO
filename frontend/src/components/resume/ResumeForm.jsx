@@ -1,4 +1,9 @@
 import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
+import {
+  getCurrentUser,
+  updateProfessionalProfile,
+} from "../../api/user/user.api";
 
 /* -------------------------------------------------------------------------- */
 /*                               Small Helpers                                */
@@ -327,6 +332,57 @@ function EntryHeader({ title, subtitle, onRemove }) {
 /* -------------------------------------------------------------------------- */
 
 export default function ResumeForm({ data, onChange, onCreateNew }) {
+  const [profileImportStatus, setProfileImportStatus] = useState({});
+  const importToProfile = async (key, profileField, value, label = key) => {
+    const cleanValue = typeof value === "string" ? value.trim() : value;
+    if (
+      cleanValue == null ||
+      cleanValue === "" ||
+      (Array.isArray(cleanValue) && !cleanValue.length)
+    ) {
+      setProfileImportStatus((current) => ({
+        ...current,
+        [key]: "Add a value first.",
+      }));
+      return;
+    }
+    setProfileImportStatus((current) => ({ ...current, [key]: "Saving..." }));
+    try {
+      const response = await updateProfessionalProfile({
+        [profileField]: cleanValue,
+      });
+      setProfileImportStatus((current) => ({
+        ...current,
+        [key]: "Added to Profile",
+      }));
+      toast.success(`${label} added to Profile`);
+    } catch (error) {
+      const message =
+        error?.response?.data?.message || "Could not update Profile.";
+      setProfileImportStatus((current) => ({ ...current, [key]: message }));
+      toast.error(message);
+    }
+  };
+  const profileImportButton = (key, profileField, value, label = key) => (
+    <div className="mt-2 flex justify-end">
+      <button
+        type="button"
+        onClick={() => importToProfile(key, profileField, value, label)}
+        className="mt-0 inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/30 bg-transparent px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span aria-hidden="true">＋</span>
+        Add to Profile
+      </button>
+      {profileImportStatus[key] && (
+        <p
+          role="status"
+          className={`mt-1 text-[11px] ${profileImportStatus[key] === "Added to Profile" ? "text-emerald-400" : "text-white/50"}`}
+        >
+          {profileImportStatus[key]}
+        </p>
+      )}
+    </div>
+  );
   const updateProfile = (field, value) => {
     onChange({
       ...data,
@@ -470,35 +526,67 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
             type="tel"
           />
 
-          <Field
-            label="Location"
-            value={data.profile?.location}
-            onChange={(value) => updateProfile("location", value)}
-            placeholder="Delhi, India"
-          />
+          <div className="min-w-0">
+            <Field
+              label="Location"
+              value={data.profile?.location}
+              onChange={(value) => updateProfile("location", value)}
+              placeholder="Delhi, India"
+            />
+            {profileImportButton(
+              "location",
+              "location",
+              data.profile?.location,
+              "Location",
+            )}
+          </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field
-            label="LinkedIn"
-            value={data.profile?.linkedIn}
-            onChange={(value) => updateProfile("linkedIn", value)}
-            placeholder="https://linkedin.com/in/username"
-          />
+          <div className="min-w-0">
+            <Field
+              label="LinkedIn"
+              value={data.profile?.linkedIn}
+              onChange={(value) => updateProfile("linkedIn", value)}
+              placeholder="https://linkedin.com/in/username"
+            />
+            {profileImportButton(
+              "linkedIn",
+              "linkedinUrl",
+              data.profile?.linkedIn,
+              "LinkedIn",
+            )}
+          </div>
 
-          <Field
-            label="GitHub"
-            value={data.profile?.github}
-            onChange={(value) => updateProfile("github", value)}
-            placeholder="https://github.com/username"
-          />
+          <div className="min-w-0">
+            <Field
+              label="GitHub"
+              value={data.profile?.github}
+              onChange={(value) => updateProfile("github", value)}
+              placeholder="https://github.com/username"
+            />
+            {profileImportButton(
+              "github",
+              "githubUrl",
+              data.profile?.github,
+              "GitHub",
+            )}
+          </div>
 
-          <Field
-            label="Portfolio"
-            value={data.profile?.portfolio}
-            onChange={(value) => updateProfile("portfolio", value)}
-            placeholder="https://yourportfolio.com"
-          />
+          <div className="min-w-0">
+            <Field
+              label="Portfolio"
+              value={data.profile?.portfolio}
+              onChange={(value) => updateProfile("portfolio", value)}
+              placeholder="https://yourportfolio.com"
+            />
+            {profileImportButton(
+              "portfolio",
+              "portfolioUrl",
+              data.profile?.portfolio,
+              "Portfolio",
+            )}
+          </div>
 
           <Field
             label="LeetCode"
@@ -527,6 +615,7 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
           recommended={700}
           hint="Aim for roughly 80–120 words. Focus on role, strongest skills, experience level and target direction."
         />
+        {profileImportButton("summary", "bio", data.summary, "Summary")}
       </FormSection>
 
       {/* ------------------------------------------------------------------ */}
@@ -893,6 +982,54 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
           placeholder="JavaScript, React, Node.js..."
           hint="Press Enter after each skill. Keep the list focused on skills relevant to your target role."
         />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              importToProfile("skills", "skills", data.skills || [], "Skills")
+            }
+            className="mt-0 inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/30 bg-transparent px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Replace Profile Skills
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const currentUser = await getCurrentUser();
+                const existing = Array.isArray(currentUser?.user?.skills)
+                  ? currentUser.user.skills
+                  : Array.isArray(currentUser?.skills)
+                    ? currentUser.skills
+                    : [];
+                await updateProfessionalProfile({
+                  skills: [...new Set([...existing, ...(data.skills || [])])],
+                });
+                setProfileImportStatus((current) => ({
+                  ...current,
+                  skills: "Added to Profile",
+                }));
+                toast.success("Skills added to Profile");
+              } catch (error) {
+                const message =
+                  error?.response?.data?.message || "Could not update Profile.";
+                setProfileImportStatus((current) => ({
+                  ...current,
+                  skills: message,
+                }));
+                toast.error(message);
+              }
+            }}
+            className="rounded-lg border border-white/[.12] bg-white/[.04] px-3 py-1.5 text-[11px] font-medium text-white/80 transition hover:bg-white/[.08]"
+          >
+            Merge Profile Skills
+          </button>
+        </div>
+        {profileImportStatus.skills && (
+          <p role="status" className="mt-1 text-[11px] text-emerald-400">
+            {profileImportStatus.skills}
+          </p>
+        )}
       </FormSection>
 
       {/* ------------------------------------------------------------------ */}

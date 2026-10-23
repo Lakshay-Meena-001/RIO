@@ -417,3 +417,775 @@
     transition: none;
   }
 }
+
+/* RIO shared component foundation — preserve the existing Obsidian palette. */
+.rio-page-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  margin: 0 0 0.75rem;
+  color: #858791;
+  font-size: 0.625rem;
+  font-weight: 650;
+  line-height: 1.5;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+.rio-page-eyebrow__dot {
+  display: inline-block;
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: 0 0 0.375rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.12);
+}
+.rio-page-header {
+  align-items: flex-end;
+}
+.rio-page-header__copy {
+  flex: 1 1 auto;
+}
+.rio-page-header__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.625rem;
+}
+.rio-page-title {
+  overflow-wrap: anywhere;
+}
+.rio-page-description {
+  overflow-wrap: anywhere;
+}
+.rio-section-header__copy {
+  min-width: 0;
+}
+.rio-section-header__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.rio-section-header .rio-page-eyebrow {
+  margin-bottom: 0.45rem;
+}
+.rio-card {
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+.rio-card--quiet {
+  background: rgba(255, 255, 255, 0.018);
+  box-shadow: none;
+}
+.rio-card--interactive {
+  cursor: pointer;
+}
+.rio-card--interactive:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.rio-button--secondary {
+  background: var(--button);
+}
+.rio-button--subtle {
+  border-color: transparent;
+  background: var(--glass);
+}
+.rio-button--subtle:hover:not(:disabled) {
+  background: var(--glass-strong);
+}
+.rio-button--xs {
+  min-height: 1.875rem;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.6875rem;
+}
+.rio-button__label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: inherit;
+  min-width: 0;
+}
+.rio-button__icon,
+.rio-button__spinner {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+.rio-button__spinner {
+  animation: rio-spin 900ms linear infinite;
+}
+.rio-button--loading {
+  cursor: wait;
+}
+.rio-icon-button {
+  flex: 0 0 var(--rio-control-height);
+}
+.rio-badge__dot {
+  display: inline-block;
+  width: 0.375rem;
+  height: 0.375rem;
+  flex: 0 0 0.375rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+.rio-badge--info {
+  color: #aab7cf;
+}
+.rio-badge--neutral {
+  color: var(--muted);
+}
+.rio-field__required {
+  color: var(--status-failed);
+}
+.rio-field__optional {
+  color: var(--muted);
+  font-size: var(--rio-text-xs);
+  font-weight: 400;
+}
+.rio-field--error .rio-field__control {
+  border-color: var(--status-failed);
+}
+.rio-field__control:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+.rio-modal {
+  outline: none;
+  animation: rio-modal-in 180ms ease-out both;
+}
+.rio-modal--sm {
+  width: min(100%, 27rem);
+}
+.rio-modal--lg {
+  width: min(100%, 48rem);
+}
+.rio-modal--xl {
+  width: min(100%, 64rem);
+}
+.rio-modal-backdrop {
+  animation: rio-backdrop-in 160ms ease-out both;
+}
+.rio-modal__header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
+  backdrop-filter: blur(14px);
+}
+.rio-state {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  padding: clamp(1.5rem, 4vw, 2.75rem) 1.25rem;
+  text-align: center;
+}
+.rio-state__title {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--rio-title-sm);
+  font-weight: 550;
+  letter-spacing: -0.025em;
+  line-height: 1.3;
+}
+.rio-state__description {
+  max-width: 44ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--rio-text-sm);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.rio-state__action {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.35rem;
+}
+.rio-loading-state {
+  flex-direction: row;
+  justify-content: center;
+}
+.rio-loading-state__spinner {
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 1.25rem;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--text);
+  border-radius: 50%;
+  animation: rio-spin 850ms linear infinite;
+}
+.rio-loading-state__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.2rem;
+  text-align: left;
+}
+.rio-loading-state__label {
+  color: var(--muted-strong);
+  font-size: var(--rio-text-sm);
+}
+.rio-loading-state--sm {
+  padding: 0.75rem;
+}
+.rio-loading-state--sm .rio-loading-state__spinner {
+  width: 1rem;
+  height: 1rem;
+  flex-basis: 1rem;
+}
+.rio-empty-state__icon,
+.rio-error-state__icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0.95rem;
+  background: var(--glass);
+  color: var(--muted-strong);
+}
+.rio-error-state__icon {
+  color: var(--status-failed);
+  border-color: color-mix(in srgb, var(--status-failed) 25%, transparent);
+  background: color-mix(in srgb, var(--status-failed) 7%, transparent);
+}
+.rio-empty-state--compact,
+.rio-error-state--compact {
+  padding: 1.25rem;
+}
+.rio-empty-state--compact .rio-empty-state__icon,
+.rio-error-state--compact .rio-error-state__icon {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+.rio-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--glass);
+  color: var(--text);
+}
+.rio-alert__icon {
+  flex: 0 0 auto;
+  margin-top: 0.1rem;
+  color: var(--muted-strong);
+}
+.rio-alert__content {
+  min-width: 0;
+  flex: 1;
+}
+.rio-alert__title {
+  margin: 0 0 0.25rem;
+  font-size: var(--rio-text-sm);
+  font-weight: 600;
+}
+.rio-alert__message {
+  color: var(--muted);
+  font-size: var(--rio-text-sm);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.rio-alert--success {
+  border-color: rgba(120, 184, 154, 0.22);
+  background: rgba(120, 184, 154, 0.055);
+}
+.rio-alert--success .rio-alert__icon {
+  color: #78b89a;
+}
+.rio-alert--warning {
+  border-color: rgba(219, 176, 108, 0.22);
+  background: rgba(219, 176, 108, 0.055);
+}
+.rio-alert--warning .rio-alert__icon {
+  color: #dbb06c;
+}
+.rio-alert--error {
+  border-color: color-mix(in srgb, var(--status-failed) 25%, transparent);
+  background: color-mix(in srgb, var(--status-failed) 5%, transparent);
+}
+.rio-alert--error .rio-alert__icon {
+  color: var(--status-failed);
+}
+.rio-alert__dismiss {
+  margin: -0.25rem -0.35rem 0 0;
+}
+.rio-skeleton {
+  display: block;
+  max-width: 100%;
+  background: linear-gradient(
+    100deg,
+    var(--glass) 20%,
+    var(--glass-strong) 38%,
+    var(--glass) 58%
+  );
+  background-size: 200% 100%;
+  animation: rio-skeleton-shimmer 1.6s ease-in-out infinite;
+}
+.rio-skeleton--sm {
+  border-radius: 0.25rem;
+}
+.rio-skeleton--md {
+  border-radius: 0.5rem;
+}
+.rio-skeleton--lg {
+  border-radius: 0.875rem;
+}
+.rio-skeleton--circle {
+  border-radius: 999px;
+}
+.rio-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.rio-stat-card__top,
+.rio-stat-card__value-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.rio-stat-card__label {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--rio-text-xs);
+  font-weight: 550;
+  letter-spacing: 0.025em;
+}
+.rio-stat-card__icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 2.25rem;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--glass);
+  color: var(--muted-strong);
+}
+.rio-stat-card__value {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: clamp(1.5rem, 2vw, 2rem);
+  font-weight: 550;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+.rio-stat-card__detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--rio-text-xs);
+  line-height: 1.5;
+}
+.rio-stat-card__footer {
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+.rio-confirm-dialog {
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--border-strong) 82%, transparent);
+  border-radius: 1.35rem;
+  background: linear-gradient(
+    155deg,
+    var(--surface-elevated),
+    var(--bg-secondary) 78%
+  );
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.46),
+    0 1px 0 rgba(255, 255, 255, 0.035) inset;
+}
+.rio-confirm-dialog .rio-modal__header {
+  padding: 1.2rem 1.25rem;
+  background: transparent;
+}
+.rio-confirm-dialog .rio-modal__title {
+  font-size: clamp(1.05rem, 2vw, 1.2rem);
+  font-weight: 620;
+  letter-spacing: -0.035em;
+}
+.rio-confirm-dialog .rio-modal__body {
+  padding: 1.2rem 1.25rem 1.35rem;
+}
+.rio-confirm-dialog .rio-modal__footer {
+  gap: 0.65rem;
+  padding: 0.9rem 1.25rem 1.15rem;
+  background: rgba(255, 255, 255, 0.012);
+}
+.rio-confirm-dialog__content {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+}
+.rio-confirm-dialog__icon {
+  display: grid;
+  width: 2.65rem;
+  height: 2.65rem;
+  flex: 0 0 2.65rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--status-failed) 28%, transparent);
+  border-radius: 0.95rem;
+  background: color-mix(in srgb, var(--status-failed) 9%, transparent);
+  color: var(--status-failed);
+  box-shadow: 0 5px 20px
+    color-mix(in srgb, var(--status-failed) 7%, transparent);
+}
+.rio-confirm-dialog--primary .rio-confirm-dialog__icon {
+  border-color: color-mix(in srgb, var(--border-strong) 70%, transparent);
+  background: var(--glass);
+  color: var(--text);
+}
+.rio-confirm-dialog--secondary .rio-confirm-dialog__icon {
+  border-color: var(--border-strong);
+  background: var(--glass);
+  color: var(--text);
+}
+.rio-confirm-dialog__copy {
+  min-width: 0;
+  padding-top: 0.05rem;
+}
+.rio-confirm-dialog__eyebrow {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--muted-strong);
+  font-size: 0.66rem;
+  font-weight: 650;
+  letter-spacing: 0.09em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+.rio-confirm-dialog .rio-state__description {
+  max-width: 38ch;
+  font-size: var(--rio-text-sm);
+  line-height: 1.7;
+}
+.rio-confirm-dialog .rio-button {
+  min-height: 2.65rem;
+  border-radius: 0.8rem;
+  font-weight: 600;
+}
+.rio-confirm-dialog .rio-button--danger {
+  background: color-mix(in srgb, var(--status-failed) 8%, transparent);
+}
+.rio-confirm-dialog .rio-button--danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--status-failed) 45%, transparent);
+  background: color-mix(in srgb, var(--status-failed) 14%, transparent);
+}
+.rio-toast {
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 14px !important;
+  background: var(--surface-elevated) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-lg) !important;
+  font-family: var(--rio-font-body) !important;
+  font-size: 0.875rem !important;
+  line-height: 1.5 !important;
+  max-width: min(92vw, 420px) !important;
+  overflow-wrap: anywhere !important;
+}
+@keyframes rio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes rio-skeleton-shimmer {
+  to {
+    background-position-x: -200%;
+  }
+}
+@keyframes rio-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes rio-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (max-width: 767px) {
+  .rio-page-eyebrow {
+    font-size: 0.59rem;
+    letter-spacing: 0.19em;
+  }
+  .rio-page-header {
+    align-items: stretch;
+  }
+  .rio-page-header__actions {
+    width: 100%;
+  }
+  .rio-page-header__actions > * {
+    max-width: 100%;
+  }
+  .rio-section-header {
+    align-items: flex-start;
+  }
+  .rio-section-header__actions {
+    justify-content: flex-end;
+  }
+  .rio-modal__header,
+  .rio-modal__footer {
+    padding: 0.9rem 1rem;
+  }
+  .rio-modal__body {
+    padding: 1rem;
+  }
+  .rio-toast {
+    margin-inline: 0.25rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rio-card,
+  .rio-button,
+  .rio-modal,
+  .rio-modal-backdrop,
+  .rio-skeleton,
+  .rio-loading-state__spinner,
+  .rio-button__spinner {
+    animation: none !important;
+    transition: none !important;
+  }
+  .rio-card--interactive:hover {
+    transform: none;
+  }
+}
+
+/* RIO global polish: route transitions, responsive overflow safety, and motion tokens. */
+:root {
+  --rio-motion-fast: 160ms;
+  --rio-motion-standard: 240ms;
+  --rio-motion-emphasized: 420ms;
+  --rio-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+.rio-route-enter {
+  min-width: 0;
+  /* Avoid hiding the entire page during navigation. Keep motion on local UI only. */
+  animation: none;
+}
+@keyframes rio-route-enter {
+  /* Keep this animation opacity-only. A transform on the route wrapper
+     creates a containing block for position: fixed descendants (sidebar). */
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Prevent long labels, tables, and form values from forcing mobile layouts wider. */
+#root,
+#root > *,
+main,
+main > *,
+section,
+article,
+form {
+  min-width: 0;
+}
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+input,
+textarea,
+select {
+  font: inherit;
+}
+input,
+textarea,
+select {
+  min-width: 0;
+}
+button,
+[role="button"],
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--text) 70%, transparent);
+  outline-offset: 3px;
+}
+@media (max-width: 767px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+  .rio-page-header {
+    gap: 0.875rem;
+  }
+  .rio-page-header__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .rio-page-header__actions > button,
+  .rio-page-header__actions > a {
+    min-height: 2.75rem;
+  }
+  .rio-section-header__actions {
+    max-width: 100%;
+  }
+  .rio-section-header__actions > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .rio-toast {
+    width: min(calc(100vw - 1.5rem), 420px) !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rio-route-enter {
+    animation: none !important;
+  }
+}
+
+/* Consistent interaction motion across shared RIO surfaces. */
+.rio-card {
+  transition:
+    border-color var(--rio-motion-standard, 240ms)
+      var(--rio-motion-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    box-shadow var(--rio-motion-standard, 240ms)
+      var(--rio-motion-ease, cubic-bezier(0.22, 1, 0.36, 1)),
+    background-color var(--rio-motion-standard, 240ms) ease,
+    transform var(--rio-motion-standard, 240ms)
+      var(--rio-motion-ease, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.rio-card--interactive:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+.rio-modal-backdrop {
+  will-change: opacity;
+}
+.rio-modal {
+  transform-origin: center;
+  will-change: opacity, transform;
+}
+@media (max-width: 767px) {
+  .rio-confirm-dialog .rio-modal__header {
+    padding: 1rem 1rem;
+  }
+  .rio-confirm-dialog .rio-modal__body {
+    padding: 1rem;
+  }
+  .rio-confirm-dialog .rio-modal__footer {
+    padding: 0.75rem 1rem 1rem;
+  }
+  .rio-confirm-dialog .rio-button {
+    flex: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rio-card,
+  .rio-card--interactive:hover {
+    transform: none;
+    transition: none;
+  }
+}
+
+/* RIO confirmation dialog — neutral, pill-shaped buttons */
+.rio-confirm-dialog .rio-modal__footer {
+  background: transparent;
+  border-top: 1px solid var(--border);
+  gap: 0.65rem;
+}
+
+.rio-confirm-dialog .rio-button {
+  border-radius: 999px !important;
+  min-height: 2.75rem;
+  padding-inline: 1.25rem;
+  font-weight: 550;
+}
+
+/* Cancel: transparent, subtle outline */
+.rio-confirm-dialog .rio-modal__footer .rio-button:not(.rio-button--danger) {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+/* Confirm: neutral white pill, no red */
+.rio-confirm-dialog .rio-modal__footer .rio-button--danger {
+  background: #f5f5f5;
+  border: 1px solid #f5f5f5;
+  color: #171717;
+}
+
+.rio-confirm-dialog
+  .rio-modal__footer
+  .rio-button--danger:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: #ffffff;
+}
+
+/* Remove the extra red icon treatment */
+.rio-confirm-dialog__icon {
+  border-color: var(--border) !important;
+  background: transparent !important;
+  color: var(--muted-strong) !important;
+  box-shadow: none !important;
+}
+
+/* No separate tinted panel behind the footer */
+.rio-confirm-dialog .rio-modal__footer::before {
+  background: transparent;
+}
+
+/* Mobile: keep both pill buttons inside the dialog */
+@media (max-width: 767px) {
+  .rio-confirm-dialog .rio-modal__footer {
+    display: flex;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem 1rem;
+  }
+
+  .rio-confirm-dialog .rio-modal__footer .rio-button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 0.6rem;
+    white-space: nowrap;
+  }
+}
+
+/* Hide PDF action buttons only on mobile */
+@media screen and (max-width: 767px) {
+  .pdf-actions-responsive {
+    display: none !important;
+  }
+}
+
+/* Show PDF action buttons on desktop */
+@media screen and (min-width: 768px) {
+  .pdf-actions-responsive {
+    display: flex !important;
+  }
+}

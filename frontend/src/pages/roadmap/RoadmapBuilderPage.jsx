@@ -11,7 +11,6 @@ import {
   FiCheck,
   FiChevronDown,
   FiLayers,
-  FiMenu,
   FiSearch,
   FiTarget,
   FiX,
@@ -30,12 +29,13 @@ import {
 } from "react-icons/fi";
 
 import Sidebar from "../../components/SideBar";
+import MobileHeader from "../../components/MobileHeader";
 
 import {
   getRoadmapCatalog,
   getRoadmapCategories,
   generateRoadmap,
-} from "../../api/roadmap.api.js";
+} from "../../api/roadmap/roadmap.api";
 
 const inputClass =
   "w-full rounded-xl border border-white/[0.10] bg-[#191B1F] px-4 py-3 text-sm text-white outline-none transition placeholder:text-[#686B74] hover:border-white/[0.17] focus:border-white/30 focus:bg-[#1D1F23]";
@@ -519,27 +519,7 @@ export default function RoadmapBuilderPage({ user, setUser }) {
             "radial-gradient(ellipse 75% 55% at 100% 0%, rgba(255,255,255,.055), transparent 70%), radial-gradient(ellipse 60% 55% at 0% 100%, rgba(255,255,255,.025), transparent 72%)",
         }}
       />
-      <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-2xl border border-white/10 bg-[#17191C]/90 px-3 backdrop-blur-xl md:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Open navigation"
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05]"
-        >
-          <FiMenu size={18} />
-        </button>
-
-        <span
-          className="text-base tracking-wide"
-          style={{ fontFamily: '"Zen Dots", sans-serif' }}
-        >
-          RIO
-        </span>
-
-        <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-xs font-semibold">
-          {user?.name?.charAt(0)?.toUpperCase() || "U"}
-        </span>
-      </header>
+      <MobileHeader onOpenNavigation={() => setMobileOpen(true)} user={user} />
       <div className="relative z-10 flex min-h-screen">
         <Sidebar
           mobileOpen={mobileOpen}

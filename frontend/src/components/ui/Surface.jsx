@@ -11,19 +11,20 @@ export default function Surface({
   children,
   className = "",
   variant = "default",
+  as: Component = "section",
+  contentClassName = "",
 }) {
   const background = surfaceBackgrounds[variant] || surfaceBackgrounds.default;
-
   return (
-    <section
-      className={`relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] ${className}`}
+    <Component
+      className={`rio-surface relative overflow-hidden rounded-[22px] border border-white/[0.10] bg-[#111315] ${className}`.trim()}
     >
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
         style={{ background }}
       />
-      <div className="relative">{children}</div>
-    </section>
+      <div className={`relative ${contentClassName}`.trim()}>{children}</div>
+    </Component>
   );
 }

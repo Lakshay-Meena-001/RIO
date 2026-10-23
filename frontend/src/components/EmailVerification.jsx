@@ -1,67 +1,94 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
-import { FiArrowLeft, FiArrowRight } from "react-icons/fi";
+import { FiArrowLeft, FiMail, FiRefreshCw } from "react-icons/fi";
 import { sendEmailVerification } from "firebase/auth";
 import { toast } from "react-hot-toast";
 
 import { auth } from "../utils/firebase";
 
 const EmailVerification = ({ email, onVerified, onChangeEmail }) => {
-  const [isChecking, setIsChecking] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
   const [isResending, setIsResending] = useState(false);
+  const onVerifiedRef = useRef(onVerified);
+  const completedRef = useRef(false);
 
-  const handleCheckVerification = async () => {
-    if (isChecking) return;
+  // Keep the latest callback without restarting the verification watcher.
+  useEffect(() => {
+    onVerifiedRef.current = onVerified;
+  }, [onVerified]);
 
-    try {
-      setIsChecking(true);
+  useEffect(() => {
+    let active = true;
+    let checking = false;
+
+    const checkVerification = async () => {
+      if (!active || checking || completedRef.current) return;
 
       const user = auth.currentUser;
+      if (!user) return;
 
-      if (!user) {
-        toast.error("Your signup session has expired. Please sign up again.");
-        return;
+      checking = true;
+      try {
+        await user.reload();
+        if (!active || completedRef.current) return;
+
+        if (user.emailVerified) {
+          completedRef.current = true;
+          setIsChecking(false);
+          toast.success(
+            "Email verified. Finishing your sign-in automatically…",
+          );
+          onVerifiedRef.current?.();
+        } else {
+          setIsChecking(false);
+        }
+      } catch (error) {
+        // Network interruptions are retried on the next interval/focus event.
+        console.warn("Email verification status check failed:", error);
+      } finally {
+        checking = false;
       }
+    };
 
-      await user.reload();
+    const handleResume = () => {
+      if (document.visibilityState === "visible") checkVerification();
+    };
 
-      if (user.emailVerified) {
-        toast.success("Email verified successfully.");
-        onVerified();
-        return;
-      }
+    checkVerification();
+    const intervalId = window.setInterval(checkVerification, 1800);
+    window.addEventListener("focus", handleResume);
+    document.addEventListener("visibilitychange", handleResume);
 
-      toast.error("Your email is not verified yet. Please check your inbox.");
-    } catch (error) {
-      console.error("Email verification check failed:", error);
-
-      toast.error("Unable to verify your email. Please try again.");
-    } finally {
-      setIsChecking(false);
-    }
-  };
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", handleResume);
+      document.removeEventListener("visibilitychange", handleResume);
+    };
+  }, [email]);
 
   const handleResendVerification = async () => {
     if (isResending) return;
 
     try {
       setIsResending(true);
-
       const user = auth.currentUser;
 
       if (!user) {
-        toast.error("Your signup session has expired. Please sign up again.");
+        toast.error("Your sign-in session expired. Please sign in again.");
         return;
       }
 
+      await user.reload();
       if (user.emailVerified) {
-        toast.success("Your email is already verified.");
-        onVerified();
+        if (!completedRef.current) {
+          completedRef.current = true;
+          onVerifiedRef.current?.();
+        }
         return;
       }
 
       await sendEmailVerification(user);
-
       toast.success("Verification email sent again.");
     } catch (error) {
       console.error("Resend verification failed:", error);
@@ -99,7 +126,11 @@ const EmailVerification = ({ email, onVerified, onChangeEmail }) => {
         Change email
       </button>
 
-      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/75">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] text-white/80">
+        <FiMail size={21} />
+      </div>
+
+      <p className="mt-6 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/75">
         Email verification
       </p>
 
@@ -107,43 +138,46 @@ const EmailVerification = ({ email, onVerified, onChangeEmail }) => {
         Check your email
       </h4>
 
-      <p className="mt-3 text-sm leading-6 text-white/40">
-        We&apos;ve sent a verification link to:
+      <p className="mt-3 text-sm leading-6 text-white/45">
+        We sent a verification link to this address:
       </p>
 
-      <p className="mt-1 break-all text-sm font-medium text-white/75">
+      <p className="mt-1 break-all text-sm font-medium text-white/85">
         {email}
       </p>
 
-      <p className="mt-5 text-sm leading-6 text-white/40">
-        Open the email and click the verification link. Once verified, return
-        here and continue.
+      <p className="mt-5 text-sm leading-6 text-white/45">
+        Open the email and tap the verification link. Keep this page open or
+        return to it afterward.
       </p>
 
-      <button
-        type="button"
-        onClick={handleCheckVerification}
-        disabled={isChecking || isResending}
-        className="mt-8 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-bold text-[#17191C] shadow-[0_10px_30px_rgba(0,0,0,0.20)] transition-colors hover:bg-[#F5F5F5] disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        {isChecking ? "Checking..." : "I've verified my email"}
-
-        {!isChecking && <FiArrowRight size={16} />}
-      </button>
+      <div className="mt-7 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+        {isChecking ? (
+          <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-white/20 border-t-white/80" />
+        ) : (
+          <FiRefreshCw size={17} className="shrink-0 text-white/65" />
+        )}
+        <p className="text-xs leading-5 text-white/55">
+          {isChecking
+            ? "Waiting for verification…"
+            : "We’ll detect verification automatically and continue. No confirmation button is needed."}
+        </p>
+      </div>
 
       <button
         type="button"
         onClick={handleResendVerification}
-        disabled={isChecking || isResending}
-        className="mt-5 flex w-full items-center justify-center text-xs font-medium text-white/45 transition-colors hover:text-white disabled:opacity-40"
+        disabled={isResending || isChecking}
+        className="mt-5 flex w-full items-center justify-center gap-2 text-xs font-medium text-white/50 transition-colors hover:text-white disabled:opacity-40"
       >
-        {isResending ? "Sending..." : "Resend verification email"}
+        <FiRefreshCw size={13} />
+        {isResending ? "Sending…" : "Resend verification email"}
       </button>
 
       <div className="mt-7 rounded-xl border border-white/10 bg-white/[0.025] p-4">
         <p className="text-xs leading-5 text-white/35">
-          Didn&apos;t receive the email? Check your spam or junk folder, then
-          try resending the verification email.
+          If it doesn’t arrive, check your spam or junk folder. This page will
+          continue automatically after verification is detected.
         </p>
       </div>
     </motion.div>

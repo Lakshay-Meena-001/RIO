@@ -10,7 +10,6 @@ import {
   FiAlertCircle,
   FiCheckCircle,
   FiXCircle,
-  FiMenu,
   FiPlus,
 } from "react-icons/fi";
 
@@ -25,9 +24,11 @@ import {
   getPendingBillingPayment,
   continueBillingPayment,
   cancelBillingPayment,
-} from "../../api/billing.api";
+} from "../../api/billing/billing.api";
 
 import AddBalanceModal from "./AddBalanceModal";
+import PageEyebrow from "../../components/ui/PageEyebrow";
+import MobileHeader from "../../components/MobileHeader";
 
 const ease = [0.22, 1, 0.36, 1];
 
@@ -150,7 +151,6 @@ function StatusLabel({ status }) {
     </span>
   );
 }
-
 
 export default function BillingDashboardPage({ user, setUser }) {
   const navigate = useNavigate();
@@ -562,34 +562,8 @@ export default function BillingDashboardPage({ user, setUser }) {
         />
       </div>
 
-      {/* Mobile header */}
-      <header className="fixed left-3 right-3 top-3 z-40 flex h-14 items-center justify-between rounded-full border border-white/[0.10] bg-[#17191C]/85 px-3 shadow-[0_16px_45px_rgba(0,0,0,0.24)] backdrop-blur-xl md:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileOpen(true)}
-          aria-label="Open navigation"
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-white transition hover:bg-white/[0.1]"
-        >
-          <FiMenu size={18} />
-        </button>
-
-        <div className="flex flex-col items-center leading-none">
-          <span
-            className="text-[16px] tracking-tight"
-            style={{ fontFamily: '"Zen Dots", sans-serif' }}
-          >
-            RIO
-          </span>
-
-          <span className="mt-1 text-[7px] font-medium tracking-[0.12em] text-white/55">
-            CAREER INTELLIGENCE
-          </span>
-        </div>
-
-        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.055] text-xs font-semibold">
-          {firstName.charAt(0).toUpperCase()}
-        </div>
-      </header>
+      {/* Shared mobile app bar */}
+      <MobileHeader onOpenNavigation={() => setMobileOpen(true)} user={user} />
 
       <div className="relative z-10 flex min-h-screen">
         <Sidebar
@@ -615,13 +589,7 @@ export default function BillingDashboardPage({ user, setUser }) {
               className="mb-9 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between"
             >
               <div className="max-w-3xl">
-                <div className="mb-4 flex items-center gap-3">
-                  <span className="h-1.5 w-1.5 rounded-full bg-white/80" />
-
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8F9198]">
-                    Billing & account
-                  </p>
-                </div>
+                <PageEyebrow className="mb-4">Billing & account</PageEyebrow>
 
                 <h1 className="text-[38px] font-semibold leading-[0.98] tracking-[-0.055em] sm:text-[50px] lg:text-[58px]">
                   Your balance,
@@ -838,7 +806,6 @@ export default function BillingDashboardPage({ user, setUser }) {
                             <p className="truncate text-sm font-semibold text-[#D4D4D8]">
                               {transaction?.description ||
                                 transaction?.planName ||
-                                transaction?.transactionId ||
                                 "Balance purchase"}
                             </p>
 

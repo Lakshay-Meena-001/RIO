@@ -23,7 +23,7 @@ import {
   getBillingTransactions,
   getPendingBillingPayment,
   cancelBillingPayment,
-} from "../../api/billing.api";
+} from "../../api/billing/billing.api";
 
 import Surface from "../../components/ui/Surface";
 
@@ -474,7 +474,7 @@ export default function BillingHistoryPage({ user }) {
   };
 
   return (
-    <div className="relative h-[100dvh] overflow-hidden bg-[#17191C] text-white">
+    <div className="rio-transaction-history relative h-[100dvh] overflow-hidden bg-[#17191C] text-white">
       {cancelConfirmOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <section
@@ -537,7 +537,7 @@ export default function BillingHistoryPage({ user }) {
       />
       <header
         className={cx(
-          "fixed inset-x-0 top-0 flex h-16 items-center border-b border-white/[0.07] bg-[#111214]/95 px-4 backdrop-blur-xl md:hidden",
+          "rio-history-mobile-header fixed inset-x-0 top-0 flex h-16 items-center border-b border-white/[0.07] bg-[#111214]/95 px-4 backdrop-blur-xl md:hidden",
           mobileOpen ? "z-40" : "z-[60]",
         )}
       >
@@ -993,7 +993,10 @@ export default function BillingHistoryPage({ user }) {
                   </Surface>
                 </div>
               ) : (
-                <Surface variant="roadmap" className="flex min-h-[330px] flex-col items-center justify-center p-8 text-center">
+                <Surface
+                  variant="roadmap"
+                  className="flex min-h-[330px] flex-col items-center justify-center p-8 text-center"
+                >
                   <span className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/[.035] text-[#858994]">
                     <FiActivity size={22} />
                   </span>
@@ -1140,7 +1143,7 @@ export default function BillingHistoryPage({ user }) {
         {/* Mobile actions stay anchored at the bottom, outside the scrollable content. */}
         <div
           className={cx(
-            "fixed inset-x-0 bottom-0 border-t border-white/[0.08] bg-[#111315]/90 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden",
+            "rio-history-mobile-bottom-bar fixed inset-x-0 bottom-0 border-t border-white/[0.08] bg-[#111315]/90 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden",
             mobileOpen ? "z-40" : "z-[60]",
           )}
         >

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { ThemeContext } from "./ThemeContext";
+import { ThemeContext } from "./themeContext.js";
 
 const THEME_STORAGE_KEY = "rio-theme";
 const VALID_THEMES = new Set(["dark"]);

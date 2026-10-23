@@ -22,7 +22,7 @@ import {
   getBillingTransactions,
   getPendingBillingPayment,
   cancelBillingPayment,
-} from "../../api/billing.api";
+} from "../../api/billing/billing.api";
 
 import Surface from "../../components/ui/Surface";
 

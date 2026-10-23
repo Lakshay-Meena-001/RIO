@@ -12,7 +12,7 @@ import {
   updateRoadmapTopicStatus as updateRoadmapTopicStatusApi,
   deleteUserRoadmap as deleteUserRoadmapApi,
   getUserRoadmaps as getUserRoadmapsApi,
-} from "../../api/roadmap.api";
+} from "../../api/roadmap/roadmap.api.js";
 
 // Supported backend statuses.
 const VALID_STATUSES = new Set([

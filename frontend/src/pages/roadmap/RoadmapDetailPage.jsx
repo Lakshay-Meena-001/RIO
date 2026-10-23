@@ -20,7 +20,7 @@ import {
   generateRoadmapPhase,
   updateRoadmapPhaseStatus,
   updateRoadmapTopicStatus,
-} from "../../api/roadmap.api.js";
+} from "../../api/roadmap/roadmap.api.js";
 
 
 const STATUS = {

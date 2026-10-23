@@ -17,8 +17,9 @@ import {
   deleteUserRoadmap,
   getUserRoadmap,
   getUserRoadmaps,
-} from "../../api/roadmap.api.js";
-import { Clock3, Lightbulb } from "lucide-react";
+} from "../../api/roadmap/roadmap.api.js";
+
+import { Clock3 } from "lucide-react";
 
 const unwrap = (response) => response?.data ?? response ?? null;
 
@@ -1079,7 +1080,7 @@ export default function RoadmapHistoryPage() {
                 Back to roadmaps
               </button>
             </div>
-            <div className="flex h-16 shrink-0 items-center border-b border-white/[0.07] bg-[#111214]/75 px-4 backdrop-blur-xl lg:hidden">
+            <div className="rio-history-mobile-header flex h-16 shrink-0 items-center border-b border-white/[0.07] bg-[#111214]/75 px-4 backdrop-blur-xl lg:hidden">
               <button
                 type="button"
                 onClick={() => navigate("/roadmap")}
@@ -1183,7 +1184,7 @@ export default function RoadmapHistoryPage() {
       </div>
 
       {/* Mobile actions stay anchored at the bottom, outside the scrollable content. */}
-      <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[linear-gradient(160deg,rgba(35,37,42,0.97)_0%,rgba(20,22,25,0.98)_55%,rgba(15,16,18,0.99)_100%)] px-4 pt-3 backdrop-blur-xl pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
+      <div className="rio-history-mobile-bottom-bar fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[linear-gradient(160deg,rgba(35,37,42,0.97)_0%,rgba(20,22,25,0.98)_55%,rgba(15,16,18,0.99)_100%)] px-4 pt-3 backdrop-blur-xl pb-[calc(0.75rem+env(safe-area-inset-bottom))] lg:hidden">
         {selectedId ? (
           <div className="grid grid-cols-2 gap-3">
             <button

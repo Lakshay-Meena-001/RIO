@@ -190,6 +190,48 @@ const resolveUser = async (decoded) => {
   let user = await User.findOne({ firebaseID });
 
   if (user) {
+    // Firebase remains the authority for verified identity fields. This is
+    // needed when a phone-authenticated user adds and verifies an email later.
+    let changed = false;
+
+    if (email && emailVerified && email !== user.email) {
+      const emailOwner = await User.findOne({ email });
+
+      if (emailOwner && emailOwner._id.toString() !== user._id.toString()) {
+        const error = new Error(
+          "This email is already linked to another RIO account.",
+        );
+        error.code = "AUTH_ACCOUNT_CONFLICT";
+        throw error;
+      }
+
+      user.email = email;
+      changed = true;
+    }
+
+    if (decoded.phone_number && decoded.phone_number !== user.phoneNumber) {
+      const phoneOwner = await User.findOne({
+        phoneNumber: decoded.phone_number,
+      });
+
+      if (phoneOwner && phoneOwner._id.toString() !== user._id.toString()) {
+        const error = new Error(
+          "This phone number is already linked to another RIO account.",
+        );
+        error.code = "AUTH_ACCOUNT_CONFLICT";
+        throw error;
+      }
+
+      user.phoneNumber = decoded.phone_number;
+      changed = true;
+    }
+
+    if (decoded.name?.trim() && user.name === "User") {
+      user.name = decoded.name.trim();
+      changed = true;
+    }
+
+    if (changed) await user.save();
     return user;
   }
 
@@ -246,7 +288,24 @@ const resolveUser = async (decoded) => {
     }
   }
 
-  // 3. No existing RIO user found.
+  // 3. A verified phone number must not create a duplicate RIO account if
+  // legacy data already associates that number with another Firebase UID.
+  // The user must sign into that account and explicitly link the phone in
+  // Settings; never silently merge identities based on an old unverified DB field.
+  if (decoded.phone_number) {
+    const phoneOwner = await User.findOne({
+      phoneNumber: decoded.phone_number,
+    });
+    if (phoneOwner && phoneOwner.firebaseID !== firebaseID) {
+      const error = new Error(
+        "This mobile number is already saved on another RIO account. Sign in to that account and link the number from Account Settings.",
+      );
+      error.code = "AUTH_ACCOUNT_CONFLICT";
+      throw error;
+    }
+  }
+
+  // 4. No existing RIO user found.
   //
   // This is a genuinely new Firebase identity.
   const userData = {
@@ -384,7 +443,8 @@ export const googleAuth = async (req, res) => {
         success: false,
         code: "AUTH_ACCOUNT_CONFLICT",
         message:
-          "This email is already linked to another authentication account.",
+          error.message ||
+          "This identity is already linked to another RIO account. Sign in to the original account and link it from Account Settings.",
       });
     }
 
@@ -465,13 +525,6 @@ export const completeProfile = async (req, res) => {
       });
     }
 
-    if (!normalizedEmail && !trimmedPhoneNumber) {
-      return res.status(400).json({
-        success: false,
-        message: "Email or contact is required.",
-      });
-    }
-
     const authenticatedSession = await getAuthenticatedSession(req);
 
     if (!authenticatedSession) {
@@ -492,21 +545,31 @@ export const completeProfile = async (req, res) => {
       });
     }
 
-    // Email changes require a separate verified-email flow.
+    // Contact details are never accepted directly from this form. They must
+    // already have been verified by Firebase and synced through /login.
     if (normalizedEmail && normalizedEmail !== user.email) {
       return res.status(400).json({
         success: false,
         code: "EMAIL_VERIFICATION_REQUIRED",
-        message: "Please verify your email before changing it.",
+        message: "Verify and link your email before completing setup.",
+      });
+    }
+    if (trimmedPhoneNumber && trimmedPhoneNumber !== user.phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        code: "PHONE_VERIFICATION_REQUIRED",
+        message: "Verify and link your mobile number before completing setup.",
+      });
+    }
+    if (!user.email && !user.phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "At least one verified email address or mobile number is required.",
       });
     }
 
     user.name = trimmedName;
-
-    if (trimmedPhoneNumber) {
-      user.phoneNumber = trimmedPhoneNumber;
-    }
-
     user.profileCompleted = true;
 
     await user.save();
@@ -577,12 +640,10 @@ export const updateProfessionalProfile = async (req, res) => {
       }
       const value = req.body[field].trim();
       if (value.length > rules.max) {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: `${field} must be ${rules.max} characters or fewer.`,
-          });
+        return res.status(400).json({
+          success: false,
+          message: `${field} must be ${rules.max} characters or fewer.`,
+        });
       }
       user[field] = value;
     }
