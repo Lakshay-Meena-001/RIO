@@ -299,7 +299,7 @@ export default function BillingDashboardPage({ user, setUser }) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setUser]);
 
   const handleAddBalance = async (amount, existingOrder = null) => {
     if (paymentLoading) return;
