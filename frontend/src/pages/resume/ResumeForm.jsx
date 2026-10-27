@@ -58,6 +58,7 @@ function Field({
   placeholder,
   type = "text",
   hint,
+  error = "",
   recommended = "",
 }) {
   const length = (value ?? "").length;
@@ -78,8 +79,14 @@ function Field({
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className={inputClassName}
+        aria-invalid={Boolean(error)}
+        className={`${inputClassName} ${error ? "border-red-300/60 focus:border-red-300" : ""}`}
       />
+      {error && (
+        <p role="alert" className="mt-1.5 text-[11px] leading-4 text-red-300">
+          {error}
+        </p>
+      )}
 
       {hint && (
         <p className="mt-1.5 text-[11px] leading-4 text-white/35">{hint}</p>
@@ -331,7 +338,7 @@ function EntryHeader({ title, subtitle, onRemove }) {
 /*                              Resume Form                                   */
 /* -------------------------------------------------------------------------- */
 
-export default function ResumeForm({ data, onChange, onCreateNew }) {
+export default function ResumeForm({ data, onChange, fieldErrors = {} }) {
   const [profileImportStatus, setProfileImportStatus] = useState({});
   const importToProfile = async (key, profileField, value, label = key) => {
     const cleanValue = typeof value === "string" ? value.trim() : value;
@@ -491,16 +498,6 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
       <FormSection
         title="Profile"
         description="Your core identity and professional links."
-        action={
-          <button
-            type="button"
-            onClick={onCreateNew}
-            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/[.12] bg-white/[.045] px-3.5 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/[.18] hover:bg-white/[.08] focus:outline-none focus:ring-2 focus:ring-white/20"
-          >
-            <span className="text-sm leading-none">+</span>
-            Create new
-          </button>
-        }
       >
         <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
           <Field
@@ -508,6 +505,7 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
             value={data.profile?.name}
             onChange={(value) => updateProfile("name", value)}
             placeholder="e.g. Rahul Sharma"
+            error={fieldErrors.name}
           />
 
           <Field
@@ -516,6 +514,7 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
             onChange={(value) => updateProfile("email", value)}
             placeholder="you@example.com"
             type="email"
+            error={fieldErrors.email}
           />
 
           <Field
@@ -524,6 +523,7 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
             onChange={(value) => updateProfile("phone", value)}
             placeholder="+91 98765 43210"
             type="tel"
+            error={fieldErrors.phone}
           />
 
           <div className="min-w-0">
@@ -613,6 +613,7 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
           placeholder="Write a concise professional summary..."
           rows={7}
           recommended={700}
+          error={fieldErrors.summary}
           hint="Aim for roughly 80–120 words. Focus on role, strongest skills, experience level and target direction."
         />
         {profileImportButton("summary", "bio", data.summary, "Summary")}
@@ -740,6 +741,11 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
             />
           )}
         </div>
+        {fieldErrors.experienceEntries && (
+          <p role="alert" className="mt-3 text-[11px] leading-4 text-red-300">
+            {fieldErrors.experienceEntries}
+          </p>
+        )}
       </FormSection>
 
       {/* ------------------------------------------------------------------ */}
@@ -851,6 +857,16 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
             />
           )}
         </div>
+        {fieldErrors.education && (
+          <p role="alert" className="mt-3 text-[11px] leading-4 text-red-300">
+            {fieldErrors.education}
+          </p>
+        )}
+        {fieldErrors.educationEntries && (
+          <p role="alert" className="mt-2 text-[11px] leading-4 text-red-300">
+            {fieldErrors.educationEntries}
+          </p>
+        )}
       </FormSection>
 
       <FormSection
@@ -965,6 +981,16 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
             />
           )}
         </div>
+        {fieldErrors.projectExperience && (
+          <p role="alert" className="mt-3 text-[11px] leading-4 text-red-300">
+            {fieldErrors.projectExperience}
+          </p>
+        )}
+        {fieldErrors.projectEntries && (
+          <p role="alert" className="mt-2 text-[11px] leading-4 text-red-300">
+            {fieldErrors.projectEntries}
+          </p>
+        )}
       </FormSection>
 
       {/* ------------------------------------------------------------------ */}
@@ -1028,6 +1054,11 @@ export default function ResumeForm({ data, onChange, onCreateNew }) {
         {profileImportStatus.skills && (
           <p role="status" className="mt-1 text-[11px] text-emerald-400">
             {profileImportStatus.skills}
+          </p>
+        )}
+        {fieldErrors.skills && (
+          <p role="alert" className="mt-3 text-[11px] leading-4 text-red-300">
+            {fieldErrors.skills}
           </p>
         )}
       </FormSection>

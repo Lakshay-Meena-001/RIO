@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import {
   ArrowLeft,
@@ -172,6 +172,8 @@ function EntryList({
 
 export default function ResumeHistoryPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const requestedResumeId = searchParams.get("resumeId") || "";
   const dispatch = useDispatch();
   const [history, setHistory] = useState([]);
   const [query, setQuery] = useState("");
@@ -278,14 +280,14 @@ export default function ResumeHistoryPage() {
     // loader owns its loading/error state updates after its request resolves.
     const startHistoryLoad = async () => {
       await Promise.resolve();
-      if (!cancelled) await loadHistory();
+      if (!cancelled) await loadHistory(requestedResumeId);
     };
 
     void startHistoryLoad();
     return () => {
       cancelled = true;
     };
-  }, [loadHistory]);
+  }, [loadHistory, requestedResumeId]);
 
   // Load details whenever the selected resume changes.
   useEffect(() => {

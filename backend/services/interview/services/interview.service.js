@@ -2193,45 +2193,16 @@ export const submitInterview = async (
      * - appear as completed history
      */
     if (evaluatedAnswerCount === 0) {
-      interview.status = "abandoned";
+      // Empty manual submit / empty timer expiry is a discard, not history.
+      // Delete only while this request still owns finalization.
+      const discarded = await Interview.findOneAndDelete({
+        _id: interviewId,
+        userId,
+        status: "in-progress",
+        finalizationKey,
+      });
 
-      interview.terminationReason = isTimeExpired ? "time-limit" : "no-answers";
-
-      interview.endedAt = new Date();
-
-      /*
-       * No answer means no payment.
-       * Release the finalization lock before closing
-       * the interview as abandoned.
-       */
-      interview.finalizationKey = null;
-      interview.finalizationStartedAt = null;
-      interview.finalizationLeaseUntil = null;
-
-      const abandonedInterview = await Interview.findOneAndUpdate(
-        {
-          _id: interviewId,
-          userId,
-          status: "in-progress",
-          finalizationKey,
-        },
-        {
-          $set: {
-            status: "abandoned",
-            terminationReason: isTimeExpired ? "time-limit" : "no-answers",
-            endedAt: new Date(),
-            finalizationKey: null,
-            finalizationStartedAt: null,
-            finalizationLeaseUntil: null,
-          },
-        },
-        {
-          returnDocument: "after",
-          runValidators: true,
-        },
-      );
-
-      if (!abandonedInterview) {
+      if (!discarded) {
         throw new AppError(
           "Interview finalization ownership was lost. Please retry.",
           409,
@@ -2244,9 +2215,9 @@ export const submitInterview = async (
       }
 
       return {
-        interviewId: interview._id,
-        status: "abandoned",
-        terminationReason: interview.terminationReason,
+        interviewId,
+        status: "discarded",
+        terminationReason: isTimeExpired ? "time-limit" : "no-answers",
         amountCharged: 0,
       };
     }
@@ -2705,52 +2676,15 @@ async function expireInterviewIfNeeded(interview) {
      * - NOT appear as completed history
      */
     if (evaluatedAnswerCount === 0) {
-      latestInterview.status = "abandoned";
+      // Timer expired with no answers: discard without report/history/billing.
+      const discarded = await Interview.findOneAndDelete({
+        _id: latestInterview._id,
+        userId: latestInterview.userId,
+        status: "in-progress",
+        finalizationKey,
+      });
 
-      latestInterview.terminationReason = "time-limit";
-
-      latestInterview.endedAt = new Date();
-
-      /*
-       * No answer means no payment.
-       * Release the finalization lock before closing
-       * the interview as abandoned.
-       */
-      latestInterview.finalizationKey = null;
-      latestInterview.finalizationStartedAt = null;
-      latestInterview.finalizationLeaseUntil = null;
-
-      const abandonedInterview = await Interview.findOneAndUpdate(
-        {
-          _id: latestInterview._id,
-          userId: latestInterview.userId,
-          status: "in-progress",
-          finalizationKey,
-        },
-        {
-          $set: {
-            status: "abandoned",
-            endedAt: new Date(),
-            terminationReason: "time-limit",
-            finalizedAt: new Date(),
-            finalizationKey: null,
-            finalizationStartedAt: null,
-            finalizationLeaseUntil: null,
-            overallScore: 0,
-            sectionScores: {},
-            strengths: [],
-            weaknesses: [],
-            recommendations: [],
-            summary: "Interview ended because the time limit was reached.",
-          },
-        },
-        {
-          returnDocument: "after",
-          runValidators: true,
-        },
-      );
-
-      if (!abandonedInterview) {
+      if (!discarded) {
         throw new AppError(
           "Interview finalization ownership was lost. Please retry.",
           409,
@@ -2762,7 +2696,7 @@ async function expireInterviewIfNeeded(interview) {
         finalizationLeaseHeartbeat = null;
       }
 
-      return abandonedInterview;
+      return true;
     }
 
     if (finalizationLeaseHeartbeat?.isLeaseLost()) {
@@ -2945,54 +2879,28 @@ export const quitInterview = async (userId, interviewId) => {
     }
   }
 
-  const interview = await Interview.findOneAndUpdate(
-    {
-      _id: interviewId,
-      userId,
-      status: "in-progress",
-      $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
-      paymentStatus: {
-        $nin: ["deducting", "deducted", "charging", "charged"],
-      },
+  const interview = await Interview.findOneAndDelete({
+    _id: interviewId,
+    userId,
+    status: "in-progress",
+    $or: [{ finalizationKey: null }, { finalizationKey: { $exists: false } }],
+    paymentStatus: {
+      $nin: ["deducting", "deducted", "charging", "charged"],
     },
-    {
-      $set: {
-        status: "abandoned",
-        endedAt: new Date(),
-        terminationReason: "quit",
-        finalizationKey: null,
-        finalizationStartedAt: null,
-        finalizationLeaseUntil: null,
-      },
-    },
-    {
-      returnDocument: "after",
-    },
-  );
+  });
 
   if (interview) {
-    return interview;
+    return {
+      interviewId: interview._id,
+      status: "discarded",
+      terminationReason: "quit",
+    };
   }
 
-  if (
-    existingInterview.status === "completed" ||
-    existingInterview.status === "abandoned"
-  ) {
-    throw new AppError("Interview is already closed.", 400);
-  }
-
-  if (
-    existingInterview.finalizationKey ||
-    hasPaymentInFlight(existingInterview.paymentStatus) ||
-    hasSuccessfulPayment(existingInterview.paymentStatus)
-  ) {
-    throw new AppError(
-      "Interview finalization is already in progress. Please wait for it to complete.",
-      409,
-    );
-  }
-
-  throw new AppError("Interview cannot be quit.", 400);
+  throw new AppError(
+    "Interview is being finalized or has already ended. Please refresh.",
+    409,
+  );
 };
 
 /*

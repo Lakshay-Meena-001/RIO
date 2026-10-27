@@ -611,7 +611,7 @@ const NewInterview = ({ user, setUser }) => {
                           updateField("role", event.target.value)
                         }
                         placeholder="e.g. Software Engineer"
-                        className={inputClass}
+                        className={inputClass  }
                       />
                     </div>
 

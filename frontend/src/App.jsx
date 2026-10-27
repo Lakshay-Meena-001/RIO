@@ -28,7 +28,7 @@ import InterviewHistory from "./pages/interview/InterviewHistory";
 
 // APIs
 import { getCurrentUser } from "./api/user/user.api";
-import { getResume } from "./api/resume/resume.api";
+import { getResumes } from "./api/resume/resume.api";
 
 // Redux
 import { setResume } from "./redux/resumeSlice";
@@ -88,16 +88,20 @@ const App = () => {
 
     const getResumeData = async () => {
       try {
-        const result = await getResume();
-
-        if (result?.success && result?.data) {
-          dispatch(setResume(result.data));
+        // Load the user's resume collection once; an empty collection is a normal
+        // state for new accounts and must not trigger the legacy /get-resume 404.
+        const result = await getResumes();
+        const payload = result?.data ?? result;
+        const resumes = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.resumes)
+            ? payload.resumes
+            : [];
+        if (resumes.length > 0) {
+          dispatch(setResume(resumes[0]));
         }
       } catch (error) {
-        // A new account without a resume is a normal empty state, not an error.
-        if (error?.response?.status !== 404) {
-          console.error("Failed to fetch resume:", error);
-        }
+        console.error("Failed to fetch resumes:", error);
       }
     };
 

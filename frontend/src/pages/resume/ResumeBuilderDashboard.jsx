@@ -13,7 +13,7 @@ import {
   FiRefreshCw,
 } from "react-icons/fi";
 
-import { getResume, getResumes } from "../../api/resume/resume.api";
+import { getResumes } from "../../api/resume/resume.api";
 import Sidebar from "../../components/SideBar";
 import MobileHeader from "../../components/MobileHeader";
 import Surface from "../../components/ui/Surface";
@@ -109,8 +109,8 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(
-  () => localStorage.getItem("rio-sidebar-open") !== "false"
-);
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
 
   const firstName = user?.name?.trim()?.split(/\s+/)?.[0] || "there";
 
@@ -119,43 +119,20 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
 
     async function loadDashboard() {
       try {
-        const results = await Promise.allSettled([getResumes(), getResume()]);
-
+        const result = await getResumes();
         if (cancelled) return;
-
-        const listResult = results[0];
-        const currentResult = results[1];
-
-        if (listResult.status === "fulfilled") {
-          setResumes(getResumeList(listResult.value));
-        } else {
-          setError(
-            listResult.reason?.response?.data?.message ||
-              "Could not load your resume list.",
-          );
-        }
-
-        if (currentResult.status === "fulfilled") {
-          const payload = getPayload(currentResult.value);
-          const resume = payload?.resume || payload?.data || payload;
-
-          if (resume && typeof resume === "object") {
-            setCurrentResume(resume);
-          }
-        } else if (listResult.status === "rejected") {
-          setError(
-            currentResult.reason?.response?.data?.message ||
-              currentResult.reason?.message ||
-              "Could not load your resume dashboard.",
-          );
-        }
+        const list = getResumeList(result);
+        setResumes(list);
+        setCurrentResume(list[0] || null);
+        setError("");
       } catch (err) {
         if (!cancelled) {
           setError(
             err?.response?.data?.message ||
               err?.message ||
-              "Something went wrong while loading your dashboard.",
+              "Could not load your resume history.",
           );
+          setCurrentResume(null);
         }
       } finally {
         if (!cancelled) setLoading(false);

@@ -10,6 +10,7 @@ import {
   FiX,
   FiMail,
   FiCheck,
+  FiPhone,
 } from "react-icons/fi";
 import {
   signInWithPopup,
@@ -1771,6 +1772,28 @@ const Loginmodel = ({
                               : "hidden"
                           }`}
                         >
+                          <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-4">
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-amber-300/15 bg-amber-300/[0.06]">
+                                <FiPhone
+                                  className="text-amber-200/80"
+                                  size={16}
+                                />
+                              </div>
+
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-white/85">
+                                  Mobile OTP temporarily unavailable
+                                </p>
+
+                                <p className="mt-1 text-xs leading-5 text-white/45">
+                                  This service is currently unavailable. Please
+                                  log in using one of the other available
+                                  methods below.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
                           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/75">
                             Phone
                           </p>
@@ -1802,8 +1825,9 @@ const Loginmodel = ({
                                       .slice(0, 10),
                                   )
                                 }
+                                disabled
                                 placeholder="Mobile number"
-                                className="min-w-0 flex-1 bg-transparent px-4 text-sm text-white outline-none placeholder:text-white/35"
+                                className="min-w-0 flex-1 cursor-not-allowed bg-transparent px-4 text-sm text-white/35 outline-none placeholder:text-white/25"
                               />
                             </div>
 

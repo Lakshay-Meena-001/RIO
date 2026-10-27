@@ -896,8 +896,8 @@ const Interview = ({ setUser }) => {
           return;
         }
         if (
-          result?.data?.status === "abandoned" ||
-          result?.data?.interview?.status === "abandoned"
+          ["abandoned", "discarded"].includes(result?.data?.status) ||
+          ["abandoned", "discarded"].includes(result?.data?.interview?.status)
         ) {
           /*
            * Empty submission is a silent discard.
@@ -926,7 +926,7 @@ const Interview = ({ setUser }) => {
           return;
         }
 
-        if (refreshed?.status === "abandoned") {
+        if (["abandoned", "discarded"].includes(refreshed?.status)) {
           setShowCompletionModal(false);
           setReportReady(false);
 
@@ -999,7 +999,7 @@ const Interview = ({ setUser }) => {
                 return;
               }
 
-              if (latestInterview.status === "abandoned") {
+              if (["abandoned", "discarded"].includes(latestInterview.status)) {
                 setShowCompletionModal(false);
                 setReportReady(false);
 

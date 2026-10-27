@@ -191,6 +191,16 @@ const Home = ({ setUser, user }) => {
           }
         }
 
+        @media (prefers-reduced-motion: reduce) {
+          html { scroll-behavior: auto !important; }
+          *, *::before, *::after {
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+            scroll-behavior: auto !important;
+          }
+        }
+
         .rio-grid {
           background-image:
             linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
@@ -295,7 +305,7 @@ const Home = ({ setUser, user }) => {
             <button
               type="button"
               onClick={openLogin}
-              className="group flex h-10 items-center gap-3 rounded-xl border border-white/15 bg-white/[0.045] px-4 text-xs font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl transition-all hover:border-white/30 hover:bg-white/[0.075]"
+              className="group flex h-10 items-center gap-3 rounded-xl border border-white/15 bg-white/[0.045] px-4 text-xs font-semibold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-xl transition-all duration-200 ease-out hover:border-white/30 hover:bg-white/[0.075]"
             >
               Login
               <FaArrowRight
@@ -358,7 +368,7 @@ const Home = ({ setUser, user }) => {
                 <button
                   type="button"
                   onClick={openLogin}
-                  className="group flex h-12 items-center gap-3 rounded-full bg-white px-6 text-sm font-bold text-[#17191C] shadow-[0_16px_45px_rgba(255,255,255,0.08)] transition-transform hover:-translate-y-0.5"
+                  className="group flex h-12 items-center gap-3 rounded-full bg-white px-6 text-sm font-bold text-[#17191C] shadow-[0_16px_45px_rgba(255,255,255,0.08)] transition-all duration-200 ease-out hover:-translate-y-0.5"
                 >
                   Start your journey
                   <FaArrowRight
@@ -526,7 +536,7 @@ const Home = ({ setUser, user }) => {
         {/* Product introduction */}
         <section
           id="product"
-          className="relative z-10 px-5 py-10 sm:py-24 lg:px-10 lg:py-24"
+          className="relative z-10 scroll-mt-24 px-5 py-14 sm:py-20 lg:px-10 lg:py-24"
         >
           <div className="mx-auto max-w-[1200px]">
             <motion.div
@@ -734,7 +744,7 @@ const Home = ({ setUser, user }) => {
                 <button
                   type="button"
                   onClick={openLogin}
-                  className="group mx-auto flex h-11 w-full max-w-[245px] shrink-0 items-center justify-center gap-3 rounded-full bg-white px-5 text-sm font-bold text-[#17191C] transition-transform hover:-translate-y-0.5 lg:w-auto"
+                  className="group mx-auto flex h-11 w-full max-w-[245px] shrink-0 items-center justify-center gap-3 rounded-full bg-white px-5 text-sm font-bold text-[#17191C] transition-all duration-200 ease-out hover:-translate-y-0.5 lg:w-auto"
                 >
                   Start with your profile
                   <FiArrowRight
@@ -752,7 +762,7 @@ const Home = ({ setUser, user }) => {
         {/* Agents */}
         <section
           id="agents"
-          className="relative z-10 px-5 py-10 sm:py-24 lg:px-10 lg:py-24"
+          className="relative z-10 scroll-mt-24 px-5 py-14 sm:py-20 lg:px-10 lg:py-24"
         >
           <div className="mx-auto max-w-[1200px]">
             <motion.div
@@ -816,7 +826,7 @@ const Home = ({ setUser, user }) => {
         <GlassLine />
 
         {/* Assessment section */}
-        <section className="relative z-10 px-5 py-10 sm:py-24 lg:px-10 lg:py-24">
+        <section className="relative z-10 scroll-mt-24 px-5 py-14 sm:py-20 lg:px-10 lg:py-24">
           <div className="mx-auto grid max-w-[1200px] items-center gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20">
             <motion.div
               variants={reveal}
@@ -933,7 +943,7 @@ const Home = ({ setUser, user }) => {
         {/* Roadmap */}
         <section
           id="roadmap"
-          className="relative z-10 px-5 py-10 sm:py-24 lg:px-10 lg:py-24"
+          className="relative z-10 scroll-mt-24 px-5 py-14 sm:py-20 lg:px-10 lg:py-24"
         >
           <div className="mx-auto max-w-[1200px]">
             <motion.div
@@ -953,13 +963,14 @@ const Home = ({ setUser, user }) => {
               </SectionHeading>
             </motion.div>
 
-            <div className="mt-10 grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="mt-10 grid items-stretch gap-5 lg:grid-cols-[1.1fr_0.9fr]">
+              {/* Left card: existing neutral RIO surface, with a little useful detail */}
               <motion.div
-                initial={{ opacity: 0, x: -25 }}
+                initial={{ opacity: 0, x: -18 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, amount: 0.15 }}
-                transition={{ duration: 0.65 }}
-                className="rounded-[28px] border border-white/10 bg-[#111315]/70 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:p-8"
+                transition={{ duration: 0.55 }}
+                className="flex flex-col rounded-[28px] border border-white/10 bg-[#111315]/70 p-6 shadow-[0_30px_80px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:p-8"
               >
                 <div className="flex items-center justify-between">
                   <div>
@@ -975,7 +986,7 @@ const Home = ({ setUser, user }) => {
                   </div>
                 </div>
 
-                <div className="mx-auto mt-7 w-fit space-y-3 lg:mx-0">
+                <div className="mt-6 space-y-2.5">
                   {[
                     ["DSA foundations", "Completed", true],
                     ["Advanced graph patterns", "In progress", true],
@@ -984,13 +995,17 @@ const Home = ({ setUser, user }) => {
                   ].map(([title, state, done], index) => (
                     <div
                       key={title}
-                      className="flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4"
+                      className={`flex items-center gap-3 rounded-2xl border p-3.5 sm:p-4 ${state === "In progress" ? "border-white/[0.15] bg-white/[0.045]" : "border-white/[0.07] bg-white/[0.02]"}`}
                     >
-                      <div className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-xs font-semibold text-white/[0.62]">
-                        {done ? <FiCheck size={14} /> : index + 1}
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 text-xs font-semibold text-white/[0.62]">
+                        {done && state === "Completed" ? (
+                          <FiCheck size={14} />
+                        ) : (
+                          index + 1
+                        )}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-white/[0.82]">
+                        <p className="text-sm font-semibold text-white/[0.84]">
                           {title}
                         </p>
                         <p className="mt-1 text-[11px] text-white/[0.42]">
@@ -998,22 +1013,44 @@ const Home = ({ setUser, user }) => {
                         </p>
                       </div>
                       <span
-                        className={`h-1.5 w-1.5 rounded-full ${done ? "bg-white" : "bg-white/20"}`}
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${state === "Completed" ? "bg-white/80" : state === "In progress" ? "bg-white/65" : "bg-white/20"}`}
                       />
                     </div>
                   ))}
                 </div>
+
+                <div className="mt-5 border-t border-white/[0.08] pt-4">
+                  <div className="flex items-center justify-between gap-3 text-xs">
+                    <span className="text-white/[0.48]">Current focus</span>
+                    <span className="text-right font-medium text-white/[0.78]">
+                      Advanced graph patterns
+                    </span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {["Concept review", "Timed practice", "Dry runs"].map(
+                      (label) => (
+                        <span
+                          key={label}
+                          className="rounded-full border border-white/[0.08] bg-white/[0.025] px-3 py-1.5 text-[10px] text-white/[0.52]"
+                        >
+                          {label}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </div>
               </motion.div>
 
+              {/* Right card: same charcoal / white glass treatment, modestly filled */}
               <motion.div
-                initial={{ opacity: 0, x: 25 }}
+                initial={{ opacity: 0, x: 18 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true, amount: 0.15 }}
-                transition={{ duration: 0.65 }}
-                className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.035] p-6 sm:p-8"
+                transition={{ duration: 0.55 }}
+                className="relative flex flex-col overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.035] p-6 sm:p-8"
               >
-                <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-white/[0.05] blur-[70px]" />
-                <div className="relative">
+                <div className="absolute -right-20 -top-20 h-56 w-56 rounded-full bg-white/[0.035] blur-[70px]" />
+                <div className="relative flex flex-1 flex-col">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-white/[0.42]">
                     Why it matters
                   </p>
@@ -1024,18 +1061,109 @@ const Home = ({ setUser, user }) => {
                     RIO turns assessment history into a prioritized learning
                     sequence, so every practice session has a reason behind it.
                   </p>
-
-                  <div className="mt-10 border-t border-white/[0.08] pt-6">
+                  <div className="mt-7 border-t border-white/[0.08] pt-5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-white/[0.52]">
                         Roadmap progress
                       </span>
-                      <span className="font-semibold text-white">68%</span>
+                      <motion.span
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.35, delay: 0.2 }}
+                        className="font-semibold text-white"
+                      >
+                        68%
+                      </motion.span>
                     </div>
-                    <div className="mt-3 h-2 rounded-full bg-white/[0.07]">
-                      <div className="h-full w-[68%] rounded-full bg-white" />
+                    <div
+                      className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.07]"
+                      role="img"
+                      aria-label="Roadmap progress: 68 percent"
+                    >
+                      <motion.div
+                        initial={{ width: 0 }}
+                        whileInView={{ width: "68%" }}
+                        viewport={{ once: true }}
+                        transition={{
+                          duration: 0.9,
+                          ease: "easeOut",
+                          delay: 0.1,
+                        }}
+                        className="h-full rounded-full bg-white"
+                      />
                     </div>
                   </div>
+
+                  <div className="mt-7 border-t border-white/[0.08] pt-5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-white/[0.52]">
+                        Interview progress
+                      </span>
+                      <motion.span
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.35, delay: 0.2 }}
+                        className="font-semibold text-white"
+                      >
+                        94%
+                      </motion.span>
+                    </div>
+                    <div
+                      className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.07]"
+                      role="img"
+                      aria-label="Roadmap progress: 68 percent"
+                    >
+                      <motion.div
+                        initial={{ width: 0 }}
+                        whileInView={{ width: "94%" }}
+                        viewport={{ once: true }}
+                        transition={{
+                          duration: 0.9,
+                          ease: "easeOut",
+                          delay: 0.1,
+                        }}
+                        className="h-full rounded-full bg-white"
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-7 border-t border-white/[0.08] pt-5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-white/[0.52]">
+                        Resume Builder progress
+                      </span>
+                      <motion.span
+                        initial={{ opacity: 0 }}
+                        whileInView={{ opacity: 1 }}
+                        viewport={{ once: true }}
+                        transition={{ duration: 0.35, delay: 0.2 }}
+                        className="font-semibold text-white"
+                      >
+                        82%
+                      </motion.span>
+                    </div>
+                    <div
+                      className="mt-3 h-2 overflow-hidden rounded-full bg-white/[0.07]"
+                      role="img"
+                      aria-label="Roadmap progress: 68 percent"
+                    >
+                      <motion.div
+                        initial={{ width: 0 }}
+                        whileInView={{ width: "82%" }}
+                        viewport={{ once: true }}
+                        transition={{
+                          duration: 0.9,
+                          ease: "easeOut",
+                          delay: 0.1,
+                        }}
+                        className="h-full rounded-full bg-white"
+                      />
+                    </div>
+                  </div>
+                  <p className="mt-auto pt-4 text-[10px] text-white/[0.32]">
+                    Illustrative sample data · not live account progress
+                  </p>
                 </div>
               </motion.div>
             </div>
@@ -1073,7 +1201,7 @@ const Home = ({ setUser, user }) => {
             <button
               type="button"
               onClick={openLogin}
-              className="group mt-9 inline-flex h-12 items-center gap-3 rounded-full bg-white px-6 text-sm font-bold text-[#17191C] shadow-[0_18px_50px_rgba(255,255,255,0.08)] transition-transform hover:-translate-y-0.5"
+              className="group mt-9 inline-flex h-12 items-center gap-3 rounded-full bg-white px-6 text-sm font-bold text-[#17191C] shadow-[0_18px_50px_rgba(255,255,255,0.08)] transition-all duration-200 ease-out hover:-translate-y-0.5"
             >
               Start your journey
               <FiArrowRight
@@ -1107,7 +1235,7 @@ const Home = ({ setUser, user }) => {
                         .getElementById("product")
                         ?.scrollIntoView({ behavior: "smooth" })
                     }
-                    className="block transition-colors hover:text-white"
+                    className="block w-fit transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                   >
                     Overview
                   </button>
@@ -1117,7 +1245,7 @@ const Home = ({ setUser, user }) => {
                         .getElementById("agents")
                         ?.scrollIntoView({ behavior: "smooth" })
                     }
-                    className="block transition-colors hover:text-white"
+                    className="block w-fit transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                   >
                     AI Agents
                   </button>
@@ -1127,7 +1255,7 @@ const Home = ({ setUser, user }) => {
                         .getElementById("roadmap")
                         ?.scrollIntoView({ behavior: "smooth" })
                     }
-                    className="block transition-colors hover:text-white"
+                    className="block w-fit transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                   >
                     Roadmap
                   </button>
@@ -1141,7 +1269,7 @@ const Home = ({ setUser, user }) => {
                 <div className="mt-4 space-y-3 text-sm text-white/[0.58]">
                   <button
                     onClick={openLogin}
-                    className="block transition-colors hover:text-white"
+                    className="block w-fit transition-colors duration-200 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                   >
                     Get started
                   </button>

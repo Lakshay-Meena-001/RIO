@@ -62,19 +62,19 @@
   --ease-fast: 160ms ease;
   --ease-normal: 240ms ease;
 
-  --sidebar-bg: #101011;
-  --sidebar-text: #f2f0eb;
-  --sidebar-muted: #9a978f;
-  --sidebar-muted-strong: #c9c5bd;
-  --sidebar-label: #77756f;
-  --sidebar-border: rgba(242, 240, 235, 0.085);
-  --sidebar-hover: rgba(242, 240, 235, 0.065);
-  --sidebar-active: rgba(242, 240, 235, 0.11);
-  --sidebar-card: rgba(242, 240, 235, 0.035);
-  --sidebar-icon-bg: rgba(242, 240, 235, 0.12);
-  --sidebar-icon-hover: rgba(242, 240, 235, 0.19);
-  --sidebar-avatar-bg: #e8e3d8;
-  --sidebar-avatar-text: #171716;
+  --sidebar-bg: #101113;
+  --sidebar-text: #f4f4f5;
+  --sidebar-muted: #a1a1aa;
+  --sidebar-muted-strong: #d4d4d8;
+  --sidebar-label: #71717a;
+  --sidebar-border: rgba(255, 255, 255, 0.085);
+  --sidebar-hover: rgba(255, 255, 255, 0.055);
+  --sidebar-active: rgba(255, 255, 255, 0.105);
+  --sidebar-card: rgba(255, 255, 255, 0.035);
+  --sidebar-icon-bg: rgba(255, 255, 255, 0.10);
+  --sidebar-icon-hover: rgba(255, 255, 255, 0.16);
+  --sidebar-avatar-bg: #e5e7eb;
+  --sidebar-avatar-text: #17191c;
 }
 
 html {

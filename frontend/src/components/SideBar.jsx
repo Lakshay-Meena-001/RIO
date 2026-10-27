@@ -2,7 +2,7 @@ import React from "react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "motion/react";
-import { logoutUser } from "../api/user/user.api.js";
+import { getCurrentUser, logoutUser } from "../api/user/user.api.js";
 import toast from "react-hot-toast";
 import ConfirmDialog from "./ui/ConfirmDialog.jsx";
 
@@ -73,6 +73,38 @@ function Sidebar({
       document.removeEventListener("touchmove", preventBackgroundScroll);
     };
   }, [mobileOpen]);
+
+  // Keep the persistent sidebar balance in sync with server-side top-ups and scorer charges.
+  useEffect(() => {
+    let active = true;
+    const refreshUser = async () => {
+      try {
+        const response = await getCurrentUser();
+        const freshUser =
+          response?.user || response?.data?.user || response?.data || null;
+        if (active && freshUser)
+          setUser?.((current) => ({ ...(current || {}), ...freshUser }));
+      } catch {
+        // The current page owns its own error UI; stale sidebar data is safer than a disruptive toast.
+      }
+    };
+    const handleFocus = () => {
+      void refreshUser();
+    };
+    const handleBalanceUpdate = () => {
+      void refreshUser();
+    };
+    void refreshUser();
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("rio:balance-updated", handleBalanceUpdate);
+    document.addEventListener("visibilitychange", handleFocus);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("rio:balance-updated", handleBalanceUpdate);
+      document.removeEventListener("visibilitychange", handleFocus);
+    };
+  }, [location.pathname, setUser]);
 
   const firstName = user?.name?.split(" ")[0] || "User";
 

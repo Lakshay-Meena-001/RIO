@@ -22,7 +22,7 @@ import {
   getInterviewHistory,
   getActiveInterview,
 } from "../../api/interview/interview.api";
-import { getResume, getResumes } from "../../api/resume/resume.api";
+import { getResumes } from "../../api/resume/resume.api";
 import { getUserRoadmaps } from "../../api/roadmap/roadmap.api";
 import {
   getBillingSummary,
@@ -125,7 +125,6 @@ const Dashboard = ({ user, setUser }) => {
       getInterviewHistory(),
       getActiveInterview(),
       getResumes(),
-      getResume(),
       getUserRoadmaps({ page: 1, limit: 20 }),
       getBillingSummary(),
       getBillingTransactions({ page: 1, pageSize: 5 }),
@@ -147,22 +146,20 @@ const Dashboard = ({ user, setUser }) => {
           ? getResumeList(results[2].value)
           : [],
       currentResume:
-        results[3].status === "fulfilled"
-          ? (normalizePayload(results[3].value)?.resume ??
-            normalizePayload(results[3].value) ??
-            null)
+        results[2].status === "fulfilled"
+          ? (getResumeList(results[2].value)[0] ?? null)
           : null,
       roadmaps:
-        results[4].status === "fulfilled"
-          ? getRoadmapList(results[4].value)
+        results[3].status === "fulfilled"
+          ? getRoadmapList(results[3].value)
           : [],
       billing:
-        results[5].status === "fulfilled"
-          ? normalizePayload(results[5].value)
+        results[4].status === "fulfilled"
+          ? normalizePayload(results[4].value)
           : null,
       transactions:
-        results[6].status === "fulfilled"
-          ? getTransactionList(results[6].value)
+        results[5].status === "fulfilled"
+          ? getTransactionList(results[5].value)
           : [],
     };
 
@@ -171,14 +168,8 @@ const Dashboard = ({ user, setUser }) => {
         console.error("Dashboard request failed:", index, result.reason);
       }
     });
-    const isExpectedEmptyResume = (result, index) =>
-      index === 3 &&
-      result.status === "rejected" &&
-      result.reason?.response?.status === 404;
-
     const failures = results.filter(
-      (result, index) =>
-        result.status === "rejected" && !isExpectedEmptyResume(result, index),
+      (result) => result.status === "rejected",
     ).length;
 
     setData(next);

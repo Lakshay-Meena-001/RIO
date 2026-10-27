@@ -246,6 +246,28 @@ const getVisibleResumeFilter = (userId, extra = {}) => ({
   ...visibleResumeCondition,
 });
 
+// Scorer history must only expose reports produced by the paid PDF-analysis
+// workflow. Builder-created resumes have no extracted PDF text and do not have
+// completed processing/billing metadata, so they can never qualify here.
+const getScoredResumeFilter = (userId, extra = {}) => ({
+  ...getVisibleResumeFilter(userId, extra),
+  extractedText: { $type: "string", $ne: "" },
+  "processing.status": "completed",
+  "processing.stage": "completed",
+  "processing.analyzedAt": { $ne: null },
+  "billing.status": "charged",
+});
+
+// Builder history/detail/update are restricted to manually authored records.
+// A scored PDF report remains in the Scorer domain unless the user explicitly
+// imports its content into a new Builder record.
+const getBuilderResumeFilter = (userId, extra = {}) => ({
+  ...getVisibleResumeFilter(userId, extra),
+  extractedText: { $in: ["", null] },
+  "billing.status": { $ne: "charged" },
+  idempotencyKey: { $exists: false },
+});
+
 const getBalanceDeductionSummary = (billingResult) => {
   if (!billingResult || billingResult.alreadyProcessed === true) return null;
 
@@ -686,12 +708,10 @@ export const getResume = async (req, res) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: "Authenticated user identity is required",
-        });
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
     }
 
     const cacheKey = legacyResumeCacheKey(userId);
@@ -702,7 +722,9 @@ export const getResume = async (req, res) => {
         const parsed = JSON.parse(cached);
         if (
           String(parsed?.userId) === userId &&
-          isValidObjectId(String(parsed?._id))
+          isValidObjectId(String(parsed?._id)) &&
+          !String(parsed?.extractedText || "").trim() &&
+          parsed?.billing?.status !== "charged"
         ) {
           return res
             .status(200)
@@ -714,7 +736,7 @@ export const getResume = async (req, res) => {
       await safeCacheDelete(cacheKey);
     }
 
-    const resume = await Resume.findOne(getVisibleResumeFilter(userId)).sort({
+    const resume = await Resume.findOne(getBuilderResumeFilter(userId)).sort({
       updatedAt: -1,
     });
 
@@ -739,15 +761,13 @@ export const listResumes = async (req, res) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: "Authenticated user identity is required",
-        });
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
     }
 
-    const resumes = await Resume.find(getVisibleResumeFilter(userId))
+    const resumes = await Resume.find(getBuilderResumeFilter(userId))
       .select(
         "_id profile.name profile.email createdAt updatedAt processing.status",
       )
@@ -762,6 +782,68 @@ export const listResumes = async (req, res) => {
   }
 };
 
+// GET /api/resumes/scored: only successfully analyzed and billed reports.
+export const listScoredResumes = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
+    }
+
+    const resumes = await Resume.find(getScoredResumeFilter(userId))
+      .select(
+        "_id profile summary education experience projects skills certifications achievements languages analysis processing.status processing.stage processing.analyzedAt billing.status billing.amount billing.chargedAt createdAt updatedAt",
+      )
+      .sort({ "processing.analyzedAt": -1, createdAt: -1 })
+      .limit(100)
+      .lean();
+
+    return res.status(200).json({ success: true, data: resumes });
+  } catch (error) {
+    logError("List scored resumes failed", error);
+    return sendServerError(res, "list scored resumes");
+  }
+};
+
+// GET /api/resumes/scored/:resumeId: prevents a manually created builder resume
+// from being opened as a Scorer report by guessing/passing its ID in the URL.
+export const getScoredResumeById = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { resumeId } = req.params;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
+    }
+    if (!isValidObjectId(resumeId)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid resume ID" });
+    }
+
+    const resume = await Resume.findOne(
+      getScoredResumeFilter(userId, { _id: resumeId }),
+    ).select("-extractedText -contentFingerprint -idempotencyKey");
+
+    if (!resume) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Scored resume report not found" });
+    }
+
+    return res.status(200).json({ success: true, data: resume });
+  } catch (error) {
+    logError("Get scored resume by ID failed", error);
+    return sendServerError(res, "fetch the scored resume report");
+  }
+};
+
 // GET /api/resumes/:resumeId
 export const getResumeById = async (req, res) => {
   try {
@@ -769,12 +851,10 @@ export const getResumeById = async (req, res) => {
     const { resumeId } = req.params;
 
     if (!userId) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: "Authenticated user identity is required",
-        });
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
     }
     if (!isValidObjectId(resumeId)) {
       return res
@@ -790,7 +870,9 @@ export const getResumeById = async (req, res) => {
         const parsed = JSON.parse(cached);
         if (
           String(parsed?._id) === resumeId &&
-          String(parsed?.userId) === userId
+          String(parsed?.userId) === userId &&
+          !String(parsed?.extractedText || "").trim() &&
+          parsed?.billing?.status !== "charged"
         ) {
           return res
             .status(200)
@@ -803,7 +885,7 @@ export const getResumeById = async (req, res) => {
     }
 
     const resume = await Resume.findOne(
-      getVisibleResumeFilter(userId, { _id: resumeId }),
+      getBuilderResumeFilter(userId, { _id: resumeId }),
     );
 
     if (!resume) {
@@ -822,17 +904,164 @@ export const getResumeById = async (req, res) => {
   }
 };
 
-// PATCH /api/resumes/update; legacy requests without resumeId update the latest resume.
+const validateResumeContent = (data) => {
+  const profile = data?.profile || {};
+  const errors = [];
+  if (!String(profile.name || "").trim()) errors.push("Full name is required.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(profile.email || "").trim()))
+    errors.push("A valid email address is required.");
+  if (String(profile.phone || "").replace(/\D/g, "").length < 7)
+    errors.push("A valid phone number is required.");
+  if (String(data?.summary || "").trim().length < 30)
+    errors.push("Professional summary must contain at least 30 characters.");
+  const education = Array.isArray(data?.education) ? data.education : [];
+  if (
+    !education.some(
+      (item) =>
+        String(item?.institution || "").trim() &&
+        String(item?.degree || "").trim(),
+    )
+  )
+    errors.push(
+      "Add at least one education entry with institution and degree.",
+    );
+  const skills = Array.isArray(data?.skills)
+    ? data.skills.filter((item) => String(item || "").trim())
+    : [];
+  if (skills.length < 3) errors.push("Add at least 3 skills.");
+  const projects = Array.isArray(data?.projects) ? data.projects : [];
+  const experience = Array.isArray(data?.experience) ? data.experience : [];
+  const hasProject = projects.some(
+    (item) =>
+      String(item?.title || "").trim() &&
+      String(item?.description || "").trim(),
+  );
+  const hasExperience = experience.some(
+    (item) =>
+      String(item?.company || "").trim() &&
+      String(item?.role || "").trim() &&
+      String(item?.description || "").trim(),
+  );
+  if (!hasProject && !hasExperience)
+    errors.push("Add at least one complete project or work experience entry.");
+
+  const hasEntryContent = (item) =>
+    Object.values(item || {}).some((value) =>
+      Array.isArray(value)
+        ? value.some((entry) => String(entry || "").trim())
+        : String(value || "").trim(),
+    );
+  if (
+    education.some(
+      (item) =>
+        hasEntryContent(item) &&
+        !(
+          String(item?.institution || "").trim() &&
+          String(item?.degree || "").trim()
+        ),
+    )
+  )
+    errors.push(
+      "Complete institution and degree for every education entry you started, or remove incomplete entries.",
+    );
+  if (
+    projects.some(
+      (item) =>
+        hasEntryContent(item) &&
+        !(
+          String(item?.title || "").trim() &&
+          String(item?.description || "").trim()
+        ),
+    )
+  )
+    errors.push(
+      "Complete title and description for every project you started, or remove incomplete projects.",
+    );
+  if (
+    experience.some(
+      (item) =>
+        hasEntryContent(item) &&
+        !(
+          String(item?.company || "").trim() &&
+          String(item?.role || "").trim() &&
+          String(item?.description || "").trim()
+        ),
+    )
+  )
+    errors.push(
+      "Complete company, role and description for every work entry you started, or remove incomplete entries.",
+    );
+  return errors;
+};
+
+export const createResume = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId)
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
+
+    const parsedBody = resumeUpdateSchema.safeParse(req.body);
+    if (!parsedBody.success) {
+      return res.status(400).json({
+        success: false,
+        message: "Resume contains invalid or unsupported fields.",
+      });
+    }
+    const data = parsedBody.data;
+    const validationErrors = validateResumeContent(data);
+    if (validationErrors.length) {
+      return res.status(400).json({
+        success: false,
+        message: validationErrors.join(" "),
+        errors: validationErrors,
+      });
+    }
+
+    const resume = await Resume.create({
+      userId,
+      profile: data.profile,
+      summary: data.summary,
+      education: data.education || [],
+      experience: data.experience || [],
+      projects: data.projects || [],
+      skills: data.skills || [],
+      certifications: data.certifications || [],
+      achievements: data.achievements || [],
+      languages: data.languages || [],
+      isArchived: false,
+      deletedAt: null,
+    });
+    await safeCacheDelete(legacyResumeCacheKey(userId));
+    await cacheResume(userId, resume);
+    return res.status(201).json({
+      success: true,
+      message: "Resume created successfully",
+      data: resume,
+    });
+  } catch (error) {
+    logError("Create resume failed", error);
+    if (error?.name === "ValidationError" || error?.name === "CastError") {
+      return res.status(400).json({
+        success: false,
+        message: "Resume contains invalid field values.",
+      });
+    }
+    return sendServerError(res, "create the resume");
+  }
+};
+
+// PATCH /api/resumes/update; updates only the explicitly selected resume.
 export const updateResume = async (req, res) => {
   try {
     const userId = getUserId(req);
     if (!userId) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: "Authenticated user identity is required",
-        });
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
     }
 
     const parsedBody = resumeUpdateSchema.safeParse(req.body);
@@ -856,6 +1085,21 @@ export const updateResume = async (req, res) => {
       languages,
     } = parsedBody.data;
 
+    if (!resumeId) {
+      return res.status(400).json({
+        success: false,
+        message: "Resume ID is required to update an existing resume.",
+      });
+    }
+    const validationErrors = validateResumeContent(parsedBody.data);
+    if (validationErrors.length) {
+      return res.status(400).json({
+        success: false,
+        message: validationErrors.join(" "),
+        errors: validationErrors,
+      });
+    }
+
     const editableFields = {
       profile,
       summary,
@@ -872,18 +1116,13 @@ export const updateResume = async (req, res) => {
     );
 
     if (!Object.keys(updateData).length) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "No editable resume fields were provided",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "No editable resume fields were provided",
+      });
     }
 
-    const filter = getVisibleResumeFilter(
-      userId,
-      resumeId ? { _id: resumeId } : {},
-    );
+    const filter = getBuilderResumeFilter(userId, { _id: resumeId });
     const resume = await Resume.findOneAndUpdate(
       filter,
       { $set: updateData },
@@ -910,14 +1149,49 @@ export const updateResume = async (req, res) => {
   } catch (error) {
     logError("Update resume failed", error);
     if (error?.name === "ValidationError" || error?.name === "CastError") {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "Resume update contains invalid field values",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "Resume update contains invalid field values",
+      });
     }
     return sendServerError(res, "update the resume");
+  }
+};
+
+// DELETE /api/resumes/scored/:resumeId. Only a completed, charged PDF analysis
+// may be deleted through the Scorer workflow.
+export const deleteScoredResume = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    const { resumeId } = req.params;
+    if (!userId)
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
+    if (!isValidObjectId(resumeId))
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid resume ID" });
+
+    const filter = getScoredResumeFilter(userId, { _id: resumeId });
+    const report = await Resume.findOneAndDelete(filter);
+    if (!report)
+      return res
+        .status(404)
+        .json({ success: false, message: "Scored resume report not found" });
+
+    await safeCacheDelete(
+      resumeCacheKey(userId, resumeId),
+      legacyResumeCacheKey(userId),
+    );
+    return res.status(200).json({
+      success: true,
+      message: "Scored resume report deleted successfully",
+    });
+  } catch (error) {
+    logError("Delete scored resume report failed", error);
+    return sendServerError(res, "delete the scored resume report");
   }
 };
 
@@ -927,12 +1201,10 @@ export const deleteResume = async (req, res) => {
     const { resumeId } = req.params;
 
     if (!userId) {
-      return res
-        .status(401)
-        .json({
-          success: false,
-          message: "Authenticated user identity is required",
-        });
+      return res.status(401).json({
+        success: false,
+        message: "Authenticated user identity is required",
+      });
     }
     if (!isValidObjectId(resumeId)) {
       return res
@@ -940,7 +1212,37 @@ export const deleteResume = async (req, res) => {
         .json({ success: false, message: "Invalid resume ID" });
     }
 
-    const existing = await Resume.findOne({ _id: resumeId, userId }).select(
+    // Builder deletion must never target a paid Scorer report. Scored uploads
+    // have extracted PDF text and charged billing metadata; those use the
+    // dedicated /scored/:resumeId endpoint instead.
+    const builderOnlyFilter = {
+      _id: resumeId,
+      userId,
+      // Accept both legacy Builder documents where the optional field is
+      // absent and documents where it was explicitly stored as null.
+      $and: [
+        {
+          $or: [
+            { idempotencyKey: { $exists: false } },
+            { idempotencyKey: null },
+          ],
+        },
+        {
+          $or: [
+            { extractedText: { $exists: false } },
+            { extractedText: "" },
+            { extractedText: null },
+          ],
+        },
+        {
+          $or: [
+            { "billing.status": { $exists: false } },
+            { "billing.status": { $ne: "charged" } },
+          ],
+        },
+      ],
+    };
+    const existing = await Resume.findOne(builderOnlyFilter).select(
       "+idempotencyKey billing.status processing.status +processing.lockExpiresAt",
     );
 
@@ -968,8 +1270,7 @@ export const deleteResume = async (req, res) => {
     }
 
     const deleteFilter = {
-      _id: resumeId,
-      userId,
+      ...builderOnlyFilter,
       ...(canDeleteFailedRecord
         ? {
             "billing.status": "failed",

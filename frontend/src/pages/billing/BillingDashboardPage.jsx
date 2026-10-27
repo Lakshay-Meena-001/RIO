@@ -84,6 +84,17 @@ const formatNumber = (value) => {
     : "—";
 };
 
+const formatCurrency = (value) => {
+  const number = Number(value);
+
+  return Number.isFinite(number)
+    ? `₹${number.toLocaleString("en-IN", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`
+    : "—";
+};
+
 // Billing API stores transaction amounts in paise.
 const formatInrFromPaise = (value) => {
   const amount = Number(value);
@@ -159,8 +170,8 @@ export default function BillingDashboardPage({ user, setUser }) {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(
-  () => localStorage.getItem("rio-sidebar-open") !== "false"
-);
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
 
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -222,7 +233,19 @@ export default function BillingDashboardPage({ user, setUser }) {
         ]);
 
       if (summaryResult.status === "fulfilled") {
-        setSummary(unwrap(summaryResult.value));
+        const nextSummary = unwrap(summaryResult.value);
+        setSummary(nextSummary);
+        const currentBalance =
+          nextSummary?.balance ??
+          nextSummary?.currentBalance ??
+          nextSummary?.availableBalance;
+        if (currentBalance != null && Number.isFinite(Number(currentBalance))) {
+          setUser?.((current) => ({
+            ...(current || {}),
+            balance: Number(currentBalance),
+          }));
+          window.dispatchEvent(new Event("rio:balance-updated"));
+        }
       }
 
       if (transactionsResult.status === "fulfilled") {
@@ -533,7 +556,7 @@ export default function BillingDashboardPage({ user, setUser }) {
   const stats = [
     {
       label: "Available balance",
-      value: balance === null ? "—" : formatNumber(balance),
+      value: balance === null ? "—" : formatCurrency(balance),
       detail: "Your current account balance",
       Icon: FiCreditCard,
     },

@@ -13,9 +13,9 @@ import {
 
 import { Trash2, Clock3 } from "lucide-react";
 import {
-  getResumes,
-  getResumeById,
-  deleteResume,
+  getScoredResumes,
+  getScoredResumeById,
+  deleteScoredResume,
 } from "../../api/resume/resume.api";
 import ScorerReport from "./ScorerReport";
 
@@ -73,7 +73,7 @@ export default function ScorerHistory() {
     setLoading(true);
     setError("");
     try {
-      const payload = unwrap(await getResumes());
+      const payload = unwrap(await getScoredResumes());
       const list = Array.isArray(payload)
         ? payload
         : Array.isArray(payload?.resumes)
@@ -139,7 +139,7 @@ export default function ScorerHistory() {
       if (loading) return;
       setDetailLoading(true);
       try {
-        const payload = unwrap(await getResumeById(selectedId));
+        const payload = unwrap(await getScoredResumeById(selectedId));
         const record =
           payload?.data?.data ??
           payload?.data?.resume ??
@@ -228,7 +228,7 @@ export default function ScorerHistory() {
       setDeleting(true);
       setDeleteError("");
 
-      const result = await deleteResume(resumeId);
+      const result = await deleteScoredResume(resumeId);
       if (result?.success === false) {
         throw new Error(
           result?.message || "Unable to delete this resume report.",

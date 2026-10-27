@@ -182,11 +182,11 @@ const amountOf = (t) => {
   ) {
     const n = Number(t?.amount);
     return Number.isFinite(n)
-      ? `${isDeduction(t) ? "−" : "+"}${balanceValue(n)} Balance`
+      ? `${isDeduction(t) ? "−" : "+"}${balanceValue(n)} INR`
       : "—";
   }
   if (t?.balanceCredit != null)
-    return `+${balanceValue(t.balanceCredit)} Balance`;
+    return `+${balanceValue(t.balanceCredit)} INR`;
   return inr(t?.amount ?? t?.amountInPaise);
 };
 
@@ -1038,7 +1038,7 @@ export default function BillingHistoryPage({ user }) {
             >
               {balance == null
                 ? "Unavailable"
-                : `${balanceValue(balance)} Balance`}
+                : `${balanceValue(balance)} INR`}
             </p>
             <p
               className={cx(
@@ -1099,7 +1099,7 @@ export default function BillingHistoryPage({ user }) {
               Total payment amount
             </p>
             <p className="mt-2 text-[23px] font-semibold tracking-[-.04em]">
-              {paidTotal == null ? "—" : paidTotal.toLocaleString("en-IN")}
+              {paidTotal == null ? "—" : paidTotal.toLocaleString("en-IN")} {`INR`}
             </p>
             <p className="mt-1 text-[10px] text-[#777B85]">
               Successful payments only

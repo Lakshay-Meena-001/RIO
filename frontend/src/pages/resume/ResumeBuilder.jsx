@@ -5,6 +5,7 @@ import {
   Award,
   BriefcaseBusiness,
   CheckCircle2,
+  Clock3,
   Eye,
   FileText,
   FolderKanban,
@@ -12,9 +13,11 @@ import {
   Languages,
   LoaderCircle,
   Save,
+  FilePlus2,
+  ListChecks,
   Sun,
   Moon,
-  Plus,
+  RefreshCw,
   Sparkles,
   Target,
   UserRound,
@@ -22,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useDispatch } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import ResumeForm from "./ResumeForm";
 import PreviewResume from "../../components/resume/PreviewResume";
@@ -30,8 +33,15 @@ import BasicTemplate from "../../components/resume/templates/BasicTemplate";
 import ModernTemplate from "../../components/resume/templates/ModernTemplate";
 import ProfessionalTemplate from "../../components/resume/templates/ProfessionalTemplate";
 import initialResumeData from "../../components/resume/initialData";
-import { updateResume } from "../../api/resume/resume.api";
+import {
+  createResume,
+  getResumeById,
+  getScoredResumeById,
+  getScoredResumes,
+  updateResume,
+} from "../../api/resume/resume.api";
 import { setResume } from "../../redux/resumeSlice";
+import { FiPlus } from "react-icons/fi";
 
 const TEMPLATES = [
   { id: "basic", name: "Basic", subtitle: "ATS clean" },
@@ -150,9 +160,108 @@ function normalizeResume(resume) {
 }
 
 function unwrapResume(response) {
+  if (response?.data?.data?.profile) return response.data.data;
   if (response?.data?.profile) return response.data;
   if (response?.profile) return response;
   return null;
+}
+
+function hasResumeContent(data) {
+  const profile = data?.profile || {};
+  return Boolean(
+    Object.values(profile).some((value) => String(value || "").trim()) ||
+    String(data?.summary || "").trim() ||
+    [
+      "education",
+      "experience",
+      "projects",
+      "skills",
+      "certifications",
+      "achievements",
+      "languages",
+    ].some((key) =>
+      (data?.[key] || []).some((item) =>
+        typeof item === "string"
+          ? item.trim()
+          : Object.values(item || {}).some((value) =>
+              Array.isArray(value)
+                ? value.some((entry) => String(entry).trim())
+                : String(value || "").trim(),
+            ),
+      ),
+    ),
+  );
+}
+
+function getValidationFieldErrors(data) {
+  const errors = {};
+  const profile = data?.profile || {};
+  if (!profile.name?.trim()) errors.name = "Full name is required.";
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email?.trim() || ""))
+    errors.email = "Enter a valid email address.";
+  if ((profile.phone || "").replace(/\D/g, "").length < 7)
+    errors.phone = "Enter a valid phone number.";
+  if ((data?.summary || "").trim().length < 30)
+    errors.summary = "Add a professional summary of at least 30 characters.";
+  const education = data?.education || [];
+  if (
+    !education.some((item) => item.institution?.trim() && item.degree?.trim())
+  )
+    errors.education =
+      "Add at least one education entry with institution and degree.";
+  if (
+    education.some(
+      (item) =>
+        Object.values(item || {}).some((value) => String(value || "").trim()) &&
+        !(item.institution?.trim() && item.degree?.trim()),
+    )
+  )
+    errors.educationEntries =
+      "Complete the institution and degree for each education entry you started, or remove the incomplete entry.";
+  if ((data?.skills || []).filter((item) => String(item).trim()).length < 3)
+    errors.skills = "Add at least 3 skills.";
+  const projects = data?.projects || [];
+  const experience = data?.experience || [];
+  const hasProject = projects.some(
+    (item) => item.title?.trim() && item.description?.trim(),
+  );
+  const hasExperience = experience.some(
+    (item) =>
+      item.company?.trim() && item.role?.trim() && item.description?.trim(),
+  );
+  if (
+    projects.some(
+      (item) =>
+        Object.values(item || {}).some((value) =>
+          Array.isArray(value)
+            ? value.some((entry) => String(entry).trim())
+            : String(value || "").trim(),
+        ) && !(item.title?.trim() && item.description?.trim()),
+    )
+  )
+    errors.projectEntries =
+      "Complete the title and description for each project you started, or remove the incomplete project.";
+  if (
+    experience.some(
+      (item) =>
+        Object.values(item || {}).some((value) =>
+          Array.isArray(value)
+            ? value.some((entry) => String(entry).trim())
+            : String(value || "").trim(),
+        ) &&
+        !(
+          item.company?.trim() &&
+          item.role?.trim() &&
+          item.description?.trim()
+        ),
+    )
+  )
+    errors.experienceEntries =
+      "Complete company, role and description for each work entry you started, or remove the incomplete entry.";
+  if (!hasProject && !hasExperience)
+    errors.projectExperience =
+      "Add at least one complete project or work experience.";
+  return errors;
 }
 
 function getCompletion(data) {
@@ -174,11 +283,19 @@ function getCompletion(data) {
 export default function ResumeBuilder() {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const resumeId = searchParams.get("resumeId");
 
   const [data, setData] = useState(() => createBlankResume());
   const [savedData, setSavedData] = useState(() => createBlankResume());
-  const [showCreateNew, setShowCreateNew] = useState(false);
-  const [loading] = useState(false);
+  const [showScorerModal, setShowScorerModal] = useState(false);
+  const [scorerReports, setScorerReports] = useState([]);
+  const [scorerLoading, setScorerLoading] = useState(false);
+  const [scorerError, setScorerError] = useState("");
+  const [showCreatedModal, setShowCreatedModal] = useState(false);
+  const [createdResumeId, setCreatedResumeId] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [loading, setLoading] = useState(Boolean(resumeId));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -201,6 +318,36 @@ export default function ResumeBuilder() {
   const previewName = data?.profile?.name?.trim() || "Your resume";
 
   useEffect(() => {
+    if (!resumeId) return undefined;
+    let cancelled = false;
+    const loadResume = async () => {
+      try {
+        const response = await getResumeById(resumeId);
+        const result = unwrapResume(response);
+        if (!result) throw new Error("The saved resume response was invalid.");
+        if (cancelled) return;
+        const normalized = normalizeResume(result);
+        setData(normalized);
+        setSavedData(clone(normalized));
+        dispatch(setResume(result));
+      } catch (err) {
+        if (!cancelled)
+          setError(
+            err?.response?.data?.message ||
+              err?.message ||
+              "Could not load this saved resume.",
+          );
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    loadResume();
+    return () => {
+      cancelled = true;
+    };
+  }, [dispatch, resumeId]);
+
+  useEffect(() => {
     const viewport = previewViewportRef.current;
     if (!viewport) return;
 
@@ -211,10 +358,13 @@ export default function ResumeBuilder() {
       setPreviewScale(Math.max(0.12, Math.min(width / 794, height / 1123, 1)));
     };
 
-    updateScale();
+    const frameId = window.requestAnimationFrame(updateScale);
     const observer = new ResizeObserver(updateScale);
     observer.observe(viewport);
-    return () => observer.disconnect();
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      observer.disconnect();
+    };
   }, [loading]);
 
   useEffect(() => {
@@ -227,36 +377,164 @@ export default function ResumeBuilder() {
     setData(normalizeResume(nextData));
     setError("");
     setNotice("");
+    setFieldErrors({});
   }, []);
 
   const handleSave = useCallback(async () => {
     if (saving) return;
-    if (!hasChanges) {
+    const validation = getValidationFieldErrors(data);
+    if (Object.keys(validation).length) {
+      setFieldErrors(validation);
+      setError(
+        "Please complete the required details before creating your resume.",
+      );
+      setNotice("");
+      const first = Object.keys(validation)[0];
+      const section =
+        first === "summary"
+          ? SECTIONS[1]
+          : first === "education"
+            ? SECTIONS[3]
+            : first === "skills"
+              ? SECTIONS[5]
+              : first === "projectExperience" || first === "projectEntries"
+                ? SECTIONS[4]
+                : first === "experienceEntries"
+                  ? SECTIONS[2]
+                  : SECTIONS[0];
+      window.requestAnimationFrame(() => {
+        const root = editorRef.current;
+        if (!root) return;
+        const terms = section.terms;
+        const target = [
+          ...root.querySelectorAll("h1, h2, h3, h4, [role='heading']"),
+        ].find((heading) =>
+          terms.some((term) =>
+            (heading.textContent || "").toLowerCase().includes(term),
+          ),
+        );
+        if (target)
+          target.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      return;
+    }
+    if (resumeId && !hasChanges) {
       setNotice("Everything is up to date.");
       return;
     }
-
     try {
       setSaving(true);
       setError("");
       setNotice("");
-      const response = await updateResume(data);
+      setFieldErrors({});
+      const response = resumeId
+        ? await updateResume({ ...data, resumeId })
+        : await createResume(data);
       const result = unwrapResume(response) || data;
       const normalized = normalizeResume(result);
+      const savedId = String(
+        result?._id || result?.id || response?.data?.data?._id || "",
+      );
       setData(normalized);
       setSavedData(clone(normalized));
       dispatch(setResume(result));
-      setNotice("Resume saved successfully.");
+      if (resumeId) {
+        setNotice("Resume updated successfully.");
+      } else {
+        setCreatedResumeId(savedId);
+        setShowCreatedModal(true);
+      }
     } catch (err) {
+      const serverErrors = err?.response?.data?.errors;
       setError(
-        err?.response?.data?.message ||
-          err?.message ||
-          "Resume could not be saved. Please try again.",
+        Array.isArray(serverErrors) && serverErrors.length
+          ? serverErrors.join(" ")
+          : err?.response?.data?.message ||
+              err?.message ||
+              "Resume could not be created. Please try again.",
       );
     } finally {
       setSaving(false);
     }
-  }, [data, dispatch, hasChanges, saving]);
+  }, [data, dispatch, hasChanges, resumeId, saving]);
+
+  const openScorerModal = useCallback(async () => {
+    setShowScorerModal(true);
+    setScorerLoading(true);
+    setScorerError("");
+    try {
+      const response = await getScoredResumes();
+      const payload = response?.data ?? response;
+      const rows = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload?.resumes)
+            ? payload.resumes
+            : [];
+      setScorerReports(
+        rows.filter((item) => item?.processing?.status === "completed"),
+      );
+    } catch (err) {
+      setScorerReports([]);
+      setScorerError(
+        err?.response?.data?.message ||
+          err?.message ||
+          "Could not load Scorer reports.",
+      );
+    } finally {
+      setScorerLoading(false);
+    }
+  }, []);
+
+  const importScorerReport = useCallback(
+    async (reportId) => {
+      if (!reportId) return;
+      setScorerLoading(true);
+      setScorerError("");
+      try {
+        const response = await getScoredResumeById(reportId);
+        const report = unwrapResume(response);
+        if (!report)
+          throw new Error("This Scorer report has no importable resume data.");
+        const imported = normalizeResume(report);
+        setData(imported);
+        setSavedData(createBlankResume());
+        setSearchParams({}, { replace: true });
+        setFieldErrors({});
+        setError("");
+        setNotice(
+          "Scorer report imported. Review the details, then create your resume.",
+        );
+        setShowScorerModal(false);
+        editorRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (err) {
+        setScorerError(
+          err?.response?.data?.message ||
+            err?.message ||
+            "Could not import this Scorer report.",
+        );
+      } finally {
+        setScorerLoading(false);
+      }
+    },
+    [setSearchParams],
+  );
+
+  const viewCreatedResume = useCallback(() => {
+    const id = createdResumeId;
+    const blank = createBlankResume();
+    setData(blank);
+    setSavedData(clone(blank));
+    setShowCreatedModal(false);
+    setSearchParams({}, { replace: true });
+    navigate(
+      id
+        ? `/builder/history?resumeId=${encodeURIComponent(id)}`
+        : "/builder/history",
+      { state: { resumeId: id } },
+    );
+  }, [createdResumeId, navigate, setSearchParams]);
 
   const jumpToSection = useCallback((section) => {
     setActiveSection(section.label);
@@ -315,8 +593,11 @@ export default function ResumeBuilder() {
     };
 
     root.addEventListener("scroll", updateActiveSection, { passive: true });
-    updateActiveSection();
-    return () => root.removeEventListener("scroll", updateActiveSection);
+    const frameId = window.requestAnimationFrame(updateActiveSection);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      root.removeEventListener("scroll", updateActiveSection);
+    };
   }, [loading]);
 
   useEffect(() => {
@@ -337,20 +618,6 @@ export default function ResumeBuilder() {
       behavior: "smooth",
     });
   }, [activeSection]);
-
-  const openCreateNew = useCallback(() => setShowCreateNew(true), []);
-
-  const confirmCreateNew = useCallback(() => {
-    const blank = createBlankResume();
-    setData(blank);
-    setSavedData(clone(blank));
-    setError("");
-    setNotice("");
-    setActiveSection("Personal details");
-    setSelectedTemplate("basic");
-    setShowCreateNew(false);
-    editorRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-  }, []);
 
   const openPreview = () => setShowPreview(true);
   const closePreview = useCallback(() => setShowPreview(false), []);
@@ -421,7 +688,7 @@ export default function ResumeBuilder() {
                   <span className="block truncate text-[14px] font-semibold">
                     {label}
                   </span>
-                  <span className="mt-0.5 block truncate text-[9px] text-white/30">
+                  <span className="mt-0.5 block truncate text-[10px] text-white/30">
                     {hint}
                   </span>
                 </span>
@@ -439,7 +706,7 @@ export default function ResumeBuilder() {
         <main className="relative flex min-h-0 min-w-0 flex-col overflow-hidden bg-[#111315]/25 lg:rounded-[23px] lg:border lg:border-white/[.08] lg:bg-transparent lg:shadow-none">
           <div className="sticky top-0 z-30 shrink-0 border-b border-white/[.08] bg-[#111319]/95 pt-1 backdrop-blur-2xl sm:px-6 lg:static lg:border-0 lg:bg-transparent lg:px-6 lg:rounded-[23px] lg:!bg-transparent">
             {/* Desktop header: keep the back link transparent so it doesn't cover the workspace border. */}
-            <div className="hidden h-[68px] items-center border-b border-white/[.09] bg-transparent lg:flex lg:!bg-transparent">
+            <div className="hidden h-[68px] items-center justify-between border-b border-white/[.09] bg-transparent lg:flex lg:!bg-transparent">
               <button
                 type="button"
                 onClick={() => navigate("/builder/dashboard")}
@@ -449,6 +716,14 @@ export default function ResumeBuilder() {
                   <ArrowLeft className="h-4 w-4" />
                 </span>
                 <span>Back to Resume Dashboard</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={openScorerModal}
+                className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/[.12] bg-white/[.045] px-4 text-xs font-semibold text-white/85 transition hover:bg-white/[.08]"
+              >
+                <FiPlus className="h-4 w-4" /> Add from Scorer
               </button>
             </div>
 
@@ -527,7 +802,7 @@ export default function ResumeBuilder() {
               <ResumeForm
                 data={data}
                 onChange={handleChange}
-                onCreateNew={openCreateNew}
+                fieldErrors={fieldErrors}
               />
             </div>
           </div>
@@ -562,7 +837,7 @@ export default function ResumeBuilder() {
                     >
                       {template.name}
                     </span>
-                    <span className="mt-0.5 block truncate text-[8px] text-white/30">
+                    <span className="mt-0.5 block truncate text-[9px] text-white/30">
                       {template.subtitle}
                     </span>
                   </button>
@@ -635,7 +910,15 @@ export default function ResumeBuilder() {
                 transition={{ duration: 0.3 }}
               />
             </div>
+            {/* Builder-owned actions: History + Preview row, then full-width Create/Update. */}
             <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => navigate("/builder/history")}
+                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full border border-white/[.11] bg-white/[.035] px-2 text-[10px] font-semibold text-white/70 transition hover:bg-white/[.075] hover:text-white"
+              >
+                <Clock3 className="h-3.5 w-3.5" /> History
+              </button>
               <button
                 type="button"
                 onClick={openPreview}
@@ -643,106 +926,316 @@ export default function ResumeBuilder() {
               >
                 <Eye className="h-3.5 w-3.5" /> Preview
               </button>
+            </div>
+            {!resumeId ? (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving || !hasResumeContent(data)}
+                className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-white px-3 text-[11px] font-semibold text-[#17191C] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {saving ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <FilePlus2 className="h-3.5 w-3.5" />
+                )}
+                {saving ? "Creating…" : "Create Resume"}
+              </button>
+            ) : (
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving || !hasChanges}
-                className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-full bg-white px-2 text-[10px] font-semibold text-[#17191C] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-2 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-full bg-white px-3 text-[11px] font-semibold text-[#17191C] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {saving ? (
                   <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
                 ) : (
                   <Save className="h-3.5 w-3.5" />
                 )}
-                {saving ? "Saving" : "Save"}
+                {saving ? "Updating…" : "Update Resume"}
               </button>
-            </div>
+            )}
+            {!resumeId && hasResumeContent(data) && (
+              <button
+                type="button"
+                onClick={() => {
+                  const blank = createBlankResume();
+                  setData(blank);
+                  setSavedData(clone(blank));
+                  setFieldErrors({});
+                  setError("");
+                  setNotice("");
+                  setCreatedResumeId("");
+                  editorRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-full border border-white/[.11] bg-white/[.035] px-2 text-[10px] font-semibold text-white/70 transition hover:bg-white/[.075] hover:text-white"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Create New (clear form)
+              </button>
+            )}
           </div>
         </aside>
       </div>
 
       {/* Mobile actions are kept outside the scrollable editor. */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[.09] bg-[#111315]/90 px-3 pb-[max(10px,env(safe-area-inset-bottom))] pt-2.5 shadow-none backdrop-blur-2xl lg:hidden">
-        <div className="mx-auto flex max-w-xl items-center gap-2">
+        <div className="mx-auto grid max-w-xl grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={openPreview}
-            className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[.035] px-3 text-xs font-semibold text-white/75"
+            onClick={() => navigate("/builder/history")}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[.035] px-3 text-xs font-semibold text-white/75"
           >
-            <Eye className="h-3.5 w-3.5" /> Preview
+            <Clock3 className="h-3.5 w-3.5" /> History
           </button>
           <button
             type="button"
+            onClick={openPreview}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[.035] px-3 text-xs font-semibold text-white/75"
+          >
+            <Eye className="h-3.5 w-3.5" /> Preview
+          </button>
+        </div>
+        {!resumeId ? (
+          <button
+            type="button"
             onClick={handleSave}
-            disabled={saving || !hasChanges}
-            className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C] disabled:opacity-40"
+            disabled={saving || !hasResumeContent(data)}
+            className="mx-auto mt-2 flex min-h-10 w-full max-w-xl items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C] disabled:opacity-40"
           >
             {saving ? (
               <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
             ) : (
-              <Save className="h-3.5 w-3.5" />
+              <FilePlus2 className="h-3.5 w-3.5" />
             )}
-            {saving ? "Saving…" : "Save changes"}
+            {saving ? "Creating…" : "Create Resume"}
           </button>
-        </div>
+        ) : (
+          hasChanges && (
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving}
+              className="mx-auto mt-2 flex min-h-10 w-full max-w-xl items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C] disabled:opacity-40"
+            >
+              {saving ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              {saving ? "Updating…" : "Update Resume"}
+            </button>
+          )
+        )}
+        {!resumeId && hasResumeContent(data) && (
+          <button
+            type="button"
+            onClick={() => {
+              const blank = createBlankResume();
+              setData(blank);
+              setSavedData(clone(blank));
+              setFieldErrors({});
+              setError("");
+              setNotice("");
+              setCreatedResumeId("");
+              editorRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="mx-auto mt-2 flex min-h-8 w-full max-w-xl items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[.035] px-3 text-[10px] font-semibold text-white/65"
+          >
+            <RefreshCw className="h-3 w-3" /> Create New (clear form)
+          </button>
+        )}
       </div>
 
-      <AnimatePresence>
-        {showCreateNew && (
-          <motion.div
-            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setShowCreateNew(false);
-            }}
+      {showScorerModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !scorerLoading)
+              setShowScorerModal(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="scorer-import-heading"
+            className="flex max-h-[min(80vh,680px)] w-full max-w-md flex-col rounded-[18px] border border-white/[0.11] bg-[#17191c] p-6 shadow-[0_24px_80px_rgba(0,0,0,.4)]"
           >
-            <motion.div
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="create-new-title"
-              className="w-full max-w-md overflow-hidden rounded-2xl border border-white/[.12] bg-[#17191C] shadow-[0_24px_80px_rgba(0,0,0,.55)]"
-              initial={{ opacity: 0, y: 12, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 8, scale: 0.98 }}
-            >
-              <div className="border-b border-white/[.08] px-5 py-4">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-white/[.10] bg-white/[.04] text-[#D4D4D8]">
-                  <FileText className="h-5 w-5" />
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border bg-white text-[#17191C]">
+                  <ListChecks size={16} />
                 </div>
                 <h2
-                  id="create-new-title"
-                  className="text-base font-semibold text-white"
+                  id="scorer-import-heading"
+                  className="mt-4 text-lg font-semibold tracking-[-.025em]"
                 >
-                  Create a new resume?
+                  Add from Scorer
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-white/55">
-                  This will clear the current form and start a fresh resume. Any
-                  changes that haven’t been saved will be lost. Save your work
-                  before continuing if you want to keep it.
+                <p className="mt-2 text-[12px] leading-6 text-[#858994]">
+                  Choose a completed report to prefill the form. Review and edit
+                  everything before creating a separate resume.
                 </p>
               </div>
-              <div className="flex justify-end gap-2.5 px-5 py-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateNew(false)}
-                  className="min-h-10 rounded-xl border border-white/[.12] bg-white/[.035] px-4 text-sm font-medium text-white/75 transition hover:bg-white/[.08]"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmCreateNew}
-                  className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-white px-4 text-sm font-semibold text-[#17191c] transition hover:bg-white/90"
-                >
-                  <Plus className="h-4 w-4" /> Create new
-                </button>
+              <button
+                type="button"
+                onClick={() => setShowScorerModal(false)}
+                aria-label="Close Scorer reports"
+                className="rounded-lg p-2 text-white/50 hover:bg-white/[.06] hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="rio-resume-scroll mt-4 min-h-0 flex-1 overflow-y-auto rounded-xl border border-white/[.08]">
+              {scorerLoading && (
+                <p className="p-4 text-xs text-white/55">
+                  Loading Scorer reports…
+                </p>
+              )}
+              {!scorerLoading && scorerError && (
+                <div className="p-4">
+                  <p role="alert" className="text-xs text-red-200">
+                    {scorerError}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowScorerModal(false);
+                      navigate("/scorer");
+                    }}
+                    className="mt-3 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-[#17191C]"
+                  >
+                    Go to Scorer
+                  </button>
+                </div>
+              )}
+              {!scorerLoading && !scorerError && scorerReports.length === 0 && (
+                <div className="p-4">
+                  <p className="text-sm font-medium text-white/85">
+                    No completed Scorer reports yet.
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-white/45">
+                    Run a resume analysis in Scorer first. Paid analysis remains
+                    in the Scorer flow.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowScorerModal(false);
+                      navigate("/scorer");
+                    }}
+                    className="mt-4 rounded-xl bg-white px-4 py-2.5 text-xs font-semibold text-[#17191C]"
+                  >
+                    Go to Scorer
+                  </button>
+                </div>
+              )}
+              {!scorerLoading &&
+                scorerReports.map((report) => {
+                  const id = String(report?._id || report?.id || "");
+                  const date = report?.updatedAt || report?.createdAt;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => importScorerReport(id)}
+                      disabled={scorerLoading}
+                      className="flex w-full items-center gap-3 border-b border-white/[.06] px-4 py-3.5 text-left transition last:border-b-0 hover:bg-white/[.045] disabled:opacity-50"
+                    >
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[.09] bg-white/[.04]">
+                        <FileText size={15} />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-white/90">
+                          {report?.profile?.name || "Untitled resume report"}
+                        </span>
+                        <span className="mt-1 block text-[11px] text-white/40">
+                          {date
+                            ? new Date(date).toLocaleDateString("en-IN", {
+                                day: "numeric",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "Date unavailable"}{" "}
+                          · Completed analysis
+                        </span>
+                      </span>
+                      <ArrowLeft className="h-4 w-4 rotate-180 text-white/35" />
+                    </button>
+                  );
+                })}
+            </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowScorerModal(false)}
+                className="rounded-xl border border-white/[.10] bg-white/[.035] px-4 py-2.5 text-xs font-semibold text-white/70"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCreatedModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget)
+              setShowCreatedModal(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="created-resume-heading"
+            className="w-full max-w-md rounded-[18px] border border-white/[0.11] bg-[#17191c] p-6 shadow-[0_24px_80px_rgba(0,0,0,.4)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl border bg-white text-[#17191C]">
+                <CheckCircle2 size={17} />
               </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <button
+                type="button"
+                onClick={() => setShowCreatedModal(false)}
+                aria-label="Close confirmation"
+                className="rounded-lg p-2 text-white/50 hover:bg-white/[.06] hover:text-white"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <h2
+              id="created-resume-heading"
+              className="mt-4 text-lg font-semibold tracking-[-.025em]"
+            >
+              Your resume has been created!
+            </h2>
+            <p className="mt-2 text-[12px] leading-6 text-[#858994]">
+              Your resume is saved. You can continue working on this form or
+              view the saved report in Resume History.
+            </p>
+            <div className="mt-6 flex justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCreatedModal(false)}
+                className="rounded-xl border border-white/[.10] bg-white/[.035] px-4 py-2.5 text-xs font-semibold text-white/75"
+              >
+                Continue
+              </button>
+              <button
+                type="button"
+                onClick={viewCreatedResume}
+                className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2.5 text-xs font-semibold text-[#17191C]"
+              >
+                <Eye size={13} /> View Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <AnimatePresence>
         {showPreview && (

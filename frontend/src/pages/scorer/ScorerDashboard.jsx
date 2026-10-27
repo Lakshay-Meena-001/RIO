@@ -77,8 +77,8 @@ export default function ScorerDashboard({ user, setUser }) {
   const [success, setSuccess] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(
-  () => localStorage.getItem("rio-sidebar-open") !== "false"
-);
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
   const [balanceDeductionDetails, setBalanceDeductionDetails] = useState(null);
   const [pendingReport, setPendingReport] = useState(null);
   const [leavingForHistory, setLeavingForHistory] = useState(false);
@@ -97,7 +97,7 @@ export default function ScorerDashboard({ user, setUser }) {
   const loadRecent = useCallback(async () => {
     setLoadingRecent(true);
     try {
-      const response = await api.get("/api/resumes");
+      const response = await api.get("/api/resumes/scored");
       const payload = unwrap(response);
       const list = Array.isArray(payload?.data)
         ? payload.data
