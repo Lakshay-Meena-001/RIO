@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   FiArrowUpRight,
@@ -154,7 +153,9 @@ export default function ProfilePage({ user, setUser }) {
   const editorRef = useRef(null);
   const reduceMotion = useReducedMotion();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [discardConfirm, setDiscardConfirm] = useState(false);
@@ -183,12 +184,10 @@ export default function ProfilePage({ user, setUser }) {
   const portfolioUrl = safeLink(user?.portfolioUrl);
 
   useEffect(() => {
-    if (!githubUsername) {
-      setGithub({ loading: false, error: "", user: null, repos: [] });
-      return undefined;
-    }
+    if (!githubUsername) return undefined;
+
     const controller = new AbortController();
-    setGithub((current) => ({ ...current, loading: true, error: "" }));
+
     Promise.all([
       fetch(
         `https://api.github.com/users/${encodeURIComponent(githubUsername)}`,
@@ -200,16 +199,19 @@ export default function ProfilePage({ user, setUser }) {
       ),
     ])
       .then(async ([userResponse, reposResponse]) => {
-        if (!userResponse.ok || !reposResponse.ok)
+        if (!userResponse.ok || !reposResponse.ok) {
           throw new Error(
             userResponse.status === 404
               ? "GitHub profile was not found."
               : "GitHub data is temporarily unavailable.",
           );
+        }
+
         const [githubUser, repos] = await Promise.all([
           userResponse.json(),
           reposResponse.json(),
         ]);
+
         setGithub({
           loading: false,
           error: "",
@@ -218,14 +220,16 @@ export default function ProfilePage({ user, setUser }) {
         });
       })
       .catch((error) => {
-        if (error.name !== "AbortError")
+        if (error.name !== "AbortError") {
           setGithub({
             loading: false,
             error: error.message || "Could not load GitHub data.",
             user: null,
             repos: [],
           });
+        }
       });
+
     return () => controller.abort();
   }, [githubUsername]);
 

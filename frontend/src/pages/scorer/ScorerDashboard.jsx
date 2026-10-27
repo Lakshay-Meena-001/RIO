@@ -76,7 +76,9 @@ export default function ScorerDashboard({ user, setUser }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+  () => localStorage.getItem("rio-sidebar-open") !== "false"
+);
   const [balanceDeductionDetails, setBalanceDeductionDetails] = useState(null);
   const [pendingReport, setPendingReport] = useState(null);
   const [leavingForHistory, setLeavingForHistory] = useState(false);
@@ -211,7 +213,7 @@ export default function ScorerDashboard({ user, setUser }) {
           : "Analysis completed.",
       );
 
-      navigate(`/scorer/report/${resumeId}`, {
+      navigate(`/scorer/history?resume=${encodeURIComponent(resumeId)}`, {
         state: { resume, reused },
       });
     } catch (uploadError) {

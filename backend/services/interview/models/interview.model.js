@@ -342,6 +342,12 @@ const interviewSchema = new mongoose.Schema(
      * -----------------------------------------------------
      */
 
+    interviewMode: {
+      type: String,
+      enum: ["standard", "agent"],
+      default: "standard",
+    },
+
     interviewType: {
       type: String,
       enum: [

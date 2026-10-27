@@ -37,8 +37,8 @@ function serviceUrl(name, developmentFallback) {
 }
 
 const services = {
-  auth: serviceUrl("AUTH_SERVICE_URL", "http://localhost:6001"),
-  resume: serviceUrl("RESUME_SERVICE_URL", "http://localhost:6002"),
+  auth: serviceUrl("AUTH_SERVICE_URL", "http://localhost:8001"),
+  resume: serviceUrl("RESUME_SERVICE_URL", "http://localhost:8002"),
   interview: serviceUrl("INTERVIEW_SERVICE_URL", "http://localhost:8003"),
   roadmap: serviceUrl("ROADMAP_SERVICE_URL", "http://localhost:8004"),
   billing: serviceUrl("BILLING_SERVICE_URL", "http://localhost:8005"),

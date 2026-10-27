@@ -14,6 +14,7 @@ import {
 } from "react-icons/fi";
 
 import { RiBrainAi3Fill } from "react-icons/ri";
+import InterviewAgentPanel from "./agents/InterviewAgentPalen";
 
 import {
   beginInterview,
@@ -1331,7 +1332,7 @@ const Interview = ({ setUser }) => {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#111214] text-white">
+    <div className="relative h-dvh overflow-hidden bg-[#111214] text-white">
       <style>{`
         @media (prefers-reduced-motion: reduce) {
           *, *::before, *::after {
@@ -1343,9 +1344,9 @@ const Interview = ({ setUser }) => {
         }
         
 `}</style>
-      {/* =====================================================
+      {/* =
           FIXED TOP BAR
-      ====================================================== */}
+      == */}
       <header className="fixed inset-x-0 top-0 z-50 border-b border-white/[0.07] bg-[#111214]/88 backdrop-blur-xl">
         <div className="mx-auto flex h-[72px] max-w-[1500px] items-center justify-between px-4 sm:px-6 lg:px-8">
           {/* Left — Interview identity */}
@@ -1429,16 +1430,16 @@ const Interview = ({ setUser }) => {
           />
         </div>
       </header>{" "}
-      <main className="min-h-screen w-full px-4 pb-4 pt-20 sm:px-6 lg:px-8">
-        {/* ===================================================
+      <main className="fixed inset-x-0 bottom-0 top-[72px] overflow-hidden px-4 pb-4 pt-4 sm:px-6 lg:pl-[400px] lg:pr-[320px]">
+        {/* 
             DESKTOP QUESTION NAVIGATOR
-        ==================================================== */}
+         */}
 
-        <div className="w-full">
-          <div className="min-h-0 w-full overflow-y-auto pr-0 lg:pr-[304px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {/* ===================================================
+        <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+          <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
+            {/* 
             ERROR
-        ==================================================== */}
+         */}
 
             {error && (
               <div className="mt-4 flex items-start gap-3 rounded-2xl border border-white/[0.10] bg-white/[0.035] px-4 py-3 text-sm text-[#D4D4D8] shadow-[0_14px_40px_rgba(0,0,0,0.14)]">
@@ -1462,17 +1463,38 @@ const Interview = ({ setUser }) => {
               </div>
             )}
 
-            {/* ===================================================
+            {interview.interviewMode !== "agent" &&
+              interview.status === "in-progress" && (
+                <section className="mb-3 shrink-0 rounded-2xl border border-white/[0.09] bg-[#111315] p-4 lg:hidden">
+                  <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+                    Question {questionNumber} / {totalQuestions}
+                  </div>
+
+                  {currentQuestion?.section === "coding" &&
+                    currentQuestion?.title && (
+                      <h2 className="mb-2 text-sm font-semibold text-white">
+                        {currentQuestion.title}
+                      </h2>
+                    )}
+
+                  <p className="whitespace-pre-wrap break-words text-sm font-semibold leading-6 text-[#E4E4E7]">
+                    {currentQuestion?.text || "Question unavailable."}
+                  </p>
+                </section>
+              )}
+            {/* 
             QUESTION
-        ==================================================== */}
+         */}
             <div
               className={
-                currentQuestion?.section === "coding"
-                  ? "mt-4 flex min-h-0 w-full flex-col gap-3 lg:grid lg:h-[calc(100dvh-104px)] lg:overflow-hidden"
-                  : ""
+                currentQuestion?.section === "coding" &&
+                interview.interviewMode === "agent"
+                  ? "mt-4 grid min-h-0 w-full flex-1 grid-cols-1 gap-3 overflow-hidden lg:h-[calc(100dvh-104px)] lg:flex-none lg:grid-cols-[minmax(0,1fr)_12px_minmax(0,1fr)]"
+                  : "flex min-h-0 w-full flex-1 flex-col overflow-hidden"
               }
               style={
-                currentQuestion?.section === "coding"
+                currentQuestion?.section === "coding" &&
+                interview.interviewMode === "agent"
                   ? {
                       gridTemplateColumns: `minmax(0, ${questionPanelWidth}fr) 12px minmax(0, ${
                         100 - questionPanelWidth
@@ -1481,132 +1503,138 @@ const Interview = ({ setUser }) => {
                   : undefined
               }
             >
-              <section
-                className={
-                  currentQuestion?.section === "coding"
-                    ? "relative min-h-0 max-h-[55dvh] overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)] lg:h-full lg:max-h-none"
-                    : "relative min-h-0 overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)]"
-                }
-              >
-                {/* Question ambient glow */}
-                <div className="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full bg-white/[0.06] blur-[100px]" />
-
-                <div className="relative h-full max-h-[55dvh] overflow-y-auto px-5 py-5 sm:px-8 sm:py-8 lg:max-h-none [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.15)_transparent]">
-                  {/* Question Number */}
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] uppercase tracking-[0.16em] text-[#52525B]">
-                      Question {questionNumber}
-                    </span>
-
-                    <span className="font-mono text-[10px] text-[#52525B]">
-                      {String(questionNumber).padStart(2, "0")} /{" "}
-                      {String(totalQuestions).padStart(2, "0")}
-                    </span>
-                  </div>
-
-                  {/* Question */}
-                  {currentQuestion?.section === "coding" ? (
-                    <div className="mt-4">
-                      <h1 className="text-lg font-semibold leading-7 text-[#F4F4F5] sm:text-xl">
-                        {currentQuestion?.title || "Coding Problem"}
-                      </h1>
-
-                      <div className="mt-4 whitespace-pre-wrap text-[13px] leading-7 text-[#D4D4D8] sm:text-[14px]">
-                        {currentQuestion?.text || "Question unavailable."}
-                      </div>
-
-                      {Array.isArray(currentQuestion?.constraints) &&
-                        currentQuestion.constraints.length > 0 && (
-                          <div className="mt-6">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                              Constraints
-                            </p>
-
-                            <ul className="mt-3 space-y-2">
-                              {currentQuestion.constraints.map(
-                                (constraint, index) => (
-                                  <li
-                                    key={index}
-                                    className="text-[12px] leading-6 text-[#A1A1AA] sm:text-[13px]"
-                                  >
-                                    • {constraint}
-                                  </li>
-                                ),
-                              )}
-                            </ul>
-                          </div>
-                        )}
-
-                      {Array.isArray(currentQuestion?.examples) &&
-                        currentQuestion.examples.length > 0 && (
-                          <div className="mt-6">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
-                              Examples
-                            </p>
-
-                            <div className="mt-2 space-y-3">
-                              {currentQuestion.examples.map(
-                                (example, index) => (
-                                  <div
-                                    key={index}
-                                    className="rounded-xl border border-white/[0.06] bg-black/20 p-4"
-                                  >
-                                    <p className="font-mono text-[12px] leading-6 text-[#D4D4D8]">
-                                      Input: {example.input}
-                                    </p>
-
-                                    <p className="mt-1 font-mono text-[12px] leading-6 text-[#D4D4D8]">
-                                      Output: {example.output}
-                                    </p>
-
-                                    {example.explanation && (
-                                      <p className="mt-2 text-[11px] leading-5 text-[#71717A]">
-                                        {example.explanation}
-                                      </p>
-                                    )}
-                                  </div>
-                                ),
-                              )}
-                            </div>
-                          </div>
-                        )}
-                    </div>
-                  ) : (
-                    <h1 className="mt-2 w-full font-sans text-[11px] font-medium leading-[1.45] tracking-[-0.005em] text-[#F4F4F5] sm:text-[12px] lg:text-[15px]">
-                      {currentQuestion?.text || "Question unavailable."}
-                    </h1>
-                  )}
-                </div>
-              </section>
-
-              {currentQuestion?.section === "coding" && (
-                <div
-                  role="separator"
-                  aria-label="Resize question and editor panels"
-                  onPointerDown={(event) => {
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                    event.currentTarget.onpointermove =
-                      handleQuestionPanelResize;
-                  }}
-                  onPointerUp={(event) => {
-                    event.currentTarget.releasePointerCapture(event.pointerId);
-                    event.currentTarget.onpointermove = null;
-                  }}
-                  onPointerCancel={(event) => {
-                    event.currentTarget.releasePointerCapture(event.pointerId);
-                    event.currentTarget.onpointermove = null;
-                  }}
-                  className="group hidden cursor-col-resize items-center justify-center bg-transparent lg:flex"
+              {interview.interviewMode === "agent" && (
+                <section
+                  className={
+                    currentQuestion?.section === "coding"
+                      ? "relative min-h-0 max-h-[55dvh] overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)] lg:h-full lg:max-h-none"
+                      : "relative min-h-0 overflow-hidden rounded-[26px] border border-white/[0.09] bg-white/[0.038] shadow-[0_24px_80px_rgba(0,0,0,0.14)]"
+                  }
                 >
-                  <div className="h-16 w-px rounded-full bg-white/20 transition-colors group-hover:bg-white/30" />
-                </div>
+                  {/* Question ambient glow */}
+                  <div className="pointer-events-none absolute -right-32 -top-32 h-72 w-72 rounded-full bg-white/[0.06] blur-[100px]" />
+
+                  <div className="relative h-full max-h-[55dvh] overflow-y-auto px-5 py-5 sm:px-8 sm:py-8 lg:max-h-none [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.15)_transparent]">
+                    {/* Question Number */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase tracking-[0.16em] text-[#52525B]">
+                        Question {questionNumber}
+                      </span>
+
+                      <span className="font-mono text-[10px] text-[#52525B]">
+                        {String(questionNumber).padStart(2, "0")} /{" "}
+                        {String(totalQuestions).padStart(2, "0")}
+                      </span>
+                    </div>
+
+                    {/* Question */}
+                    {currentQuestion?.section === "coding" ? (
+                      <div className="mt-4">
+                        <h1 className="text-lg font-semibold leading-7 text-[#F4F4F5] sm:text-xl">
+                          {currentQuestion?.title || "Coding Problem"}
+                        </h1>
+
+                        <div className="mt-4 whitespace-pre-wrap text-[13px] leading-7 text-[#D4D4D8] sm:text-[14px]">
+                          {currentQuestion?.text || "Question unavailable."}
+                        </div>
+
+                        {Array.isArray(currentQuestion?.constraints) &&
+                          currentQuestion.constraints.length > 0 && (
+                            <div className="mt-6">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                                Constraints
+                              </p>
+
+                              <ul className="mt-3 space-y-2">
+                                {currentQuestion.constraints.map(
+                                  (constraint, index) => (
+                                    <li
+                                      key={index}
+                                      className="text-[12px] leading-6 text-[#A1A1AA] sm:text-[13px]"
+                                    >
+                                      • {constraint}
+                                    </li>
+                                  ),
+                                )}
+                              </ul>
+                            </div>
+                          )}
+
+                        {Array.isArray(currentQuestion?.examples) &&
+                          currentQuestion.examples.length > 0 && (
+                            <div className="mt-6">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#71717A]">
+                                Examples
+                              </p>
+
+                              <div className="mt-2 space-y-3">
+                                {currentQuestion.examples.map(
+                                  (example, index) => (
+                                    <div
+                                      key={index}
+                                      className="rounded-xl border border-white/[0.06] bg-black/20 p-4"
+                                    >
+                                      <p className="font-mono text-[12px] leading-6 text-[#D4D4D8]">
+                                        Input: {example.input}
+                                      </p>
+
+                                      <p className="mt-1 font-mono text-[12px] leading-6 text-[#D4D4D8]">
+                                        Output: {example.output}
+                                      </p>
+
+                                      {example.explanation && (
+                                        <p className="mt-2 text-[11px] leading-5 text-[#71717A]">
+                                          {example.explanation}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    ) : (
+                      <h1 className="mt-2 w-full font-sans text-[11px] font-medium leading-[1.45] tracking-[-0.005em] text-[#F4F4F5] sm:text-[12px] lg:text-[15px]">
+                        {currentQuestion?.text || "Question unavailable."}
+                      </h1>
+                    )}
+                  </div>
+                </section>
               )}
 
-              {/* ===================================================
-    PREMIUM ANSWER WORKSPACE
-==================================================== */}
+              {currentQuestion?.section === "coding" &&
+                interview.interviewMode === "agent" && (
+                  <div
+                    role="separator"
+                    aria-label="Resize question and editor panels"
+                    onPointerDown={(event) => {
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      event.currentTarget.onpointermove =
+                        handleQuestionPanelResize;
+                    }}
+                    onPointerUp={(event) => {
+                      event.currentTarget.releasePointerCapture(
+                        event.pointerId,
+                      );
+                      event.currentTarget.onpointermove = null;
+                    }}
+                    onPointerCancel={(event) => {
+                      event.currentTarget.releasePointerCapture(
+                        event.pointerId,
+                      );
+                      event.currentTarget.onpointermove = null;
+                    }}
+                    className="group hidden cursor-col-resize items-center justify-center bg-transparent lg:flex"
+                  >
+                    <div className="h-16 w-px rounded-full bg-white/20 transition-colors group-hover:bg-white/30" />
+                  </div>
+                )}
 
-              <section className=" mt-2 relative flex h-[55dvh] min-h-[420px] w-full flex-col overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#0D0F12]/88 shadow-[0_30px_100px_rgba(0,0,0,0.18)] lg:h-auto lg:min-h-0">
+              {/* 
+    PREMIUM ANSWER WORKSPACE
+ */}
+              <section className="relative flex min-h-0 w-full flex-1 flex-col overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#0D0F12]/88 shadow-[0_30px_100px_rgba(0,0,0,0.18)]">
                 {/* Editor glow */}
                 <div className="pointer-events-none absolute -bottom-32 -right-24 h-72 w-72 rounded-full bg-white/[0.025] blur-[100px]" />
 
@@ -1641,7 +1669,7 @@ const Interview = ({ setUser }) => {
                 </div>
 
                 {/* Writing area */}
-                <div className="relative focus:outline-none focus:ring-0 flex min-h-0 flex-1 flex-col">
+                <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden focus:outline-none focus:ring-0">
                   {currentQuestion?.section === "coding" ? (
                     <Editor
                       height={
@@ -1686,7 +1714,7 @@ const Interview = ({ setUser }) => {
                         questionNavigating || quitting || finalSubmitting
                       }
                       placeholder="Start explaining your approach..."
-                      className="min-h-[300px] w-full resize-none border-0 bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none ring-0 shadow-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-[360px] sm:px-7 sm:py-7"
+                      className="h-full min-h-0 w-full flex-1 resize-none border-0 bg-transparent px-6 py-6 font-sans text-[14px] leading-7 tracking-[0.005em] text-[#E4E4E7] outline-none ring-0 shadow-none focus:outline-none focus:ring-0 focus:ring-offset-0 focus:border-transparent focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [scrollbar-width:thin] [scrollbar-color:rgba(255,255,255,0.15)_transparent] placeholder:text-[#3F3F46] disabled:cursor-not-allowed disabled:opacity-50 sm:px-7 sm:py-7"
                     />
                   )}
 
@@ -1705,8 +1733,105 @@ const Interview = ({ setUser }) => {
             </div>
           </div>
 
+          {interview.interviewMode !== "agent" &&
+            interview.status === "in-progress" && (
+              <aside className="fixed left-6 top-[88px] z-30 hidden w-[360px] lg:flex lg:flex-col">
+                <div className="flex h-[calc(100dvh-104px)] min-h-0 flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#111315]">
+                  <div className="border-b border-white/[0.06] px-4 py-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/40">
+                      Question {questionNumber} / {totalQuestions}
+                    </p>
+
+                    {currentQuestion?.section === "coding" && (
+                      <h2 className="mt-3 text-sm font-semibold text-white">
+                        {currentQuestion?.title || "Coding Problem"}
+                      </h2>
+                    )}
+                  </div>
+
+                  <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 [scrollbar-width:thin]">
+                    <p className="whitespace-pre-wrap text-[16px] font-semibold leading-7 text-[#E4E4E7]">
+                      {currentQuestion?.text || "Question unavailable."}
+                    </p>
+
+                    {currentQuestion?.section === "coding" &&
+                      currentQuestion?.constraints?.length > 0 && (
+                        <div className="mt-6">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
+                            Constraints
+                          </p>
+                          <ul className="mt-3 space-y-2">
+                            {currentQuestion.constraints.map(
+                              (constraint, index) => (
+                                <li
+                                  key={index}
+                                  className="text-xs leading-5 text-[#A1A1AA]"
+                                >
+                                  • {constraint}
+                                </li>
+                              ),
+                            )}
+                          </ul>
+                        </div>
+                      )}
+
+                    {currentQuestion?.section === "coding" &&
+                      currentQuestion?.examples?.length > 0 && (
+                        <div className="mt-6">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/40">
+                            Examples
+                          </p>
+                          <div className="mt-3 space-y-3">
+                            {currentQuestion.examples.map((example, index) => (
+                              <div
+                                key={index}
+                                className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"
+                              >
+                                <p className="break-words font-mono text-xs leading-5 text-[#D4D4D8]">
+                                  Input: {example.input}
+                                </p>
+                                <p className="mt-2 break-words font-mono text-xs leading-5 text-[#D4D4D8]">
+                                  Output: {example.output}
+                                </p>
+                                {example.explanation && (
+                                  <p className="mt-2 text-xs leading-5 text-[#71717A]">
+                                    {example.explanation}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                </div>
+              </aside>
+            )}
+
+          {interview.interviewMode === "agent" &&
+            interview.status === "in-progress" && (
+              <aside className="fixed left-6 top-[88px] z-30 hidden w-[360px] lg:flex lg:flex-col">
+                <div className="flex min-h-0 flex-col overflow-y-auto rounded-2xl border border-white/[0.08] bg-[#111315] p-3 lg:h-[calc(100dvh-104px)]">
+                  <InterviewAgentPanel
+                    question={
+                      currentQuestion?.text ||
+                      currentQuestion?.title ||
+                      "Please answer the current interview question."
+                    }
+                    language={
+                      interview.language === "english" ? "en-US" : "en-US"
+                    }
+                    onTranscript={(spokenText) => {
+                      const separator = answer.trim() ? " " : "";
+                      handleAnswerChange(`${answer}${separator}${spokenText}`);
+                    }}
+                  />
+                </div>
+              </aside>
+            )}
+
           <aside className="fixed right-6 top-[88px] z-30 hidden w-[280px] lg:flex lg:flex-col">
-            <div className="flex min-h-[520px] flex-col rounded-2xl border border-white/[0.08] bg-[#111315] p-4 lg:h-[calc(100vh-104px)]">
+            <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#111315] p-3 lg:h-[calc(100dvh-104px)]">
               {/* Sidebar Header */}
               <div className="mb-4 flex items-center justify-between px-1">
                 <div>
@@ -1829,9 +1954,9 @@ const Interview = ({ setUser }) => {
           </aside>
         </div>
       </main>
-      {/* =====================================================
+      {/* =
           FIXED BOTTOM BAR
-      ====================================================== */}
+      == */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/92 px-4 py-3 shadow-[0_-18px_50px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:px-6 lg:hidden">
         <div className="mx-auto max-w-[1100px]">
           <div className="flex items-center justify-between gap-3">
@@ -2222,9 +2347,9 @@ const Interview = ({ setUser }) => {
           </div>
         </div>
       )}
-      {/* =====================================================
+      {/* =
           QUIT CONFIRMATION
-      ====================================================== */}
+      == */}
       {showQuitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#191B1E] p-6 shadow-2xl">

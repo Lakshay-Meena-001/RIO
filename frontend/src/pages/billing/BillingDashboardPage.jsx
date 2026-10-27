@@ -158,7 +158,9 @@ export default function BillingDashboardPage({ user, setUser }) {
   const reduceMotion = useReducedMotion();
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+  () => localStorage.getItem("rio-sidebar-open") !== "false"
+);
 
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);

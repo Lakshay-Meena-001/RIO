@@ -20,7 +20,9 @@ const MockInterview = ({ user, setUser }) => {
   const navigate = useNavigate();
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+  () => localStorage.getItem("rio-sidebar-open") !== "false"
+);
   const [activeInterview, setActiveInterview] = useState(null);
   const [activeLoading, setActiveLoading] = useState(true);
   const [showReplaceInterviewModal, setShowReplaceInterviewModal] =

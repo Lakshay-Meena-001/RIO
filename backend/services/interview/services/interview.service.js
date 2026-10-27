@@ -1244,6 +1244,9 @@ export const startInterview = async (userId, interviewData) => {
 
       interviewType: interviewData.interviewType,
 
+      interviewMode:
+        interviewData.interviewMode === "agent" ? "agent" : "standard",
+
       subjects: interviewData.subjects || [],
 
       language: interviewData.language || "english",

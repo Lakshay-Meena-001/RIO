@@ -163,7 +163,9 @@ export default function RoadmapBuilderPage({ user, setUser }) {
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
 
   const [roadmaps, setRoadmaps] = useState([]);
 

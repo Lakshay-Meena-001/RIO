@@ -24,7 +24,7 @@ import {
   X,
   Save,
 } from "lucide-react";
-import ResumeForm from "../../components/resume/ResumeForm";
+import ResumeForm from "./ResumeForm";
 import PreviewResume from "../../components/resume/PreviewResume";
 import BasicTemplate from "../../components/resume/templates/BasicTemplate";
 import ModernTemplate from "../../components/resume/templates/ModernTemplate";

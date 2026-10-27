@@ -337,18 +337,23 @@ export default function BillingHistoryPage({ user }) {
       }),
     [transactions, filter, search],
   );
+  
   const selected =
     filtered.find((t) => idOf(t) === selectedId) ||
     transactions.find((t) => idOf(t) === selectedId) ||
     null;
 
+  const selectedStatus = statusOf(selected || {});
+  const selectedTransactionId = selected?.transactionId;
+  const selectedExpiresAt = selected?.expiresAt;
+
   useEffect(() => {
-    const selectedStatus = statusOf(selected || {});
-    const expiresAt = selected?.expiresAt
-      ? new Date(selected.expiresAt).getTime()
+    const expiresAt = selectedExpiresAt
+      ? new Date(selectedExpiresAt).getTime()
       : NaN;
+
     if (
-      !selected?.transactionId ||
+      !selectedTransactionId ||
       !PENDING.has(selectedStatus) ||
       !Number.isFinite(expiresAt)
     ) {
@@ -356,13 +361,13 @@ export default function BillingHistoryPage({ user }) {
     }
 
     let refreshedAfterExpiry = false;
+
     const intervalId = window.setInterval(() => {
       setExpiryClockTick((value) => value + 1);
+
       if (!refreshedAfterExpiry && Date.now() >= expiresAt) {
         refreshedAfterExpiry = true;
-        // The pending-payment endpoint may persist expiry while the transaction
-        // list from the same parallel request still contains the old status.
-        // Run a second read after reconciliation so history immediately shows Expired.
+
         void (async () => {
           await load();
           await load();
@@ -371,12 +376,8 @@ export default function BillingHistoryPage({ user }) {
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [
-    selected?.transactionId,
-    selected?.expiresAt,
-    selected ? statusOf(selected) : "unknown",
-    load,
-  ]);
+  }, [selectedTransactionId, selectedExpiresAt, selectedStatus, load]);
+
   const total = Number(pagination.total ?? transactions.length);
   const pages = Math.max(
     1,
@@ -799,7 +800,10 @@ export default function BillingHistoryPage({ user }) {
               )}
               {selected ? (
                 <div className="space-y-4">
-                  <Surface variant="roadmap" className="rounded-[24px] shadow-[0_22px_60px_rgba(0,0,0,.18)] p-4 sm:p-7">
+                  <Surface
+                    variant="roadmap"
+                    className="rounded-[24px] shadow-[0_22px_60px_rgba(0,0,0,.18)] p-4 sm:p-7"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3.5">
                         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[.045] text-[#D4D4D8] sm:h-12 sm:w-12 sm:rounded-2xl">
@@ -842,7 +846,10 @@ export default function BillingHistoryPage({ user }) {
                       </p>
                     </div>
                   </Surface>
-                  <Surface variant="roadmap" className="rounded-[24px] shadow-[0_22px_60px_rgba(0,0,0,.18)] p-5 sm:p-7">
+                  <Surface
+                    variant="roadmap"
+                    className="rounded-[24px] shadow-[0_22px_60px_rgba(0,0,0,.18)] p-5 sm:p-7"
+                  >
                     <div className="flex items-center gap-2">
                       <FiFileText className="text-[#92949B]" />
                       <h3 className="text-sm font-semibold">
@@ -1037,7 +1044,10 @@ export default function BillingHistoryPage({ user }) {
                   </Surface>
                 </div>
               ) : (
-                <Surface variant="roadmap" className="flex min-h-[330px] rounded-[24px] shadow-[0_22px_60px_rgba(0,0,0,.18)] flex-col items-center justify-center p-8 text-center">
+                <Surface
+                  variant="roadmap"
+                  className="flex min-h-[330px] rounded-[24px] shadow-[0_22px_60px_rgba(0,0,0,.18)] flex-col items-center justify-center p-8 text-center"
+                >
                   <span className="grid h-14 w-14 place-items-center rounded-2xl border border-white/10 bg-white/[.035] text-[#858994]">
                     <FiActivity size={22} />
                   </span>

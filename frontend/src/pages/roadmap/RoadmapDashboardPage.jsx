@@ -150,7 +150,9 @@ const RoadmapDashboardPage = ({
     return () => clearTimeout(timer);
   }, [fetchRoadmaps]);
 
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+  () => localStorage.getItem("rio-sidebar-open") !== "false"
+);
 
   const firstName = user?.name?.split(" ")?.[0] || "there";
 

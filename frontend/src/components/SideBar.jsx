@@ -1,7 +1,7 @@
 import React from "react";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { logoutUser } from "../api/user/user.api.js";
 import toast from "react-hot-toast";
 import ConfirmDialog from "./ui/ConfirmDialog.jsx";
@@ -38,20 +38,26 @@ function Sidebar({
   const [logoutLoading, setLogoutLoading] = React.useState(false);
 
   useEffect(() => {
-    if (!mobileOpen) {
-      document.body.style.overflow = "";
-      document.body.style.touchAction = "";
-      return;
-    }
+    if (!mobileOpen) return;
 
     const previousOverflow = document.body.style.overflow;
-    const previousTouchAction = document.body.style.touchAction;
+    const previousOverscroll = document.body.style.overscrollBehavior;
 
     document.body.style.overflow = "hidden";
-    document.body.style.touchAction = "none";
+    document.body.style.overscrollBehavior = "none";
 
     const preventBackgroundScroll = (event) => {
-      if (!event.target.closest('[data-mobile-sidebar="true"]')) {
+      const target = event.target;
+
+      if (!(target instanceof Element)) {
+        event.preventDefault();
+        return;
+      }
+
+      const sidebar = target.closest('[data-mobile-sidebar="true"]');
+
+      // Sidebar ke bahar background scrolling completely block.
+      if (!sidebar) {
         event.preventDefault();
       }
     };
@@ -62,7 +68,8 @@ function Sidebar({
 
     return () => {
       document.body.style.overflow = previousOverflow;
-      document.body.style.touchAction = previousTouchAction;
+      document.body.style.overscrollBehavior = previousOverscroll;
+
       document.removeEventListener("touchmove", preventBackgroundScroll);
     };
   }, [mobileOpen]);
@@ -491,7 +498,13 @@ function Sidebar({
           {showDesktopToggle && (
             <button
               type="button"
-              onClick={() => setSidebarOpen((value) => !value)}
+              onClick={() => {
+                setSidebarOpen((value) => {
+                  const next = !value;
+                  localStorage.setItem("rio-sidebar-open", String(next));
+                  return next;
+                });
+              }}
               className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[var(--sidebar-muted)] transition-colors hover:bg-[var(--sidebar-hover)] hover:text-[var(--sidebar-text)]"
               aria-label={isExpanded ? "Collapse sidebar" : "Expand sidebar"}
             >
@@ -617,7 +630,8 @@ function Sidebar({
                 animate={{ x: 0 }}
                 exit={{ x: -290 }}
                 transition={{
-                  duration: 0.25,
+                  type: "tween",
+                  duration: 0.28,
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 onTouchStart={handleSidebarTouchStart}

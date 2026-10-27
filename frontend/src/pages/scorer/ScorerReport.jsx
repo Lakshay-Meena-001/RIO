@@ -342,7 +342,7 @@ export default function ScorerReport({
               style={{ width: `${score}%` }}
             />
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          <div className="mt-4  grid grid-cols-2 gap-2 sm:grid-cols-3">
             <Meta label="Report date" value={reportDate} />
             <Meta label="Strengths" value={strengths.length} />
             <Meta label="Action items" value={recommendations.length} />

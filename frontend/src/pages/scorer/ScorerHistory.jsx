@@ -12,7 +12,11 @@ import {
 } from "react-icons/fi";
 
 import { Trash2, Clock3 } from "lucide-react";
-import { getResumes, getResumeById, deleteResume } from "../../api/resume/resume.api";
+import {
+  getResumes,
+  getResumeById,
+  deleteResume,
+} from "../../api/resume/resume.api";
 import ScorerReport from "./ScorerReport";
 
 const getId = (item) => String(item?._id || item?.id || item?.resumeId || "");
@@ -185,14 +189,13 @@ export default function ScorerHistory() {
   }, [reports, query]);
 
   const pages = Math.max(1, Math.ceil(filteredReports.length / pageSize));
-  const paginatedReports = useMemo(
-    () => filteredReports.slice((page - 1) * pageSize, page * pageSize),
-    [filteredReports, page, pageSize],
-  );
 
-  useEffect(() => {
-    setPage((currentPage) => Math.min(currentPage, pages));
-  }, [pages]);
+  const safePage = Math.min(page, pages);
+
+  const paginatedReports = useMemo(
+    () => filteredReports.slice((safePage - 1) * pageSize, safePage * pageSize),
+    [filteredReports, safePage, pageSize],
+  );
 
   const selectReport = (item) => {
     const id = getId(item);

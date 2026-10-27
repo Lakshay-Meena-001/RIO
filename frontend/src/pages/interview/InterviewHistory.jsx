@@ -225,6 +225,7 @@ export default function InterviewHistory() {
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+
   const pageSize = 10;
   const [deleteRequest, setDeleteRequest] = useState(false);
 
@@ -340,14 +341,6 @@ export default function InterviewHistory() {
     page * pageSize,
   );
 
-  useEffect(() => {
-    setPage(1);
-  }, [search]);
-
-  useEffect(() => {
-    setPage((current) => Math.min(current, pages));
-  }, [pages]);
-
   const selectInterview = (id) => {
     if (!id) return;
     setSelectedInterviewId(id);
@@ -387,7 +380,7 @@ export default function InterviewHistory() {
       />
       <div className="relative z-10 flex h-full min-h-0">
         <aside
-          className={`absolute inset-y-4 bottom-20 left-4 z-50 flex w-[min(282px,calc(100vw - 1rem))] flex-col overflow-hidden rounded-[18px] border border-white/[.10] bg-[#111315]/95 shadow-[0_22px_60px_rgba(0,0,0,.3)] backdrop-blur-2xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"}`}
+          className={`absolute top-4 bottom-20 left-4 z-50 flex w-[min(282px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"}`}
         >
           <div className="shrink-0 border-b border-white/[.065] bg-white/[.012] px-5 pb-4 pt-5">
             <div className="flex items-start justify-between gap-3">
@@ -427,14 +420,20 @@ export default function InterviewHistory() {
               <FiSearch size={13} className="shrink-0 text-[#686B74]" />
               <input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Find an interview…"
                 className="w-full bg-transparent text-xs text-white outline-none placeholder:text-[#62656D]"
               />
               {search && (
                 <button
                   type="button"
-                  onClick={() => setSearch("")}
+                  onClick={() => {
+                    setSearch("");
+                    setPage(1);
+                  }}
                   aria-label="Clear search"
                 >
                   <FiX size={13} />
@@ -571,7 +570,7 @@ export default function InterviewHistory() {
           />
         )}
         <Sidebar interview={selectedInterview} />
-        <main className="min-w-0 flex-1 overflow-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[312px] xl:pr-[292px]">
+        <main className="min-w-0 flex-1 overflow-hidden pb-[calc(5.25rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-[300px] xl:pr-[292px]">
           <div className="flex h-full min-h-0 flex-col">
             <div className="mt-6 mx-6 hidden border-b border-white/[.08] pb-5 lg:block">
               <button

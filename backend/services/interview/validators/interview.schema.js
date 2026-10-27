@@ -79,6 +79,8 @@ export const startInterviewSchema = z.object({
 
   interviewType: interviewTypeSchema,
 
+  interviewMode: z.enum(["standard", "agent"]).default("standard"),
+
   subjects: z.array(coreSubjectSchema).max(5).default([]),
 
   language: z.literal("english").default("english"),

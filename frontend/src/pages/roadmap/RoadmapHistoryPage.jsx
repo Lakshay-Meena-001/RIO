@@ -830,18 +830,13 @@ export default function RoadmapHistoryPage() {
     1,
     Math.ceil(filteredRoadmaps.length / historyPageSize),
   );
+
+  const safeHistoryPage = Math.min(historyPage, historyPageCount);
+
   const paginatedRoadmaps = filteredRoadmaps.slice(
-    (historyPage - 1) * historyPageSize,
-    historyPage * historyPageSize,
+    (safeHistoryPage - 1) * historyPageSize,
+    safeHistoryPage * historyPageSize,
   );
-
-  useEffect(() => {
-    setHistoryPage(1);
-  }, [search]);
-
-  useEffect(() => {
-    if (historyPage > historyPageCount) setHistoryPage(historyPageCount);
-  }, [historyPage, historyPageCount]);
 
   return (
     <div className="rio-roadmap-history fixed inset-0 overflow-hidden bg-[radial-gradient(ellipse_at_48%_0%,rgba(255,255,255,0.055),transparent_38%),#101113] text-white">

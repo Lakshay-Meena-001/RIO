@@ -17,7 +17,7 @@ export async function getCurrentUser(req, res) {
   }
 
   const authServiceUrl =
-    process.env.AUTH_SERVICE_URL?.trim() || "http://localhost:6001";
+    process.env.AUTH_SERVICE_URL?.trim() || "http://localhost:8001";
   const internalSecret = process.env.AUTH_INTERNAL_SECRET?.trim();
 
   if (!internalSecret) {

@@ -18,7 +18,10 @@ import {
 
 import Sidebar from "../../components/SideBar";
 import MobileHeader from "../../components/MobileHeader";
-import { startInterview, getActiveInterview } from "../../api/interview/interview.api";
+import {
+  startInterview,
+  getActiveInterview,
+} from "../../api/interview/interview.api";
 
 const CustomSelect = ({ label, value, options, onChange }) => {
   const [open, setOpen] = useState(false);
@@ -47,7 +50,7 @@ const CustomSelect = ({ label, value, options, onChange }) => {
   }, []);
 
   const selectedOption = options.find(
-    (option) => Number(option.value) === Number(value),
+    (option) => String(option.value) === String(value),
   );
 
   return (
@@ -144,7 +147,9 @@ const NewInterview = ({ user, setUser }) => {
   };
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+  () => localStorage.getItem("rio-sidebar-open") !== "false"
+);
 
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState("");
@@ -160,6 +165,7 @@ const NewInterview = ({ user, setUser }) => {
 
   const [form, setForm] = useState({
     role: "",
+    interviewMode: "standard",
     experienceLevel: "fresher",
     interviewLevel: "fresher",
     interviewType: "full",
@@ -360,6 +366,7 @@ const NewInterview = ({ user, setUser }) => {
         experienceLevel: form.experienceLevel,
         interviewLevel: form.interviewLevel,
         interviewType: form.interviewType,
+        interviewMode: form.interviewMode,
         subjects: form.subjects,
         techStack: effectiveTechStack,
         projectContext:
@@ -656,6 +663,52 @@ const NewInterview = ({ user, setUser }) => {
                         </button>
                       ))}
                     </div>
+                  </div>
+                </section>
+
+                {/* Interview mode: existing Standard flow or optional Agent UI */}
+                <section className="border-b border-white/[0.08] p-5 sm:p-7">
+                  <div className="mb-4">
+                    <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#6F727A]">
+                      Interview experience
+                    </p>
+                    <h2 className="mt-2 text-lg font-semibold tracking-[-0.03em]">
+                      Choose your interview mode.
+                    </h2>
+                    <p className="mt-1.5 text-xs leading-5 text-[#777A82]">
+                      Standard keeps the current experience. With Agent adds
+                      voice, speech-to-text and a live camera preview.
+                    </p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {[
+                      {
+                        value: "standard",
+                        title: "Standard Interview",
+                        description:
+                          "Current text/editor-based interview. No camera or voice panel.",
+                      },
+                      {
+                        value: "agent",
+                        title: "With Agent",
+                        description:
+                          "Spoken questions, optional camera preview and voice-to-text answers.",
+                      },
+                    ].map((mode) => (
+                      <button
+                        key={mode.value}
+                        type="button"
+                        onClick={() => updateField("interviewMode", mode.value)}
+                        className={`rounded-xl border p-4 text-left transition ${form.interviewMode === mode.value ? "border-white/25 bg-white/[0.08]" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.05]"}`}
+                      >
+                        <span className="block text-sm font-semibold text-white">
+                          {mode.title}
+                        </span>
+                        <span className="mt-2 block text-xs leading-5 text-[#A1A1AA]">
+                          {mode.description}
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </section>
 

@@ -358,7 +358,7 @@ const Home = ({ setUser, user }) => {
                 <button
                   type="button"
                   onClick={openLogin}
-                  className="group flex h-12 items-center gap-3 rounded-xl bg-white px-6 text-sm font-bold text-[#17191C] shadow-[0_16px_45px_rgba(255,255,255,0.08)] transition-transform hover:-translate-y-0.5"
+                  className="group flex h-12 items-center gap-3 rounded-full bg-white px-6 text-sm font-bold text-[#17191C] shadow-[0_16px_45px_rgba(255,255,255,0.08)] transition-transform hover:-translate-y-0.5"
                 >
                   Start your journey
                   <FaArrowRight
@@ -370,7 +370,7 @@ const Home = ({ setUser, user }) => {
                 <button
                   type="button"
                   onClick={scrollToHowItWorks}
-                  className="group flex h-12 items-center gap-3 rounded-xl border border-white/10 bg-white/[0.035] px-6 text-sm font-semibold text-white/[0.82] backdrop-blur-xl transition-all hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
+                  className="group flex h-12 items-center gap-3 rounded-full border border-white/10 bg-white/[0.035] px-6 text-sm font-semibold text-white/[0.82] backdrop-blur-xl transition-all hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
                 >
                   Explore how it works
                   <FiArrowRight
@@ -717,7 +717,7 @@ const Home = ({ setUser, user }) => {
                         key={item}
                         className="flex w-full flex-col items-center gap-2 lg:w-auto lg:flex-row"
                       >
-                        <span className="w-full max-w-[245px] rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-center">
+                        <span className="w-full max-w-[245px] rounded-full border border-white/10 bg-white/[0.035] px-3 py-2 text-center">
                           {item}
                         </span>
                         {index < arr.length - 1 && (
@@ -734,7 +734,7 @@ const Home = ({ setUser, user }) => {
                 <button
                   type="button"
                   onClick={openLogin}
-                  className="group mx-auto flex h-11 w-full max-w-[245px] shrink-0 items-center justify-center gap-3 rounded-xl bg-white px-5 text-sm font-bold text-[#17191C] transition-transform hover:-translate-y-0.5 lg:w-auto"
+                  className="group mx-auto flex h-11 w-full max-w-[245px] shrink-0 items-center justify-center gap-3 rounded-full bg-white px-5 text-sm font-bold text-[#17191C] transition-transform hover:-translate-y-0.5 lg:w-auto"
                 >
                   Start with your profile
                   <FiArrowRight
@@ -1073,7 +1073,7 @@ const Home = ({ setUser, user }) => {
             <button
               type="button"
               onClick={openLogin}
-              className="group mt-9 inline-flex h-12 items-center gap-3 rounded-xl bg-white px-6 text-sm font-bold text-[#17191C] shadow-[0_18px_50px_rgba(255,255,255,0.08)] transition-transform hover:-translate-y-0.5"
+              className="group mt-9 inline-flex h-12 items-center gap-3 rounded-full bg-white px-6 text-sm font-bold text-[#17191C] shadow-[0_18px_50px_rgba(255,255,255,0.08)] transition-transform hover:-translate-y-0.5"
             >
               Start your journey
               <FiArrowRight

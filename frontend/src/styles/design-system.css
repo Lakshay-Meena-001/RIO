@@ -135,10 +135,7 @@
   background: var(--button-hover);
   border-color: var(--border-strong);
 }
-.rio-button:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 3px;
-}
+
 
 .rio-button:disabled {
   cursor: not-allowed;
@@ -219,10 +216,7 @@
   color: var(--muted);
   opacity: 0.8;
 }
-.rio-field__control:focus {
-  border-color: var(--border-strong);
-  box-shadow: 0 0 0 3px var(--selection);
-}
+
 .rio-field__control[aria-invalid="true"] {
   border-color: var(--status-failed);
 }
@@ -1028,10 +1022,7 @@ button,
 a {
   -webkit-tap-highlight-color: transparent;
 }
-:where(button, a, input, textarea, select, [tabindex]):focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--text) 70%, transparent);
-  outline-offset: 3px;
-}
+
 @media (max-width: 767px) {
   html,
   body {

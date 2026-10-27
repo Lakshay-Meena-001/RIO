@@ -108,7 +108,9 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+  () => localStorage.getItem("rio-sidebar-open") !== "false"
+);
 
   const firstName = user?.name?.trim()?.split(/\s+/)?.[0] || "there";
 

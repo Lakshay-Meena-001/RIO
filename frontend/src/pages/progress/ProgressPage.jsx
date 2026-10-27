@@ -55,7 +55,9 @@ const ProgressBar = ({ value = 0 }) => (
 export default function ProgressPage({ user, setUser }) {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [roadmaps, setRoadmaps] = useState([]);
@@ -104,8 +106,13 @@ export default function ProgressPage({ user, setUser }) {
       );
     setLoading(false);
   }, []);
+
   useEffect(() => {
-    loadProgress();
+    const timer = setTimeout(() => {
+      loadProgress();
+    }, 0);
+
+    return () => clearTimeout(timer);
   }, [loadProgress]);
 
   const roadmapStats = useMemo(
@@ -303,18 +310,55 @@ export default function ProgressPage({ user, setUser }) {
                   Hey {firstName}, keep your momentum going by finishing a
                   phase, reviewing an interview, or polishing your resume.
                 </p>
-                <div className="mt-5 hidden  flex flex-wrap gap-2">
+                <div className="mt-5 flex flex-wrap gap-2">
                   <button
-                    onClick={() => navigate("/roadmap")}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.06)] transition hover:shadow-[0_14px_34px_rgba(255,255,255,0.10)] sm:px-5"
+                    type="button"
+                    onClick={() => {
+                      const nextRoadmap = [...roadmapStats]
+                        .filter((roadmap) => roadmap.progress < 100)
+                        .sort((a, b) => {
+                          if (a.updated && b.updated) {
+                            return new Date(b.updated) - new Date(a.updated);
+                          }
+                          return 0;
+                        })[0];
+
+                      navigate(
+                        nextRoadmap?.id
+                          ? `/roadmap/${nextRoadmap.id}`
+                          : "/roadmap",
+                      );
+                    }}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
                   >
-                    Continue learning <FiArrowRight />
+                    {roadmapStats.some((roadmap) => roadmap.progress < 100)
+                      ? "Continue Learning"
+                      : "Start Learning"}
+                    <FiArrowRight size={14} />
                   </button>
+
                   <button
-                    onClick={() => navigate("/mock-interview")}
-                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white sm:px-5"
+                    type="button"
+                    onClick={() => navigate("/roadmap")}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white"
                   >
-                    Practice interview
+                    {roadmapStats.length ? "My Roadmaps" : "Start Roadmap"}
+                    <FiArrowRight size={14} />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate(
+                        interviews.length
+                          ? "/mock-interview/history"
+                          : "/mock-interview/new",
+                      )
+                    }
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white"
+                  >
+                    {interviews.length ? "View Interviews" : "Start Interview"}
+                    <FiArrowRight size={14} />
                   </button>
                 </div>
               </div>
@@ -554,17 +598,35 @@ export default function ProgressPage({ user, setUser }) {
             <div className="mx-auto flex max-w-md items-center gap-2">
               <button
                 type="button"
-                onClick={() => navigate("/roadmap")}
-                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition active:scale-[0.98]"
+                onClick={() => {
+                  const nextRoadmap = roadmapStats.find(
+                    (roadmap) => roadmap.progress < 100,
+                  );
+
+                  navigate(
+                    nextRoadmap?.id ? `/roadmap/${nextRoadmap.id}` : "/roadmap",
+                  );
+                }}
+                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] active:scale-[0.98]"
               >
-                Continue learning <FiArrowRight />
+                {roadmapStats.some((roadmap) => roadmap.progress < 100)
+                  ? "Continue Learning"
+                  : "Start Learning"}
+                <FiArrowRight size={14} />
               </button>
+
               <button
                 type="button"
-                onClick={() => navigate("/mock-interview")}
-                className="flex min-w-0 flex-1 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.045] px-3 py-3 text-xs font-semibold text-white transition active:scale-[0.98]"
+                onClick={() =>
+                  navigate(
+                    interviews.length
+                      ? "/mock-interview/history"
+                      : "/mock-interview/new",
+                  )
+                }
+                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.045] px-3 py-3 text-xs font-semibold text-white active:scale-[0.98]"
               >
-                Practice interview
+                {interviews.length ? "View Interviews" : "Start Interview"}
               </button>
             </div>
           </nav>

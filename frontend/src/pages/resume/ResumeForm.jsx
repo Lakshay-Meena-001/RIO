@@ -1,12 +1,22 @@
 import { useEffect, useRef, useState } from "react";
+import toast from "react-hot-toast";
+import {
+  getCurrentUser,
+  updateProfessionalProfile,
+} from "../../api/user/user.api";
+
+/* -------------------------------------------------------------------------- */
+/*                               Small Helpers                                */
+/* -------------------------------------------------------------------------- */
 
 const inputClassName =
-  "w-full rounded-lg border border-white/[.11] bg-white/[.035] px-3.5 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:bg-white/[0.06]";
+  "w-full rounded-xl border border-white/[.105] bg-[#0e1015]/75 px-3.5 py-3 text-[13px] text-white shadow-[inset_0_1px_2px_rgba(0,0,0,.18)] outline-none transition duration-200 placeholder:text-white/25 hover:border-white/[.17] focus:border-white/25 focus:bg-[#17191C] focus:ring-4 focus:ring-white/[.035]";
 
 const textareaClassName =
-  "w-full rounded-lg border border-white/[.11] bg-white/[.035] px-3.5 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-white/30 focus:border-violet-400/50 focus:bg-white/[0.06]";
+  "w-full rounded-xl border border-white/[.105] bg-[#0e1015]/75 px-3.5 py-3 text-[13px] leading-6 text-white shadow-[inset_0_1px_2px_rgba(0,0,0,.18)] outline-none transition duration-200 placeholder:text-white/25 hover:border-white/[.17] focus:border-white/25 focus:bg-[#17191C] focus:ring-4 focus:ring-white/[.035]";
 
-const labelClassName = "mb-2 block text-xs font-medium text-white/65";
+const labelClassName =
+  "mb-2 block text-[11px] font-semibold tracking-[.015em] text-white/70";
 
 const emptyEducation = {
   institution: "",
@@ -210,8 +220,8 @@ function TagInput({ label, values = [], onChange, placeholder, hint }) {
 
       <div
         className="
-          w-full rounded-xl border border-white/10 bg-white/[0.04] p-3
-          transition"
+          w-full rounded-xl border border-white/[.09] bg-[#0e1015]/70 p-3
+          shadow-[inset_0_1px_2px_rgba(0,0,0,.16)] transition focus-within:border-white/20 focus-within:ring-4 focus-within:ring-white/[.03]"
       >
         {values.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
@@ -262,27 +272,20 @@ function TagInput({ label, values = [], onChange, placeholder, hint }) {
 
 function FormSection({ title, description, children, action }) {
   return (
-    <section className="w-full min-w-0 border-0 bg-transparent p-0">
-      <div className="mb-5 w-full border-b border-white/[.10] pb-4">
-        <div className="text-center sm:text-left">
-          <h2 className="mt-0 text-xl font-semibold tracking-[-0.03em] text-white sm:text-[22px]">
+    <section className="w-full min-w-0 border-b border-white/[.10] pb-7 last:border-b-0">
+      <div className="mb-5 flex flex-col gap-3 border-b border-white/[.075] pb-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h2 className="relative pl-3 text-[19px] font-semibold tracking-[-.035em] text-white before:absolute before:bottom-1 before:left-0 before:top-1 before:w-[3px] before:rounded-full before:bg-gradient-to-b before:from-white/80 before:to-white/25 sm:text-[21px]">
             {title}
           </h2>
-
           {description && (
-            <p className="mx-auto mt-1.5 max-w-2xl text-xs leading-5 text-white/45 sm:mx-0">
+            <p className="mt-1.5 pl-3 text-[11px] leading-5 text-white/45 sm:text-xs">
               {description}
             </p>
           )}
         </div>
-
-        {action && (
-          <div className="mt-4 w-full sm:mt-0 sm:flex sm:justify-end">
-            {action}
-          </div>
-        )}
+        {action && <div className="shrink-0">{action}</div>}
       </div>
-
       <div className="w-full min-w-0">{children}</div>
     </section>
   );
@@ -296,12 +299,12 @@ function EntryHeader({ title, subtitle, onRemove }) {
   return (
     <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <p className="text-lg font-semibold tracking-[-0.02em] text-white">
+        <p className="text-[15px] font-semibold tracking-[-0.02em] text-white">
           {title}
         </p>
 
         {subtitle && (
-          <p className="mt-1 text-xs leading-5 text-white/35">{subtitle}</p>
+          <p className="mt-1 text-[11px] leading-5 text-white/40">{subtitle}</p>
         )}
       </div>
 
@@ -328,7 +331,58 @@ function EntryHeader({ title, subtitle, onRemove }) {
 /*                              Resume Form                                   */
 /* -------------------------------------------------------------------------- */
 
-export default function ResumeForm({ data, onChange }) {
+export default function ResumeForm({ data, onChange, onCreateNew }) {
+  const [profileImportStatus, setProfileImportStatus] = useState({});
+  const importToProfile = async (key, profileField, value, label = key) => {
+    const cleanValue = typeof value === "string" ? value.trim() : value;
+    if (
+      cleanValue == null ||
+      cleanValue === "" ||
+      (Array.isArray(cleanValue) && !cleanValue.length)
+    ) {
+      setProfileImportStatus((current) => ({
+        ...current,
+        [key]: "Add a value first.",
+      }));
+      return;
+    }
+    setProfileImportStatus((current) => ({ ...current, [key]: "Saving..." }));
+    try {
+      await updateProfessionalProfile({
+        [profileField]: cleanValue,
+      });
+      setProfileImportStatus((current) => ({
+        ...current,
+        [key]: "Added to Profile",
+      }));
+      toast.success(`${label} added to Profile`);
+    } catch (error) {
+      const message =
+        error?.response?.data?.message || "Could not update Profile.";
+      setProfileImportStatus((current) => ({ ...current, [key]: message }));
+      toast.error(message);
+    }
+  };
+  const profileImportButton = (key, profileField, value, label = key) => (
+    <div className="mt-2 flex justify-end">
+      <button
+        type="button"
+        onClick={() => importToProfile(key, profileField, value, label)}
+        className="mt-0 inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/30 bg-transparent px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+      >
+        <span aria-hidden="true">＋</span>
+        Add to Profile
+      </button>
+      {profileImportStatus[key] && (
+        <p
+          role="status"
+          className={`mt-1 text-[11px] ${profileImportStatus[key] === "Added to Profile" ? "text-emerald-400" : "text-white/50"}`}
+        >
+          {profileImportStatus[key]}
+        </p>
+      )}
+    </div>
+  );
   const updateProfile = (field, value) => {
     onChange({
       ...data,
@@ -429,29 +483,26 @@ export default function ResumeForm({ data, onChange }) {
 
   /* ------------------------------------------------------------------------ */
 
-  const totalSections = 9;
-  const completedSections = [
-    Boolean(data.profile?.name || data.profile?.email),
-    Boolean(data.summary?.trim()),
-    (data.experience || []).length > 0,
-    (data.projects || []).length > 0,
-    (data.education || []).length > 0,
-    (data.skills || []).length > 0,
-    (data.certifications || []).length > 0,
-    (data.achievements || []).length > 0,
-    (data.languages || []).length > 0,
-  ].filter(Boolean).length;
-
   return (
-    <div className="w-full min-w-0 space-y-8">
-      {/* Profile                                                           */}
+    <div className="w-full min-w-0 space-y-5">
+      {/* Profile */}
       {/* ------------------------------------------------------------------ */}
 
       <FormSection
         title="Profile"
         description="Your core identity and professional links."
+        action={
+          <button
+            type="button"
+            onClick={onCreateNew}
+            className="inline-flex min-h-9 items-center justify-center gap-2 rounded-xl border border-white/[.12] bg-white/[.045] px-3.5 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/[.18] hover:bg-white/[.08] focus:outline-none focus:ring-2 focus:ring-white/20"
+          >
+            <span className="text-sm leading-none">+</span>
+            Create new
+          </button>
+        }
       >
-        <div className="grid w-full min-w-0 grid-cols-1 gap-x-4 gap-y-3 lg:grid-cols-2">
+        <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
           <Field
             label="Full Name"
             value={data.profile?.name}
@@ -475,35 +526,67 @@ export default function ResumeForm({ data, onChange }) {
             type="tel"
           />
 
-          <Field
-            label="Location"
-            value={data.profile?.location}
-            onChange={(value) => updateProfile("location", value)}
-            placeholder="Delhi, India"
-          />
+          <div className="min-w-0">
+            <Field
+              label="Location"
+              value={data.profile?.location}
+              onChange={(value) => updateProfile("location", value)}
+              placeholder="Delhi, India"
+            />
+            {profileImportButton(
+              "location",
+              "location",
+              data.profile?.location,
+              "Location",
+            )}
+          </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
-          <Field
-            label="LinkedIn"
-            value={data.profile?.linkedIn}
-            onChange={(value) => updateProfile("linkedIn", value)}
-            placeholder="https://linkedin.com/in/username"
-          />
+        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="min-w-0">
+            <Field
+              label="LinkedIn"
+              value={data.profile?.linkedIn}
+              onChange={(value) => updateProfile("linkedIn", value)}
+              placeholder="https://linkedin.com/in/username"
+            />
+            {profileImportButton(
+              "linkedIn",
+              "linkedinUrl",
+              data.profile?.linkedIn,
+              "LinkedIn",
+            )}
+          </div>
 
-          <Field
-            label="GitHub"
-            value={data.profile?.github}
-            onChange={(value) => updateProfile("github", value)}
-            placeholder="https://github.com/username"
-          />
+          <div className="min-w-0">
+            <Field
+              label="GitHub"
+              value={data.profile?.github}
+              onChange={(value) => updateProfile("github", value)}
+              placeholder="https://github.com/username"
+            />
+            {profileImportButton(
+              "github",
+              "githubUrl",
+              data.profile?.github,
+              "GitHub",
+            )}
+          </div>
 
-          <Field
-            label="Portfolio"
-            value={data.profile?.portfolio}
-            onChange={(value) => updateProfile("portfolio", value)}
-            placeholder="https://yourportfolio.com"
-          />
+          <div className="min-w-0">
+            <Field
+              label="Portfolio"
+              value={data.profile?.portfolio}
+              onChange={(value) => updateProfile("portfolio", value)}
+              placeholder="https://yourportfolio.com"
+            />
+            {profileImportButton(
+              "portfolio",
+              "portfolioUrl",
+              data.profile?.portfolio,
+              "Portfolio",
+            )}
+          </div>
 
           <Field
             label="LeetCode"
@@ -532,6 +615,7 @@ export default function ResumeForm({ data, onChange }) {
           recommended={700}
           hint="Aim for roughly 80–120 words. Focus on role, strongest skills, experience level and target direction."
         />
+        {profileImportButton("summary", "bio", data.summary, "Summary")}
       </FormSection>
 
       {/* ------------------------------------------------------------------ */}
@@ -545,7 +629,7 @@ export default function ResumeForm({ data, onChange }) {
           <button
             type="button"
             onClick={addExperience}
-            className="w-full rounded-lg border border-white/10 bg-white/[.045] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-white/[.08] sm:w-auto"
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-white/[.075] sm:w-auto"
           >
             + Add Experience
           </button>
@@ -556,10 +640,7 @@ export default function ResumeForm({ data, onChange }) {
             <div
               key={index}
               className="
-                w-full min-w-0
-                border-b border-white/[.10]
-                bg-transparent
-                py-5 last:border-b-0
+                w-full min-w-0 rounded-2xl border border-white/[.075] bg-black/[.12] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.02)] sm:p-5
               "
             >
               <EntryHeader
@@ -568,7 +649,7 @@ export default function ResumeForm({ data, onChange }) {
                 onRemove={() => removeExperience(index)}
               />
 
-              <div className="grid w-full min-w-0 grid-cols-1 gap-x-4 gap-y-3 lg:grid-cols-2">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
                 <Field
                   label="Company"
                   value={experience.company}
@@ -666,13 +747,120 @@ export default function ResumeForm({ data, onChange }) {
       {/* ------------------------------------------------------------------ */}
 
       <FormSection
+        title="Education"
+        description="Add your academic background."
+        action={
+          <button
+            type="button"
+            onClick={addEducation}
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-white/[.075] sm:w-auto"
+          >
+            + Add Education
+          </button>
+        }
+      >
+        <div className="space-y-4">
+          {(data.education || []).map((education, index) => (
+            <div
+              key={index}
+              className="
+                w-full min-w-0 rounded-2xl border border-white/[.075] bg-black/[.12] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.02)] sm:p-5
+              "
+            >
+              <EntryHeader
+                title={`Education ${index + 1}`}
+                subtitle="Institution, degree and academic details"
+                onRemove={() => removeEducation(index)}
+              />
+
+              <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
+                <Field
+                  label="Institution"
+                  value={education.institution}
+                  onChange={(value) =>
+                    updateEducation(index, "institution", value)
+                  }
+                  placeholder="University / College"
+                />
+
+                <Field
+                  label="Degree"
+                  value={education.degree}
+                  onChange={(value) => updateEducation(index, "degree", value)}
+                  placeholder="B.Tech"
+                />
+
+                <Field
+                  label="Field of Study"
+                  value={education.field}
+                  onChange={(value) => updateEducation(index, "field", value)}
+                  placeholder="Computer Science"
+                />
+
+                <div className="grid grid-cols-2 gap-3 min-w-0">
+                  <Field
+                    label="Start Date"
+                    value={education.startDate}
+                    onChange={(value) =>
+                      updateEducation(index, "startDate", value)
+                    }
+                    placeholder="2020"
+                  />
+
+                  <Field
+                    label="End Date"
+                    value={education.endDate}
+                    onChange={(value) =>
+                      updateEducation(index, "endDate", value)
+                    }
+                    placeholder="2024"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4">
+                <TextField
+                  label="Description"
+                  value={education.description}
+                  onChange={(value) =>
+                    updateEducation(index, "description", value)
+                  }
+                  placeholder="Optional: relevant coursework, academic achievements or additional details..."
+                  rows={5}
+                  recommended={500}
+                  hint="Optional. Leave empty if the degree details already provide enough information."
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={() => removeEducation(index)}
+                className="mt-5 w-full rounded-lg border border-red-400/10 bg-red-400/[0.04] px-3 py-2.5 text-xs font-medium text-red-300/80 transition hover:border-red-400/20 hover:bg-red-400/[0.08] sm:hidden"
+              >
+                Remove Education
+              </button>
+            </div>
+          ))}
+
+          {(!data.education || data.education.length === 0) && (
+            <EmptyState
+              title="No education added"
+              description="Add your degree or other relevant academic qualifications."
+              actionLabel="Add Education"
+              onClick={addEducation}
+            />
+          )}
+        </div>
+      </FormSection>
+
+      <FormSection
         title="Projects"
         description="Showcase projects that demonstrate your technical skills and impact."
         action={
           <button
             type="button"
             onClick={addProject}
-            className="w-full rounded-lg border border-white/10 bg-white/[.045] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-white/[.08] sm:w-auto"
+            className="w-full rounded-lg border border-white/[.12] bg-white/[.04] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-white/[.075] sm:w-auto"
           >
             + Add Project
           </button>
@@ -683,10 +871,7 @@ export default function ResumeForm({ data, onChange }) {
             <div
               key={index}
               className="
-                w-full min-w-0
-                border-b border-white/[.10]
-                bg-transparent
-                py-5 last:border-b-0
+                w-full min-w-0 rounded-2xl border border-white/[.075] bg-black/[.12] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.02)] sm:p-5
               "
             >
               <EntryHeader
@@ -695,7 +880,7 @@ export default function ResumeForm({ data, onChange }) {
                 onRemove={() => removeProject(index)}
               />
 
-              <div className="grid w-full min-w-0 grid-cols-1 gap-x-4 gap-y-3 lg:grid-cols-2">
+              <div className="grid w-full min-w-0 grid-cols-1 gap-4 lg:grid-cols-2">
                 <Field
                   label="Project Title"
                   value={project.title}
@@ -783,120 +968,6 @@ export default function ResumeForm({ data, onChange }) {
       </FormSection>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Education                                                         */}
-      {/* ------------------------------------------------------------------ */}
-
-      <FormSection
-        title="Education"
-        description="Add your academic background."
-        action={
-          <button
-            type="button"
-            onClick={addEducation}
-            className="w-full rounded-lg border border-white/10 bg-white/[.045] px-3.5 py-2.5 text-xs font-medium text-white/80 transition hover:bg-white/[.08] sm:w-auto"
-          >
-            + Add Education
-          </button>
-        }
-      >
-        <div className="space-y-4">
-          {(data.education || []).map((education, index) => (
-            <div
-              key={index}
-              className="
-                w-full min-w-0
-                border-b border-white/[.10]
-                bg-transparent
-                py-5 last:border-b-0
-              "
-            >
-              <EntryHeader
-                title={`Education ${index + 1}`}
-                subtitle="Institution, degree and academic details"
-                onRemove={() => removeEducation(index)}
-              />
-
-              <div className="grid w-full min-w-0 grid-cols-1 gap-x-4 gap-y-3 lg:grid-cols-2">
-                <Field
-                  label="Institution"
-                  value={education.institution}
-                  onChange={(value) =>
-                    updateEducation(index, "institution", value)
-                  }
-                  placeholder="University / College"
-                />
-
-                <Field
-                  label="Degree"
-                  value={education.degree}
-                  onChange={(value) => updateEducation(index, "degree", value)}
-                  placeholder="B.Tech"
-                />
-
-                <Field
-                  label="Field of Study"
-                  value={education.field}
-                  onChange={(value) => updateEducation(index, "field", value)}
-                  placeholder="Computer Science"
-                />
-
-                <div className="grid grid-cols-2 gap-3 min-w-0">
-                  <Field
-                    label="Start Date"
-                    value={education.startDate}
-                    onChange={(value) =>
-                      updateEducation(index, "startDate", value)
-                    }
-                    placeholder="2020"
-                  />
-
-                  <Field
-                    label="End Date"
-                    value={education.endDate}
-                    onChange={(value) =>
-                      updateEducation(index, "endDate", value)
-                    }
-                    placeholder="2024"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-4">
-                <TextField
-                  label="Description"
-                  value={education.description}
-                  onChange={(value) =>
-                    updateEducation(index, "description", value)
-                  }
-                  placeholder="Optional: relevant coursework, academic achievements or additional details..."
-                  rows={5}
-                  recommended={500}
-                  hint="Optional. Leave empty if the degree details already provide enough information."
-                />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => removeEducation(index)}
-                className="mt-5 w-full rounded-lg border border-red-400/10 bg-red-400/[0.04] px-3 py-2.5 text-xs font-medium text-red-300/80 transition hover:border-red-400/20 hover:bg-red-400/[0.08] sm:hidden"
-              >
-                Remove Education
-              </button>
-            </div>
-          ))}
-
-          {(!data.education || data.education.length === 0) && (
-            <EmptyState
-              title="No education added"
-              description="Add your degree or other relevant academic qualifications."
-              actionLabel="Add Education"
-              onClick={addEducation}
-            />
-          )}
-        </div>
-      </FormSection>
-
-      {/* ------------------------------------------------------------------ */}
       {/* Skills                                                            */}
       {/* ------------------------------------------------------------------ */}
 
@@ -911,6 +982,54 @@ export default function ResumeForm({ data, onChange }) {
           placeholder="JavaScript, React, Node.js..."
           hint="Press Enter after each skill. Keep the list focused on skills relevant to your target role."
         />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              importToProfile("skills", "skills", data.skills || [], "Skills")
+            }
+            className="mt-0 inline-flex items-center justify-center gap-1.5 rounded-lg border border-white/30 bg-transparent px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            Replace Profile Skills
+          </button>
+          <button
+            type="button"
+            onClick={async () => {
+              try {
+                const currentUser = await getCurrentUser();
+                const existing = Array.isArray(currentUser?.user?.skills)
+                  ? currentUser.user.skills
+                  : Array.isArray(currentUser?.skills)
+                    ? currentUser.skills
+                    : [];
+                await updateProfessionalProfile({
+                  skills: [...new Set([...existing, ...(data.skills || [])])],
+                });
+                setProfileImportStatus((current) => ({
+                  ...current,
+                  skills: "Added to Profile",
+                }));
+                toast.success("Skills added to Profile");
+              } catch (error) {
+                const message =
+                  error?.response?.data?.message || "Could not update Profile.";
+                setProfileImportStatus((current) => ({
+                  ...current,
+                  skills: message,
+                }));
+                toast.error(message);
+              }
+            }}
+            className="rounded-lg border border-white/[.12] bg-white/[.04] px-3 py-1.5 text-[11px] font-medium text-white/80 transition hover:bg-white/[.08]"
+          >
+            Merge Profile Skills
+          </button>
+        </div>
+        {profileImportStatus.skills && (
+          <p role="status" className="mt-1 text-[11px] text-emerald-400">
+            {profileImportStatus.skills}
+          </p>
+        )}
       </FormSection>
 
       {/* ------------------------------------------------------------------ */}
@@ -971,7 +1090,7 @@ export default function ResumeForm({ data, onChange }) {
 
 function EmptyState({ title, description, actionLabel, onClick }) {
   return (
-    <div className="w-full rounded-xl border border-dashed border-white/10 bg-white/[0.015] px-4 py-8 text-center sm:px-5">
+    <div className="w-full rounded-2xl border border-dashed border-white/[.12] bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,.025),transparent_65%),rgba(0,0,0,.12)] px-4 py-9 text-center sm:px-5">
       <p className="text-sm font-medium text-white/70">{title}</p>
 
       <p className="mx-auto mt-1.5 max-w-md text-xs leading-5 text-white/35">
@@ -981,7 +1100,7 @@ function EmptyState({ title, description, actionLabel, onClick }) {
       <button
         type="button"
         onClick={onClick}
-        className="mt-4 rounded-lg border border-white/10 bg-white/[0.05] px-3.5 py-2 text-xs font-medium text-white/75 transition hover:bg-white/[0.08]"
+        className="mt-4 rounded-xl border border-white/[.12] bg-white/[.045] px-4 py-2.5 text-xs font-semibold text-white/80 shadow-[0_4px_12px_rgba(0,0,0,.12)] transition hover:border-white/[.16] hover:bg-white/[.06] hover:text-white"
       >
         {actionLabel}
       </button>

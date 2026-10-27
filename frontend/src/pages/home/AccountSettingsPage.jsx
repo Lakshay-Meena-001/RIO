@@ -92,7 +92,9 @@ export default function AccountSettingsPage({ user, setUser }) {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+  () => localStorage.getItem("rio-sidebar-open") !== "false"
+);
   const [editing, setEditing] = useState("");
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -116,7 +118,9 @@ export default function AccountSettingsPage({ user, setUser }) {
     () => () => {
       try {
         recaptchaRef.current?.clear?.();
-      } catch {}
+      } catch (error) {
+        console.warn("Could not clear reCAPTCHA:", error);
+      }
       recaptchaRef.current = null;
     },
     [],
@@ -192,7 +196,9 @@ export default function AccountSettingsPage({ user, setUser }) {
     } catch (err) {
       try {
         recaptchaRef.current?.clear?.();
-      } catch {}
+      } catch (error) {
+        console.warn("Could not clear reCAPTCHA:", error);
+      }
       recaptchaRef.current = null;
       toast.error(
         friendlyError(
@@ -548,7 +554,8 @@ export default function AccountSettingsPage({ user, setUser }) {
                         disabled={busy || !email}
                         className="inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3.5 text-[11px] font-semibold text-[#D4D4D8] transition hover:border-white/[0.18] hover:bg-white/[0.065] disabled:opacity-40"
                       >
-                        <FiRefreshCw  className="hidden sm:inline" size={12} /> Reset
+                        <FiRefreshCw className="hidden sm:inline" size={12} />{" "}
+                        Reset
                       </button>
                     </div>
                     <div className="p-5 sm:p-6">

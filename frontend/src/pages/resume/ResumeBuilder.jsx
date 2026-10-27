@@ -24,7 +24,7 @@ import {
 import { useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 
-import ResumeForm from "../../components/resume/ResumeForm";
+import ResumeForm from "./ResumeForm";
 import PreviewResume from "../../components/resume/PreviewResume";
 import BasicTemplate from "../../components/resume/templates/BasicTemplate";
 import ModernTemplate from "../../components/resume/templates/ModernTemplate";
@@ -178,7 +178,7 @@ export default function ResumeBuilder() {
   const [data, setData] = useState(() => createBlankResume());
   const [savedData, setSavedData] = useState(() => createBlankResume());
   const [showCreateNew, setShowCreateNew] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -418,7 +418,7 @@ export default function ResumeBuilder() {
                   <Icon className="h-4 w-4" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[10px] font-semibold">
+                  <span className="block truncate text-[14px] font-semibold">
                     {label}
                   </span>
                   <span className="mt-0.5 block truncate text-[9px] text-white/30">
@@ -558,11 +558,11 @@ export default function ResumeBuilder() {
                       className={`mx-auto mb-2.5 block h-[3px] w-8 rounded-full ${selected ? "bg-white/80" : "bg-white/20"}`}
                     />
                     <span
-                      className={`block truncate text-[9px] font-semibold ${selected ? "text-white" : "text-white/50"}`}
+                      className={`block truncate text-[12px] font-semibold ${selected ? "text-white" : "text-white/50"}`}
                     >
                       {template.name}
                     </span>
-                    <span className="mt-0.5 block truncate text-[7px] text-white/30">
+                    <span className="mt-0.5 block truncate text-[8px] text-white/30">
                       {template.subtitle}
                     </span>
                   </button>

@@ -18,10 +18,16 @@ import {
 } from "react-icons/fi";
 import Sidebar from "../../components/SideBar";
 import Surface from "../../components/ui/Surface";
-import { getInterviewHistory, getActiveInterview } from "../../api/interview/interview.api";
+import {
+  getInterviewHistory,
+  getActiveInterview,
+} from "../../api/interview/interview.api";
 import { getResume, getResumes } from "../../api/resume/resume.api";
 import { getUserRoadmaps } from "../../api/roadmap/roadmap.api";
-import { getBillingSummary, getBillingTransactions } from "../../api/billing/billing.api";
+import {
+  getBillingSummary,
+  getBillingTransactions,
+} from "../../api/billing/billing.api";
 import PageHeader from "../../components/ui/PageHeader";
 import MobileHeader from "../../components/MobileHeader";
 
@@ -92,10 +98,12 @@ const Dashboard = ({ user, setUser }) => {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [data, setData] = useState({
     interviews: [],
@@ -158,24 +166,49 @@ const Dashboard = ({ user, setUser }) => {
           : [],
     };
 
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.error("Dashboard request failed:", index, result.reason);
+      }
+    });
+    const isExpectedEmptyResume = (result, index) =>
+      index === 3 &&
+      result.status === "rejected" &&
+      result.reason?.response?.status === 404;
+
     const failures = results.filter(
-      (result) => result.status === "rejected",
+      (result, index) =>
+        result.status === "rejected" && !isExpectedEmptyResume(result, index),
     ).length;
+
     setData(next);
-    if (failures === results.length)
+
+    if (failures === results.length) {
       setError(
         "Dashboard data could not be loaded. Check your connection and try again.",
       );
-    else if (failures > 0)
+    } else if (failures > 0) {
       setError(
         "Some sections could not load. Available information is shown; try refreshing to retry.",
       );
+    }
     setLoading(false);
     setRefreshing(false);
   }, []);
 
   useEffect(() => {
-    loadDashboard(refreshKey > 0);
+    let cancelled = false;
+
+    const runDashboardLoad = async () => {
+      if (cancelled) return;
+      await loadDashboard(refreshKey > 0);
+    };
+
+    runDashboardLoad();
+
+    return () => {
+      cancelled = true;
+    };
   }, [loadDashboard, refreshKey]);
 
   const balance = Number(
@@ -372,6 +405,32 @@ const Dashboard = ({ user, setUser }) => {
                 }
                 description="Your work, learning progress and account activity — together in one place."
               />
+
+              <div className="hidden shrink-0 flex-wrap gap-2 md:flex">
+                <button
+                  type="button"
+                  onClick={() => navigate("/builder/dashboard")}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+                >
+                  Resume Builder <FiArrowRight size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/roadmap")}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+                >
+                  My Roadmaps <FiArrowRight size={14} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/mock-interview/new")}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
+                >
+                  Start Interview <FiArrowRight size={14} />
+                </button>
+              </div>
             </motion.div>
 
             <AnimatePresence initial={false}>

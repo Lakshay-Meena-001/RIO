@@ -385,13 +385,17 @@ export default function BillingHistoryPage({ user }) {
     transactions.find((t) => idOf(t) === selectedId) ||
     null;
 
+  const selectedStatus = statusOf(selected || {});
+  const selectedTransactionId = selected?.transactionId;
+  const selectedExpiresAt = selected?.expiresAt;
+
   useEffect(() => {
-    const selectedStatus = statusOf(selected || {});
-    const expiresAt = selected?.expiresAt
-      ? new Date(selected.expiresAt).getTime()
+    const expiresAt = selectedExpiresAt
+      ? new Date(selectedExpiresAt).getTime()
       : NaN;
+
     if (
-      !selected?.transactionId ||
+      !selectedTransactionId ||
       !PENDING.has(selectedStatus) ||
       !Number.isFinite(expiresAt)
     ) {
@@ -399,10 +403,13 @@ export default function BillingHistoryPage({ user }) {
     }
 
     let refreshedAfterExpiry = false;
+
     const intervalId = window.setInterval(() => {
       setExpiryClockTick((value) => value + 1);
+
       if (!refreshedAfterExpiry && Date.now() >= expiresAt) {
         refreshedAfterExpiry = true;
+
         // The pending-payment endpoint may persist expiry while the transaction
         // list from the same parallel request still contains the old status.
         // Run a second read after reconciliation so history immediately shows Expired.
@@ -414,12 +421,8 @@ export default function BillingHistoryPage({ user }) {
     }, 1000);
 
     return () => window.clearInterval(intervalId);
-  }, [
-    selected?.transactionId,
-    selected?.expiresAt,
-    selected ? statusOf(selected) : "unknown",
-    load,
-  ]);
+  }, [selectedTransactionId, selectedExpiresAt, selectedStatus, load]);
+
   const total = Number(pagination.total ?? transactions.length);
   const pages = Math.max(
     1,

@@ -194,15 +194,33 @@ const App = () => {
           />
           <Route
             path="/scorer/history"
-            element={<ScorerHistory user={user} setUser={setUser} />}
+            element={
+              isProtected ? (
+                <ScorerHistory user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
           />
           <Route
             path="/scorer/score-report"
-            element={<ScorerReport user={user} setUser={setUser} />}
+            element={
+              isProtected ? (
+                <ScorerReport user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
           />
           <Route
             path="/scorer/report"
-            element={<ScorerReport user={user} setUser={setUser} />}
+            element={
+              isProtected ? (
+                <ScorerReport user={user} setUser={setUser} />
+              ) : (
+                <Navigate to="/" replace />
+              )
+            }
           />
 
           {/*
