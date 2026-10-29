@@ -89,10 +89,14 @@ const resumeUpdateSchema = z.object({
   languages: optionalTextList(50, 150),
 });
 
-const getBillingTransactionId = (userId, fingerprint) =>
-  `resume-scorer:${userId}:${fingerprint}`;
+// Each scored report gets its own durable billing transaction ID. The ID is
+// stored on the report before analysis, so retries of that same report remain
+// idempotent, while deleting a report and scoring the same PDF again creates a
+// fresh charge attempt.
+const getBillingTransactionId = (userId, attemptId = randomUUID()) =>
+  `resume-scorer:${userId}:${attemptId}`;
 
-const deductResumeScorerBalance = async (userId, fingerprint) => {
+const deductResumeScorerBalance = async (userId, resume) => {
   const authServiceUrl =
     process.env.AUTH_SERVICE_URL?.trim() || "http://localhost:8001";
   const internalSecret = process.env.AUTH_INTERNAL_SECRET?.trim();
@@ -105,7 +109,11 @@ const deductResumeScorerBalance = async (userId, fingerprint) => {
     throw error;
   }
 
-  const transactionId = getBillingTransactionId(userId, fingerprint);
+  // Prefer the ID persisted on the report. Legacy reports keep their existing
+  // transaction ID during reconciliation and cannot be charged under a new ID.
+  const transactionId =
+    resume?.billing?.transactionId ||
+    getBillingTransactionId(userId, String(resume?._id || randomUUID()));
   let response;
 
   try {
@@ -122,6 +130,12 @@ const deductResumeScorerBalance = async (userId, fingerprint) => {
           amount: RESUME_SCORER_PRICE,
           action: RESUME_SCORER_ACTION,
           transactionId,
+          serviceName: "Resume Scorer",
+          resourceName: "Resume Scorer report",
+          resourceId: String(resume?._id || ""),
+          reportUrl: resume?._id
+            ? `/scorer/history?resume=${encodeURIComponent(String(resume._id))}`
+            : undefined,
         }),
         signal: AbortSignal.timeout(15000),
       },
@@ -417,10 +431,7 @@ const finalizePendingResume = async (userId, resume) => {
 
   let billingResult;
   try {
-    billingResult = await deductResumeScorerBalance(
-      userId,
-      claim.resume.contentFingerprint,
-    );
+    billingResult = await deductResumeScorerBalance(userId, claim.resume);
   } catch (error) {
     const definiteRejection = error.status === 400;
     await Resume.updateOne(
@@ -636,7 +647,7 @@ export const uploadResume = async (req, res) => {
         },
         billing: {
           status: "pending",
-          transactionId: getBillingTransactionId(userId, contentFingerprint),
+          transactionId: getBillingTransactionId(userId),
           amount: RESUME_SCORER_PRICE,
           chargedAt: null,
         },

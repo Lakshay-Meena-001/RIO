@@ -147,7 +147,7 @@ const toBalanceHistoryItem = (transaction) => ({
   resourceId: transaction.resourceId || null,
   reportUrl: transaction.reportUrl || null,
 
-  // This amount is in RIO balance units, not paise.
+  // This amount is in RIO balance , not paise.
   amount: transaction.amount,
   amountUnit: "balance-unit",
 

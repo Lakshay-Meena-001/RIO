@@ -1121,8 +1121,8 @@ export default function ResumeHistoryPage() {
           <Eye size={19} />
         </button>
       )}
-      <div className="rio-history-mobile-bottom-bar fixed bottom-0 left-0 right-0 z-[60] border-t border-white/[0.08] bg-[#111315]/88 p-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
-        <div className="mx-auto flex max-w-md items-center gap-2">
+      <div className="rio-history-mobile-bottom-bar fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#111315]/88 px-3 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
+        <div className="mx-auto grid max-w-md grid-cols-2 gap-2">
           {selectedId ? (
             editing ? (
               <>
@@ -1130,7 +1130,7 @@ export default function ResumeHistoryPage() {
                   type="button"
                   onClick={() => setPreviewOpen(true)}
                   disabled={!selectedResume}
-                  className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] disabled:opacity-40"
+                  className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 text-xs font-semibold text-[#D4D4D8] transition-colors duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 disabled:opacity-40"
                 >
                   <Eye size={14} />
                   <span>Preview</span>
@@ -1139,7 +1139,7 @@ export default function ResumeHistoryPage() {
                   type="button"
                   onClick={saveChanges}
                   disabled={!selectedResume || !dirty || saving}
-                  className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition duration-200 active:scale-[.99] disabled:opacity-40"
+                  className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C] transition-colors duration-200 hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 disabled:opacity-40"
                 >
                   {saving ? (
                     <LoaderCircle size={14} className="animate-spin" />
@@ -1154,7 +1154,7 @@ export default function ResumeHistoryPage() {
                 <button
                   type="button"
                   onClick={() => setMobileHistoryOpen((open) => !open)}
-                  className="rio-mobile-action-button group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065]"
+                  className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 text-xs font-semibold text-[#D4D4D8] transition-colors duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20 rio-mobile-action-button"
                 >
                   <Clock3 size={14} />
                   <span>My Resumes</span>
@@ -1164,7 +1164,7 @@ export default function ResumeHistoryPage() {
                   type="button"
                   onClick={() => (editing ? cancelEdit() : startEdit())}
                   disabled={!selectedResume || loadingDetail}
-                  className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition duration-200 hover:bg-rose-300/[.09] disabled:opacity-50"
+                  className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C] transition-colors duration-200 hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                 >
                   {editing ? (
                     <>
@@ -1182,7 +1182,7 @@ export default function ResumeHistoryPage() {
             <button
               type="button"
               onClick={() => navigate("/builder")}
-              className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C]"
+              className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C] transition-colors duration-200 hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
             >
               <Plus size={14} />
               <span>Create resume</span>

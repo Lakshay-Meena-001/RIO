@@ -255,7 +255,7 @@ export default function ScorerDashboard({ user, setUser }) {
 
   return (
     <div
-      className={`relative min-h-screen overflow-x-clip bg-[#17191C] text-white transition-opacity duration-150 ease-out motion-reduce:transition-none ${
+      className={`relative min-h-screen w-full min-w-0 overflow-x-clip bg-[#17191C] text-white transition-opacity duration-150 ease-out motion-reduce:transition-none ${
         leavingForHistory ? "opacity-0" : "opacity-100"
       }`}
     >
@@ -271,7 +271,7 @@ export default function ScorerDashboard({ user, setUser }) {
 
       <MobileHeader onOpenNavigation={() => setMobileOpen(true)} user={user} />
 
-      <div className="relative z-10 flex min-h-screen">
+      <div className="relative z-10 flex min-h-screen w-full min-w-0">
         <Sidebar
           mobileOpen={mobileOpen}
           setMobileOpen={setMobileOpen}
@@ -282,13 +282,13 @@ export default function ScorerDashboard({ user, setUser }) {
         />
 
         <main
-          className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
+          className={`min-w-0 w-full flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
-          <div className="mx-auto w-full max-w-[1480px] px-5 pb-16 pt-[88px] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
-            <section className="mb-8 flex flex-col gap-6 lg:mb-10 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl">
+          <div className="mx-auto w-full min-w-0 max-w-[1480px] px-4 pb-16 pt-[88px] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
+            <section className="mb-8 flex min-w-0 flex-col gap-6 lg:mb-10 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0 max-w-3xl">
                 <PageEyebrow className="mb-4">Resume intelligence</PageEyebrow>
-                <h1 className="max-w-3xl text-[38px] font-semibold leading-[0.98] tracking-[-0.055em] sm:text-[50px] lg:text-[58px]">
+                <h1 className="max-w-full break-words text-[32px] font-semibold leading-[1.02] tracking-[-0.055em] sm:max-w-3xl sm:text-[50px] lg:text-[58px]">
                   Know exactly where
                   <span className="mt-2 block font-serif font-normal italic tracking-[-0.055em] text-[#A1A1AA]">
                     your resume stands.
@@ -300,11 +300,11 @@ export default function ScorerDashboard({ user, setUser }) {
                 </p>
               </div>
 
-              <div className="pdf-actions-responsive flex w-full items-center justify-center gap-3 lg:w-auto lg:justify-end">
+              <div className="pdf-actions-responsive flex w-full min-w-0 flex-wrap items-center justify-center gap-2 sm:gap-3 lg:w-auto lg:flex-nowrap lg:justify-end">
                 <button
                   type="button"
                   onClick={() => navigate("/scorer/history")}
-                  className="shrink-0 items-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white sm:inline-flex"
+                  className="inline-flex min-w-0 shrink items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:border-white/20 hover:bg-white/[0.07] hover:text-white sm:px-4"
                 >
                   <FiClock size={14} />
                   View History
@@ -313,7 +313,7 @@ export default function ScorerDashboard({ user, setUser }) {
                 <button
                   type="button"
                   onClick={() => inputRef.current?.click()}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-medium text-[#17191C] transition hover:bg-[#E8E8EB]"
+                  className="inline-flex min-w-0 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-medium text-[#17191C] transition hover:bg-[#E8E8EB] sm:px-4"
                 >
                   Choose PDF <FiArrowRight size={14} />
                 </button>
@@ -340,10 +340,10 @@ export default function ScorerDashboard({ user, setUser }) {
 
             <Surface
               variant="scorer"
-              className="shadow-[0_22px_60px_rgba(0,0,0,0.16)]"
+              className="w-full min-w-0 max-w-full shadow-[0_22px_60px_rgba(0,0,0,0.16)]"
             >
-              <div className="grid lg:grid-cols-[minmax(0,1fr)_370px]">
-                <div className="p-4 sm:p-6 lg:p-7">
+              <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[minmax(0,1fr)_370px]">
+                <div className="min-w-0 p-3 sm:p-6 lg:p-7">
                   <div
                     onDragOver={(event) => {
                       event.preventDefault();
@@ -358,7 +358,7 @@ export default function ScorerDashboard({ user, setUser }) {
                       setDragging(false);
                       acceptFile(event.dataTransfer.files?.[0]);
                     }}
-                    className={`flex min-h-[330px] flex-col items-center justify-center rounded-[20px] border border-dashed px-4 py-8 text-center transition-colors sm:px-8 ${dragging ? "border-white/35 bg-white/[0.045]" : "border-white/[0.10] bg-black/10"}`}
+                    className={`flex min-h-[330px] w-full min-w-0 flex-col items-center justify-center rounded-[20px] border border-dashed px-3 py-8 text-center transition-colors sm:px-8 ${dragging ? "border-white/35 bg-white/[0.045]" : "border-white/[0.10] bg-black/10"}`}
                   >
                     <input
                       ref={inputRef}
@@ -374,7 +374,7 @@ export default function ScorerDashboard({ user, setUser }) {
                         <FiUploadCloud size={29} />
                       )}
                     </div>
-                    <h2 className="mt-6 text-[25px] font-semibold tracking-[-0.04em] sm:text-[29px]">
+                    <h2 className="mt-6 max-w-full break-words text-[23px] font-semibold tracking-[-0.04em] sm:text-[29px]">
                       {file ? "Your resume is ready" : "Upload your resume"}
                     </h2>
                     <p className="mt-2 max-w-md text-sm leading-6 text-[#858994]">
@@ -459,7 +459,7 @@ export default function ScorerDashboard({ user, setUser }) {
                   </div>
                 </div>
 
-                <aside className="border-t border-white/[0.07] p-5 sm:p-6 lg:border-l lg:border-t-0 lg:p-6">
+                <aside className="min-w-0 border-t border-white/[0.07] p-4 sm:p-6 lg:border-l lg:border-t-0 lg:p-6">
                   <p className="text-center text-[10px] font-semibold uppercase tracking-[0.20em] text-[#777B85] sm:text-left">
                     What RIO checks
                   </p>
@@ -487,7 +487,7 @@ export default function ScorerDashboard({ user, setUser }) {
               </div>
             </Surface>
 
-            <section className="mt-10 mb-8">
+            <section className="mt-10 mb-8 min-w-0">
               <div className="mb-5 flex items-center justify-center gap-4 sm:items-end sm:justify-between">
                 <div className="text-center sm:text-left">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.20em] text-[#666870]">

@@ -830,8 +830,20 @@ export default function BillingDashboardPage({ user, setUser }) {
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-[#D4D4D8]">
                               {transaction?.description ||
-                                transaction?.planName ||
-                                "Balance purchase"}
+                                transaction?.resourceName ||
+                                transaction?.serviceName ||
+                                (transaction?.source === "balance" ||
+                                transaction?.amountUnit === "balance-unit"
+                                  ? String(
+                                      transaction?.action ||
+                                        "Balance deduction",
+                                    )
+                                      .replaceAll("-", " ")
+                                      .replace(/^./, (character) =>
+                                        character.toUpperCase(),
+                                      )
+                                  : transaction?.planName ||
+                                    "Balance purchase")}
                             </p>
 
                             <p className="mt-1.5 text-[10px] text-[#777B85]">

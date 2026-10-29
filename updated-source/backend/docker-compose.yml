@@ -1,0 +1,157 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+
+  auth:
+    build:
+      context: .
+      dockerfile: services/auth/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8001
+      MONGODB_URL: ${AUTH_MONGODB_URL:?Set AUTH_MONGODB_URL in backend/.env}
+      AUTH_INTERNAL_SECRET: ${AUTH_INTERNAL_SECRET:?Set AUTH_INTERNAL_SECRET in backend/.env}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID in backend/.env}
+      FIREBASE_CLIENT_EMAIL: ${FIREBASE_CLIENT_EMAIL:?Set FIREBASE_CLIENT_EMAIL in backend/.env}
+      FIREBASE_PRIVATE_KEY: ${FIREBASE_PRIVATE_KEY:?Set FIREBASE_PRIVATE_KEY in backend/.env}
+      REDIS_URL: redis://redis:6379
+    expose: ["8001"]
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  resume:
+    build:
+      context: .
+      dockerfile: services/resume/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8002
+      MONGODB_URL: ${RESUME_MONGODB_URL:?Set RESUME_MONGODB_URL in backend/.env}
+      RESUME_INTERNAL_SECRET: ${RESUME_INTERNAL_SECRET:?Set RESUME_INTERNAL_SECRET in backend/.env}
+      AUTH_INTERNAL_SECRET: ${AUTH_INTERNAL_SECRET:?Set AUTH_INTERNAL_SECRET in backend/.env}
+      AUTH_SERVICE_URL: http://auth:8001
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      REDIS_URL: redis://redis:6379
+    expose: ["8002"]
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  interview:
+    build:
+      context: .
+      dockerfile: services/interview/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8003
+      MONGODB_URL: ${INTERVIEW_MONGODB_URL:?Set INTERVIEW_MONGODB_URL in backend/.env}
+      INTERVIEW_INTERNAL_SECRET: ${INTERVIEW_INTERNAL_SECRET:?Set INTERVIEW_INTERNAL_SECRET in backend/.env}
+      AUTH_INTERNAL_SECRET: ${AUTH_INTERNAL_SECRET:?Set AUTH_INTERNAL_SECRET in backend/.env}
+      AUTH_SERVICE_URL: http://auth:8001
+    expose: ["8003"]
+
+  roadmap:
+    build:
+      context: .
+      dockerfile: services/roadmap/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8004
+      MONGODB_URI: ${ROADMAP_MONGODB_URI:?Set ROADMAP_MONGODB_URI in backend/.env}
+      ROADMAP_INTERNAL_SECRET: ${ROADMAP_INTERNAL_SECRET:?Set ROADMAP_INTERNAL_SECRET in backend/.env}
+      ROADMAP_LLM_PROVIDER: ${ROADMAP_LLM_PROVIDER:-groq}
+      ROADMAP_LLM_MODEL: ${ROADMAP_LLM_MODEL:-}
+      ROADMAP_LLM_TEMPERATURE: ${ROADMAP_LLM_TEMPERATURE:-0.2}
+      ROADMAP_LLM_MAX_TOKENS: ${ROADMAP_LLM_MAX_TOKENS:-}
+      ROADMAP_LLM_MAX_RETRIES: ${ROADMAP_LLM_MAX_RETRIES:-2}
+      ROADMAP_LLM_TIMEOUT_MS: ${ROADMAP_LLM_TIMEOUT_MS:-30000}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    expose: ["8004"]
+
+  billing:
+    build:
+      context: .
+      dockerfile: services/billing/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 8005
+      MONGODB_URI: ${BILLING_MONGODB_URI:?Set BILLING_MONGODB_URI in backend/.env}
+      BILLING_INTERNAL_SECRET: ${BILLING_INTERNAL_SECRET:?Set BILLING_INTERNAL_SECRET in backend/.env}
+      AUTH_INTERNAL_SECRET: ${AUTH_INTERNAL_SECRET:?Set AUTH_INTERNAL_SECRET in backend/.env}
+      AUTH_SERVICE_URL: http://auth:8001
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID:-}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET:-}
+      RAZORPAY_WEBHOOK_SECRET: ${RAZORPAY_WEBHOOK_SECRET:-}
+    expose: ["8005"]
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      AUTH_INTERNAL_SECRET: ${AUTH_INTERNAL_SECRET:?Set AUTH_INTERNAL_SECRET in backend/.env}
+      RESUME_INTERNAL_SECRET: ${RESUME_INTERNAL_SECRET:?Set RESUME_INTERNAL_SECRET in backend/.env}
+      INTERVIEW_INTERNAL_SECRET: ${INTERVIEW_INTERNAL_SECRET:?Set INTERVIEW_INTERNAL_SECRET in backend/.env}
+      ROADMAP_INTERNAL_SECRET: ${ROADMAP_INTERNAL_SECRET:?Set ROADMAP_INTERNAL_SECRET in backend/.env}
+      BILLING_INTERNAL_SECRET: ${BILLING_INTERNAL_SECRET:?Set BILLING_INTERNAL_SECRET in backend/.env}
+      PORT: 3000
+      AUTH_SERVICE_URL: http://auth:8001
+      RESUME_SERVICE_URL: http://resume:8002
+      INTERVIEW_SERVICE_URL: http://interview:8003
+      ROADMAP_SERVICE_URL: http://roadmap:8004
+      BILLING_SERVICE_URL: http://billing:8005
+      REDIS_URL: redis://redis:6379
+      FRONTEND_URL: ${FRONTEND_URL:?Set FRONTEND_URL in backend/.env}
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+    ports:
+      - "${GATEWAY_PORT:-3000}:3000"
+    depends_on:
+      - auth
+      - resume
+      - interview
+      - roadmap
+      - billing
+
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:?Set VITE_API_URL in backend/.env}
+        VITE_FIREBASE_AUTH_SECRET: ${VITE_FIREBASE_AUTH_SECRET:?Set VITE_FIREBASE_AUTH_SECRET in backend/.env}
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      - gateway
+
+volumes:
+  redis_data:

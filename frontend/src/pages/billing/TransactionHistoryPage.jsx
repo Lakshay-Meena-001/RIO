@@ -185,8 +185,7 @@ const amountOf = (t) => {
       ? `${isDeduction(t) ? "−" : "+"}${balanceValue(n)} INR`
       : "—";
   }
-  if (t?.balanceCredit != null)
-    return `+${balanceValue(t.balanceCredit)} INR`;
+  if (t?.balanceCredit != null) return `+${balanceValue(t.balanceCredit)} INR`;
   return inr(t?.amount ?? t?.amountInPaise);
 };
 
@@ -1036,9 +1035,7 @@ export default function BillingHistoryPage({ user }) {
                 lowBalance ? "text-rose-300" : "text-[#F4F4F5]",
               )}
             >
-              {balance == null
-                ? "Unavailable"
-                : `${balanceValue(balance)} INR`}
+              {balance == null ? "Unavailable" : `${balanceValue(balance)} INR`}
             </p>
             <p
               className={cx(
@@ -1099,7 +1096,8 @@ export default function BillingHistoryPage({ user }) {
               Total payment amount
             </p>
             <p className="mt-2 text-[23px] font-semibold tracking-[-.04em]">
-              {paidTotal == null ? "—" : paidTotal.toLocaleString("en-IN")} {`INR`}
+              {paidTotal == null ? "—" : paidTotal.toLocaleString("en-IN")}{" "}
+              {`INR`}
             </p>
             <p className="mt-1 text-[10px] text-[#777B85]">
               Successful payments only
@@ -1144,13 +1142,17 @@ export default function BillingHistoryPage({ user }) {
         </aside>
 
         {/* Mobile actions stay anchored at the bottom, outside the scrollable content. */}
+
         <div
           className={cx(
-            "rio-history-mobile-bottom-bar fixed inset-x-0 bottom-0 border-t border-white/[0.08] bg-[#111315]/90 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden",
+            "rio-history-mobile-bottom-bar fixed inset-x-0 bottom-0 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-2.5 pb-3 backdrop-blur-xl md:hidden",
             mobileOpen ? "z-40" : "z-[60]",
           )}
+          style={{
+            paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
+          }}
         >
-          <div className="grid grid-cols-2 gap-2">
+          <div className="mx-auto flex w-full max-w-xl items-center gap-2">
             {selectedIsLivePending ? (
               <>
                 <button
@@ -1160,17 +1162,20 @@ export default function BillingHistoryPage({ user }) {
                     setCancelConfirmOpen(true);
                   }}
                   disabled={actionLoading}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/[.07] px-3 py-3 text-xs font-semibold text-amber-200 disabled:opacity-50"
+                  className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20 disabled:opacity-50"
                 >
-                  <FiXCircle size={14} /> Cancel Payment
+                  <FiXCircle size={14} />
+                  Cancel Payment
                 </button>
+
                 <button
                   type="button"
                   onClick={continueSelectedPayment}
                   disabled={actionLoading}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-amber-300 px-3 py-3 text-xs font-semibold text-black disabled:opacity-50"
+                  className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 active:scale-[0.99] disabled:opacity-50"
                 >
-                  <FiCreditCard size={14} /> Continue Payment
+                  <FiCreditCard size={14} />
+                  Continue Payment
                 </button>
               </>
             ) : (
@@ -1178,18 +1183,21 @@ export default function BillingHistoryPage({ user }) {
                 <button
                   type="button"
                   onClick={() => setMobileOpen((prev) => !prev)}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition hover:bg-white/[0.065]"
+                  className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20"
                   aria-label="Open transaction history list"
                 >
-                  <FiFileText size={14} /> History
+                  <FiFileText size={14} />
+                  History
                 </button>
+
                 <button
                   type="button"
                   onClick={() => navigate("/billing?addBalance=1")}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-[#E8E8EB]"
+                  className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 hover:bg-[#E8E8EB] active:scale-[0.99]"
                   aria-label="Add balance"
                 >
-                  <FiCreditCard size={14} /> Add Balance
+                  <FiCreditCard size={14} />
+                  Add Balance
                 </button>
               </>
             )}

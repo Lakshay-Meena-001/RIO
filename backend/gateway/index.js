@@ -150,7 +150,21 @@ app.use(
   }),
 );
 
-app.get("/api/me", isAuth, getCurrentUser);
+app.get(
+  "/api/me",
+  (req, res, next) => {
+    if (!req.cookies?.session) {
+      return res.status(200).json({
+        success: true,
+        authenticated: false,
+        user: null,
+        requestId: req.requestId,
+      });
+    }
+    return isAuth(req, res, next);
+  },
+  getCurrentUser,
+);
 
 app.use((req, res) => {
   res.status(404).json({

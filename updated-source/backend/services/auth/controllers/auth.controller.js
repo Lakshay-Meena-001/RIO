@@ -1,0 +1,1682 @@
+import crypto from "node:crypto";
+import mongoose from "mongoose";
+import { getAuth } from "firebase-admin/auth";
+
+import { app } from "../config/firebase.js";
+import BalanceTransaction from "../models/balance-transaction.model.js";
+import User from "../models/user.model.js";
+import redis from "../../../shared/redis/redis.js";
+
+const SESSION_TTL = 7 * 24 * 60 * 60; // 7 days
+
+const normalizeEmail = (email) => {
+  if (!email) {
+    return null;
+  }
+
+  return email.trim().toLowerCase();
+};
+
+const getSessionKey = (sessionId) => {
+  return `session:${sessionId}`;
+};
+
+const getUserSessionsKey = (userId) => {
+  return `user:sessions:${userId}`;
+};
+
+/*
+ * Build the exact data that should live inside
+ * the Redis session.
+ *
+ * MongoDB remains the source of truth.
+ */
+const buildSessionData = (user) => ({
+  userId: user._id.toString(),
+  name: user.name,
+  email: user.email,
+  phoneNumber: user.phoneNumber,
+  balance: Number(user.balance),
+  profileCompleted: user.profileCompleted,
+});
+
+/*
+ * Return only user fields that are safe for API responses.
+ * Never expose Firebase identity or internal transaction history.
+ */
+const buildPublicUser = (user) => ({
+  _id: user._id.toString(),
+  name: user.name,
+  email: user.email,
+  phoneNumber: user.phoneNumber,
+  profileCompleted: user.profileCompleted,
+
+  headline: user.headline,
+  bio: user.bio,
+  location: user.location,
+  profileImage: user.profileImage,
+
+  currentRole: user.currentRole,
+  targetRole: user.targetRole,
+  skills: user.skills,
+
+  linkedinUrl: user.linkedinUrl,
+  githubUrl: user.githubUrl,
+  portfolioUrl: user.portfolioUrl,
+
+  balance: Number(user.balance),
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+});
+
+/*
+ * Create/update a Redis session while keeping
+ * the session structure consistent everywhere.
+ */
+const saveSession = async (sessionId, user) => {
+  const userId = user._id.toString();
+
+  await redis.set(
+    getSessionKey(sessionId),
+    JSON.stringify(buildSessionData(user)),
+    "EX",
+    SESSION_TTL,
+  );
+
+  await redis.sadd(getUserSessionsKey(userId), sessionId);
+  await redis.expire(getUserSessionsKey(userId), SESSION_TTL);
+};
+
+const createExclusiveSession = async (sessionId, user) => {
+  const userId = user._id.toString();
+  const sessionData = JSON.stringify(buildSessionData(user));
+
+  // Atomically invalidate previous sessions and create the new one.
+  const script = `
+    local oldSessions = redis.call("SMEMBERS", KEYS[1])
+
+    for _, oldSessionId in ipairs(oldSessions) do
+      redis.call("DEL", ARGV[1] .. oldSessionId)
+    end
+
+    redis.call("DEL", KEYS[1])
+    redis.call("SET", KEYS[2], ARGV[2], "EX", ARGV[3])
+    redis.call("SADD", KEYS[1], ARGV[4])
+    redis.call("EXPIRE", KEYS[1], ARGV[3])
+
+    return 1
+  `;
+
+  await redis.eval(
+    script,
+    2,
+    getUserSessionsKey(userId),
+    getSessionKey(sessionId),
+    "session:",
+    sessionData,
+    String(SESSION_TTL),
+    sessionId,
+  );
+};
+
+const syncUserSessions = async (sessionId, user) => {
+  const userId = user._id.toString();
+
+  // Ensure the current session is registered and up to date.
+  await saveSession(sessionId, user);
+
+  // Find all active sessions belonging to this account.
+  const sessionIds = await redis.smembers(getUserSessionsKey(userId));
+
+  const sessionData = JSON.stringify(buildSessionData(user));
+
+  // Update every active session with the latest MongoDB data.
+  const results = await Promise.allSettled(
+    sessionIds.map((activeSessionId) =>
+      redis.set(getSessionKey(activeSessionId), sessionData, "EX", SESSION_TTL),
+    ),
+  );
+
+  if (results.some((result) => result.status === "rejected")) {
+    console.error("Some active Redis sessions could not be synchronized.");
+  }
+
+  await redis.expire(getUserSessionsKey(userId), SESSION_TTL);
+};
+
+/*
+ * Safely read the authenticated Redis session.
+ */
+const getAuthenticatedSession = async (req) => {
+  const sessionId = req.cookies?.session;
+
+  if (!sessionId) {
+    return null;
+  }
+
+  const rawSession = await redis.get(getSessionKey(sessionId));
+
+  if (!rawSession) {
+    return null;
+  }
+
+  try {
+    return {
+      sessionId,
+      data: JSON.parse(rawSession),
+    };
+  } catch (error) {
+    console.error("Invalid Redis session data:", error);
+
+    return null;
+  }
+};
+
+/*
+ * Resolve the RIO user from a verified Firebase identity.
+ *
+ * Firebase UID is the primary identity.
+ * Verified email is only used as a safe fallback when the UID
+ * is not currently linked to a MongoDB user.
+ */
+const resolveUser = async (decoded) => {
+  const firebaseID = decoded.uid;
+  const email = normalizeEmail(decoded.email);
+  const emailVerified = decoded.email_verified === true;
+
+  // 1. Primary lookup: Firebase UID.
+  let user = await User.findOne({ firebaseID });
+
+  if (user) {
+    // Firebase remains the authority for verified identity fields. This is
+    // needed when a phone-authenticated user adds and verifies an email later.
+    let changed = false;
+
+    if (email && emailVerified && email !== user.email) {
+      const emailOwner = await User.findOne({ email });
+
+      if (emailOwner && emailOwner._id.toString() !== user._id.toString()) {
+        const error = new Error(
+          "This email is already linked to another RIO account.",
+        );
+        error.code = "AUTH_ACCOUNT_CONFLICT";
+        throw error;
+      }
+
+      user.email = email;
+      changed = true;
+    }
+
+    if (decoded.phone_number && decoded.phone_number !== user.phoneNumber) {
+      const phoneOwner = await User.findOne({
+        phoneNumber: decoded.phone_number,
+      });
+
+      if (phoneOwner && phoneOwner._id.toString() !== user._id.toString()) {
+        const error = new Error(
+          "This phone number is already linked to another RIO account.",
+        );
+        error.code = "AUTH_ACCOUNT_CONFLICT";
+        throw error;
+      }
+
+      user.phoneNumber = decoded.phone_number;
+      changed = true;
+    }
+
+    if (decoded.name?.trim() && user.name === "User") {
+      user.name = decoded.name.trim();
+      changed = true;
+    }
+
+    if (changed) await user.save();
+    return user;
+  }
+
+  // 2. Safe fallback: verified Firebase email.
+  //
+  // Never reconcile MongoDB users using an unverified email.
+  if (email && emailVerified) {
+    let firebaseUser;
+
+    try {
+      firebaseUser = await getAuth(app).getUserByEmail(email);
+    } catch (error) {
+      if (error.code !== "auth/user-not-found") {
+        throw error;
+      }
+    }
+
+    /*
+     * If Firebase itself says this email belongs to another
+     * Firebase UID, do not merge the accounts automatically.
+     */
+    if (firebaseUser && firebaseUser.uid !== firebaseID) {
+      const error = new Error(
+        "This email is already linked to another Firebase account.",
+      );
+
+      error.code = "AUTH_ACCOUNT_CONFLICT";
+
+      throw error;
+    }
+
+    user = await User.findOne({ email });
+
+    if (user) {
+      /*
+       * The Firebase account owns this verified email, and the
+       * existing MongoDB record belongs to the same logical account.
+       *
+       * Reconnect the MongoDB record to the current Firebase UID.
+       */
+      user.firebaseID = firebaseID;
+
+      if (decoded.name?.trim() && user.name === "User") {
+        user.name = decoded.name.trim();
+      }
+
+      if (decoded.phone_number && !user.phoneNumber) {
+        user.phoneNumber = decoded.phone_number;
+      }
+
+      await user.save();
+
+      return user;
+    }
+  }
+
+  // 3. A verified phone number must not create a duplicate RIO account if
+  // legacy data already associates that number with another Firebase UID.
+  // The user must sign into that account and explicitly link the phone in
+  // Settings; never silently merge identities based on an old unverified DB field.
+  if (decoded.phone_number) {
+    const phoneOwner = await User.findOne({
+      phoneNumber: decoded.phone_number,
+    });
+    if (phoneOwner && phoneOwner.firebaseID !== firebaseID) {
+      const error = new Error(
+        "This mobile number is already saved on another RIO account. Sign in to that account and link the number from Account Settings.",
+      );
+      error.code = "AUTH_ACCOUNT_CONFLICT";
+      throw error;
+    }
+  }
+
+  // 4. No existing RIO user found.
+  //
+  // This is a genuinely new Firebase identity.
+  const userData = {
+    firebaseID,
+    name: decoded.name?.trim() || "User",
+  };
+
+  if (email) {
+    userData.email = email;
+  }
+
+  if (decoded.phone_number) {
+    userData.phoneNumber = decoded.phone_number;
+  }
+
+  try {
+    return await User.create(userData);
+  } catch (error) {
+    /*
+     * Two simultaneous login requests can both reach User.create().
+     * If another request created the user first, resolve it again
+     * instead of exposing MongoDB's duplicate-key error.
+     */
+    if (error.code === 11000) {
+      const existingUserByFirebaseID = await User.findOne({
+        firebaseID,
+      });
+
+      if (existingUserByFirebaseID) {
+        return existingUserByFirebaseID;
+      }
+
+      if (email && emailVerified) {
+        const existingUserByEmail = await User.findOne({
+          email,
+        });
+
+        if (existingUserByEmail) {
+          const firebaseUser = await getAuth(app).getUserByEmail(email);
+
+          if (firebaseUser.uid !== firebaseID) {
+            const conflictError = new Error(
+              "This email is already linked to another Firebase account.",
+            );
+
+            conflictError.code = "AUTH_ACCOUNT_CONFLICT";
+
+            throw conflictError;
+          }
+
+          existingUserByEmail.firebaseID = firebaseID;
+
+          await existingUserByEmail.save();
+
+          return existingUserByEmail;
+        }
+      }
+    }
+
+    throw error;
+  }
+};
+
+// Firebase authentication + Redis session creation.
+export const googleAuth = async (req, res) => {
+  try {
+    const { token } = req.body ?? {};
+
+    if (typeof token !== "string" || !token.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid authentication token is required.",
+      });
+    }
+
+    // Firebase verifies the token and gives us the trusted user identity.
+    const decoded = await getAuth(app).verifyIdToken(token);
+
+    const signInProvider = decoded.firebase?.sign_in_provider;
+
+    // Email/password accounts must verify their email before
+    // RIO creates a server-side session.
+    if (signInProvider === "password" && decoded.email_verified !== true) {
+      return res.status(403).json({
+        success: false,
+        code: "EMAIL_NOT_VERIFIED",
+        message: "Please verify your email before continuing.",
+      });
+    }
+
+    // Resolve an existing RIO user or create a new one safely.
+    const user = await resolveUser(decoded);
+
+    // Generate a random session ID instead of storing Firebase credentials
+    // directly in the application session.
+    const sessionId = crypto.randomUUID();
+
+    // Store the current MongoDB user state in Redis.
+    await createExclusiveSession(sessionId, user);
+
+    // HTTP-only cookie prevents client-side JavaScript from reading
+    // the session ID, reducing the impact of XSS attacks.
+    res.cookie("session", sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: SESSION_TTL * 1000,
+    });
+
+    return res.status(200).json({
+      success: true,
+      user: buildPublicUser(user),
+    });
+  } catch (error) {
+    console.error("Firebase Authentication Error:", error);
+
+    // Invalid Firebase ID tokens should return 401, not 500.
+    const invalidTokenCodes = new Set([
+      "auth/id-token-expired",
+      "auth/id-token-revoked",
+      "auth/invalid-id-token",
+      "auth/id-token-invalid",
+    ]);
+
+    if (invalidTokenCodes.has(error.code)) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired authentication token.",
+      });
+    }
+
+    // Do not merge two different Firebase identities automatically.
+    if (error.code === "AUTH_ACCOUNT_CONFLICT") {
+      return res.status(409).json({
+        success: false,
+        code: "AUTH_ACCOUNT_CONFLICT",
+        message:
+          error.message ||
+          "This identity is already linked to another RIO account. Sign in to the original account and link it from Account Settings.",
+      });
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: "Authentication failed. Please try again.",
+    });
+  }
+};
+
+export const getCurrentUser = async (req, res) => {
+  try {
+    const authenticatedSession = await getAuthenticatedSession(req);
+
+    if (!authenticatedSession) {
+      return res.status(401).json({
+        success: false,
+        message: "Your session has expired. Please sign in again.",
+      });
+    }
+
+    const { sessionId, data: sessionData } = authenticatedSession;
+
+    // MongoDB is the source of truth, not the cached Redis session.
+    const user = await User.findById(sessionData.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    // Refresh the current session and all other active sessions.
+    await syncUserSessions(sessionId, user);
+
+    return res.status(200).json({
+      success: true,
+      user: buildPublicUser(user),
+    });
+  } catch (error) {
+    console.error("Get Current User Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch the current user.",
+    });
+  }
+};
+
+// Complete the minimum RIO account profile.
+export const completeProfile = async (req, res) => {
+  try {
+    const { name, email, phoneNumber } = req.body ?? {};
+
+    const trimmedName = name?.trim();
+    const normalizedEmail = normalizeEmail(email);
+    const trimmedPhoneNumber = phoneNumber?.trim();
+
+    if (!trimmedName) {
+      return res.status(400).json({
+        success: false,
+        message: "Name is required.",
+      });
+    }
+
+    if (trimmedName.length < 2 || trimmedName.length > 100) {
+      return res.status(400).json({
+        success: false,
+        message: "Name must be between 2 and 100 characters.",
+      });
+    }
+
+    if (trimmedName.toLowerCase() === "user") {
+      return res.status(400).json({
+        success: false,
+        message: "Name cannot be User.",
+      });
+    }
+
+    const authenticatedSession = await getAuthenticatedSession(req);
+
+    if (!authenticatedSession) {
+      return res.status(401).json({
+        success: false,
+        message: "Your session has expired. Please sign in again.",
+      });
+    }
+
+    const { sessionId, data: sessionData } = authenticatedSession;
+
+    const user = await User.findById(sessionData.userId);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    // Contact details are never accepted directly from this form. They must
+    // already have been verified by Firebase and synced through /login.
+    if (normalizedEmail && normalizedEmail !== user.email) {
+      return res.status(400).json({
+        success: false,
+        code: "EMAIL_VERIFICATION_REQUIRED",
+        message: "Verify and link your email before completing setup.",
+      });
+    }
+    if (trimmedPhoneNumber && trimmedPhoneNumber !== user.phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        code: "PHONE_VERIFICATION_REQUIRED",
+        message: "Verify and link your mobile number before completing setup.",
+      });
+    }
+    if (!user.email && !user.phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "At least one verified email address or mobile number is required.",
+      });
+    }
+
+    user.name = trimmedName;
+    user.profileCompleted = true;
+
+    await user.save();
+
+    /*
+     * Rebuild the Redis session from the saved MongoDB user.
+     * This automatically keeps balance synchronized as well.
+     */
+    await syncUserSessions(sessionId, user);
+
+    return res.status(200).json({
+      success: true,
+      message: "Account setup completed successfully.",
+      user: buildPublicUser(user),
+    });
+  } catch (error) {
+    console.error("Account setup failed:", error);
+
+    if (error.code === 11000) {
+      return res.status(409).json({
+        success: false,
+        message: "This email or phone number is already in use.",
+      });
+    }
+    return res.status(500).json({
+      success: false,
+      message: "Unable to complete account setup. Please try again.",
+    });
+  }
+};
+
+// Update the authenticated user's professional profile without changing account identity fields.
+export const updateProfessionalProfile = async (req, res) => {
+  try {
+    const authenticatedSession = await getAuthenticatedSession(req);
+    if (!authenticatedSession) {
+      return res.status(401).json({
+        success: false,
+        message: "Your session has expired. Please sign in again.",
+      });
+    }
+
+    const { sessionId, data: sessionData } = authenticatedSession;
+    const user = await User.findById(sessionData.userId);
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User account not found." });
+    }
+
+    const allowed = {
+      headline: { max: 160 },
+      bio: { max: 1000 },
+      location: { max: 100 },
+      currentRole: { max: 100 },
+      targetRole: { max: 100 },
+      linkedinUrl: { max: 300 },
+      githubUrl: { max: 300 },
+      portfolioUrl: { max: 300 },
+    };
+
+    for (const [field, rules] of Object.entries(allowed)) {
+      if (req.body?.[field] === undefined) continue;
+      if (typeof req.body[field] !== "string") {
+        return res
+          .status(400)
+          .json({ success: false, message: `${field} must be text.` });
+      }
+      const value = req.body[field].trim();
+      if (value.length > rules.max) {
+        return res.status(400).json({
+          success: false,
+          message: `${field} must be ${rules.max} characters or fewer.`,
+        });
+      }
+      user[field] = value;
+    }
+
+    if (req.body?.skills !== undefined) {
+      if (
+        !Array.isArray(req.body.skills) ||
+        req.body.skills.length > 100 ||
+        req.body.skills.some(
+          (skill) => typeof skill !== "string" || skill.trim().length > 50,
+        )
+      ) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "Skills must be a list of up to 100 entries, each 50 characters or fewer.",
+        });
+      }
+      user.skills = [
+        ...new Set(
+          req.body.skills.map((skill) => skill.trim()).filter(Boolean),
+        ),
+      ];
+    }
+
+    await user.save();
+    await syncUserSessions(sessionId, user);
+
+    return res.status(200).json({
+      success: true,
+      message: "Professional profile saved successfully.",
+      user: buildPublicUser(user),
+    });
+  } catch (error) {
+    console.error("Professional profile update failed:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Unable to save your professional profile. Please try again.",
+    });
+  }
+};
+
+// Destroy the Redis session, remove it from the user's
+// session index, and clear the browser cookie.
+export const logout = async (req, res) => {
+  const sessionId = req.cookies?.session;
+  let logoutFailed = false;
+
+  try {
+    if (sessionId) {
+      const sessionKey = getSessionKey(sessionId);
+      const rawSession = await redis.get(sessionKey);
+
+      let userId = null;
+
+      if (rawSession) {
+        try {
+          const sessionData = JSON.parse(rawSession);
+          userId = sessionData.userId;
+        } catch {
+          console.warn("Invalid session data encountered during logout.");
+        }
+      }
+
+      if (userId) {
+        const results = await redis
+          .multi()
+          .del(sessionKey)
+          .srem(getUserSessionsKey(userId), sessionId)
+          .exec();
+
+        if (!results || results.some(([commandError]) => commandError)) {
+          throw new Error("Redis logout cleanup failed.");
+        }
+      } else {
+        await redis.del(sessionKey);
+      }
+    }
+  } catch (error) {
+    logoutFailed = true;
+    console.error("Server-side logout failed:", error.message);
+  } finally {
+    res.clearCookie("session", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+  }
+
+  if (logoutFailed) {
+    return res.status(503).json({
+      success: false,
+      message:
+        "Your browser cookie was cleared, but server-side logout could not be confirmed. Please retry.",
+    });
+  }
+
+  return res.status(200).json({
+    success: true,
+    message: "Logged out successfully.",
+  });
+};
+
+/*
+ * Deduct balance from the authenticated user.
+ * MongoDB is the source of truth.
+ * Redis session is synchronized only after the MongoDB update succeeds.
+ */
+export const useBalance = async (req, res) => {
+  const transactionId =
+    typeof req.body?.transactionId === "string"
+      ? req.body.transactionId.trim()
+      : "";
+
+  const { amount, action, serviceName, resourceName, resourceId, reportUrl } =
+    req.body ?? {};
+  const balanceAmount = Number(amount);
+
+  const normalizedAction =
+    typeof action === "string" && action.trim()
+      ? action.trim().slice(0, 100)
+      : "balance-deduction";
+
+  let mongoSession;
+
+  try {
+    const authenticatedSession = await getAuthenticatedSession(req);
+
+    if (!authenticatedSession) {
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required.",
+      });
+    }
+
+    const { data: sessionData } = authenticatedSession;
+    const userId = sessionData.userId;
+
+    if (!transactionId || transactionId.length > 200) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid transaction ID is required.",
+      });
+    }
+
+    if (!Number.isSafeInteger(balanceAmount) || balanceAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be a positive safe integer.",
+      });
+    }
+
+    if (normalizedAction === "resume-scorer") {
+      return res.status(403).json({
+        success: false,
+        message: "Resume Scorer billing must use the internal billing service.",
+      });
+    }
+
+    let outcome;
+
+    mongoSession = await mongoose.startSession();
+
+    await mongoSession.withTransaction(async () => {
+      const existingTransaction = await BalanceTransaction.findOne({
+        userId,
+        transactionId,
+      }).session(mongoSession);
+
+      if (existingTransaction) {
+        if (
+          existingTransaction.amount !== balanceAmount ||
+          existingTransaction.action !== normalizedAction
+        ) {
+          outcome = { type: "conflict" };
+          return;
+        }
+
+        const currentUser = await User.findById(userId)
+          .select("balance")
+          .session(mongoSession);
+
+        outcome = currentUser
+          ? {
+              type: "already-processed",
+              balance: Number(existingTransaction.balanceAfter),
+            }
+          : { type: "user-not-found" };
+
+        return;
+      }
+
+      const currentUser = await User.findById(userId)
+        .select("balance")
+        .session(mongoSession);
+
+      if (!currentUser) {
+        outcome = { type: "user-not-found" };
+        return;
+      }
+
+      const updatedUser = await User.findOneAndUpdate(
+        {
+          _id: userId,
+          balance: { $gte: balanceAmount },
+        },
+        {
+          $inc: { balance: -balanceAmount },
+        },
+        {
+          new: true,
+          runValidators: true,
+          session: mongoSession,
+        },
+      );
+
+      if (!updatedUser) {
+        outcome = {
+          type: "insufficient-balance",
+          balance: Number(currentUser.balance),
+        };
+        return;
+      }
+
+      await BalanceTransaction.create(
+        [
+          {
+            userId,
+            transactionId,
+            amount: balanceAmount,
+            action: normalizedAction,
+            balanceAfter: Number(updatedUser.balance),
+          },
+        ],
+        { session: mongoSession },
+      );
+
+      outcome = {
+        type: "success",
+        previousBalance: Number(currentUser.balance),
+        balance: Number(updatedUser.balance),
+      };
+    });
+
+    if (!outcome) {
+      throw new Error("Balance transaction completed without an outcome.");
+    }
+
+    if (outcome.type === "conflict") {
+      return res.status(409).json({
+        success: false,
+        message: "Transaction ID was already used with different details.",
+      });
+    }
+
+    if (outcome.type === "user-not-found") {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    if (outcome.type === "insufficient-balance") {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient balance.",
+        balance: outcome.balance,
+      });
+    }
+
+    // MongoDB is authoritative. Redis is only a session cache.
+    try {
+      const sessionIds = await redis.smembers(getUserSessionsKey(userId));
+
+      const latestUser = await User.findById(userId);
+
+      if (latestUser) {
+        const sessionDataJson = JSON.stringify(buildSessionData(latestUser));
+
+        const results = await Promise.allSettled(
+          sessionIds.map((activeSessionId) =>
+            redis.set(
+              getSessionKey(activeSessionId),
+              sessionDataJson,
+              "EX",
+              SESSION_TTL,
+            ),
+          ),
+        );
+
+        if (results.some((result) => result.status === "rejected")) {
+          console.error(
+            "Some Redis sessions could not be synchronized after balance deduction.",
+          );
+        }
+      }
+
+      await redis.expire(getUserSessionsKey(userId), SESSION_TTL);
+    } catch (redisError) {
+      console.error(
+        "Redis synchronization failed after balance deduction:",
+        redisError.message,
+      );
+    }
+
+    const alreadyProcessed = outcome.type === "already-processed";
+
+    return res.status(200).json({
+      success: true,
+      message: alreadyProcessed
+        ? "Balance transaction already processed."
+        : "Balance deducted successfully.",
+      action: normalizedAction,
+      balance: outcome.balance,
+
+      // Include deduction details only for a newly processed transaction.
+      ...(!alreadyProcessed
+        ? {
+            previousBalance: outcome.previousBalance,
+            deductedAmount: balanceAmount,
+          }
+        : {}),
+
+      ...(alreadyProcessed ? { alreadyProcessed: true } : {}),
+    });
+  } catch (error) {
+    // A concurrent request may have committed the same transaction first.
+    try {
+      if (transactionId) {
+        const authenticatedSession = await getAuthenticatedSession(req);
+        const userId = authenticatedSession?.data?.userId;
+
+        if (userId) {
+          const existingTransaction = await BalanceTransaction.findOne({
+            userId,
+            transactionId,
+          });
+
+          if (existingTransaction) {
+            if (
+              existingTransaction.amount !== balanceAmount ||
+              existingTransaction.action !== normalizedAction
+            ) {
+              return res.status(409).json({
+                success: false,
+                message:
+                  "Transaction ID was already used with different details.",
+              });
+            }
+
+            const currentUser = await User.findById(userId).select("balance");
+
+            if (currentUser) {
+              return res.status(200).json({
+                success: true,
+                message: "Balance transaction already processed.",
+                action: existingTransaction.action,
+                balance: Number(existingTransaction.balanceAfter),
+                alreadyProcessed: true,
+              });
+            }
+          }
+        }
+      }
+    } catch (recoveryError) {
+      console.error(
+        "Balance transaction recovery failed:",
+        recoveryError.message,
+      );
+    }
+
+    console.error("Balance deduction failed:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update balance. Please try again.",
+    });
+  } finally {
+    if (mongoSession) {
+      await mongoSession.endSession();
+    }
+  }
+};
+
+/**
+ * Deduct balance for an authenticated internal service request.
+ *
+ * MongoDB is the source of truth.
+ * Redis sessions are synchronized after the transaction commits.
+ */
+
+export const deductBalanceInternal = async (req, res) => {
+  const userId = req.internalUserId;
+
+  const transactionId =
+    typeof req.body?.transactionId === "string"
+      ? req.body.transactionId.trim()
+      : "";
+
+  const { amount, action, serviceName, resourceName, resourceId, reportUrl } =
+    req.body ?? {};
+
+  const balanceAmount = Number(amount);
+
+  const normalizedAction =
+    typeof action === "string" && action.trim()
+      ? action.trim().slice(0, 100)
+      : "balance-deduction";
+
+  let mongoSession;
+
+  try {
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    if (!transactionId || transactionId.length > 200) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid transaction ID is required.",
+      });
+    }
+
+    if (!Number.isSafeInteger(balanceAmount) || balanceAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be a positive safe integer.",
+      });
+    }
+
+    if (
+      normalizedAction === "resume-scorer" &&
+      (!req.isResumeScorerBilling || balanceAmount !== 100)
+    ) {
+      return res.status(403).json({
+        success: false,
+        message: "Use the dedicated Resume Scorer billing endpoint.",
+      });
+    }
+
+    let outcome;
+
+    mongoSession = await mongoose.startSession();
+
+    await mongoSession.withTransaction(async () => {
+      // 1. Check whether this transaction was already processed.
+      const existingTransaction = await BalanceTransaction.findOne({
+        userId,
+        transactionId,
+      }).session(mongoSession);
+
+      if (existingTransaction) {
+        // A transaction ID cannot be reused with different details.
+        if (
+          existingTransaction.amount !== balanceAmount ||
+          existingTransaction.action !== normalizedAction
+        ) {
+          outcome = { type: "conflict" };
+          return;
+        }
+
+        const currentUser = await User.findById(userId)
+          .select("balance")
+          .session(mongoSession);
+
+        outcome = currentUser
+          ? {
+              type: "already-processed",
+              balance: Number(existingTransaction.balanceAfter),
+            }
+          : { type: "user-not-found" };
+
+        return;
+      }
+
+      // 2. Read the current account balance.
+      const currentUser = await User.findById(userId)
+        .select("balance")
+        .session(mongoSession);
+
+      if (!currentUser) {
+        outcome = { type: "user-not-found" };
+        return;
+      }
+
+      // 3. Deduct atomically only if sufficient balance exists.
+      const updatedUser = await User.findOneAndUpdate(
+        {
+          _id: userId,
+          balance: { $gte: balanceAmount },
+        },
+        {
+          $inc: { balance: -balanceAmount },
+        },
+        {
+          new: true,
+          runValidators: true,
+          session: mongoSession,
+        },
+      );
+
+      if (!updatedUser) {
+        outcome = {
+          type: "insufficient-balance",
+          balance: Number(currentUser.balance),
+        };
+        return;
+      }
+
+      // 4. Record the transaction in the same MongoDB transaction.
+      await BalanceTransaction.create(
+        [
+          {
+            userId,
+            transactionId,
+            amount: balanceAmount,
+            action: normalizedAction,
+            serviceName:
+              typeof serviceName === "string"
+                ? serviceName.trim().slice(0, 100)
+                : null,
+            resourceName:
+              typeof resourceName === "string"
+                ? resourceName.trim().slice(0, 255)
+                : null,
+            resourceId:
+              typeof resourceId === "string"
+                ? resourceId.trim().slice(0, 200)
+                : null,
+            reportUrl:
+              typeof reportUrl === "string" &&
+              reportUrl.startsWith("/") &&
+              !reportUrl.startsWith("//")
+                ? reportUrl.slice(0, 1000)
+                : null,
+            balanceAfter: Number(updatedUser.balance),
+          },
+        ],
+        { session: mongoSession },
+      );
+
+      outcome = {
+        type: "success",
+        previousBalance: Number(currentUser.balance),
+        balance: Number(updatedUser.balance),
+      };
+    });
+
+    if (!outcome) {
+      throw new Error("Balance transaction completed without an outcome.");
+    }
+
+    if (outcome.type === "conflict") {
+      return res.status(409).json({
+        success: false,
+        message: "Transaction ID was already used with different details.",
+      });
+    }
+
+    if (outcome.type === "user-not-found") {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    if (outcome.type === "insufficient-balance") {
+      return res.status(400).json({
+        success: false,
+        message: "Insufficient balance.",
+        balance: outcome.balance,
+      });
+    }
+
+    // 5. MongoDB is authoritative; synchronize Redis sessions afterward.
+    try {
+      const sessionIds = await redis.smembers(getUserSessionsKey(userId));
+
+      if (sessionIds.length > 0) {
+        const latestUser = await User.findById(userId);
+
+        if (latestUser) {
+          const sessionData = JSON.stringify(buildSessionData(latestUser));
+
+          const results = await Promise.allSettled(
+            sessionIds.map((sessionId) =>
+              redis.set(
+                getSessionKey(sessionId),
+                sessionData,
+                "EX",
+                SESSION_TTL,
+              ),
+            ),
+          );
+
+          if (results.some((result) => result.status === "rejected")) {
+            console.error(
+              "Some Redis sessions could not be synchronized after balance deduction.",
+            );
+          }
+        }
+      }
+
+      await redis.expire(getUserSessionsKey(userId), SESSION_TTL);
+    } catch (redisError) {
+      console.error(
+        "Redis session synchronization failed after balance deduction:",
+        redisError.message,
+      );
+    }
+
+    const alreadyProcessed = outcome.type === "already-processed";
+
+    return res.status(200).json({
+      success: true,
+      message: alreadyProcessed
+        ? "Balance transaction already processed."
+        : "Balance deducted successfully.",
+      action: normalizedAction,
+      balance: outcome.balance,
+
+      // Include deduction details only for a newly processed transaction.
+      ...(!alreadyProcessed
+        ? {
+            previousBalance: outcome.previousBalance,
+            deductedAmount: balanceAmount,
+          }
+        : {}),
+
+      ...(alreadyProcessed ? { alreadyProcessed: true } : {}),
+    });
+  } catch (error) {
+    // Recover a concurrent duplicate transaction safely.
+    try {
+      if (userId && transactionId) {
+        const existingTransaction = await BalanceTransaction.findOne({
+          userId,
+          transactionId,
+        });
+
+        if (existingTransaction) {
+          if (
+            existingTransaction.amount !== balanceAmount ||
+            existingTransaction.action !== normalizedAction
+          ) {
+            return res.status(409).json({
+              success: false,
+              message:
+                "Transaction ID was already used with different details.",
+            });
+          }
+
+          const currentUser = await User.findById(userId).select("balance");
+
+          if (currentUser) {
+            return res.status(200).json({
+              success: true,
+              message: "Balance transaction already processed.",
+              action: existingTransaction.action,
+              balance: Number(existingTransaction.balanceAfter),
+              alreadyProcessed: true,
+            });
+          }
+        }
+      }
+    } catch (recoveryError) {
+      console.error(
+        "Balance transaction recovery lookup failed:",
+        recoveryError.message,
+      );
+    }
+
+    console.error("Internal balance deduction failed:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update balance. Please try again.",
+    });
+  } finally {
+    if (mongoSession) {
+      await mongoSession.endSession();
+    }
+  }
+};
+
+export const deductResumeScorerBalanceInternal = async (req, res) => {
+  req.isResumeScorerBilling = true;
+
+  req.body = {
+    ...req.body,
+    amount: 100,
+    action: "resume-scorer",
+  };
+
+  return deductBalanceInternal(req, res);
+};
+
+export const getUserBalanceInternal = async (req, res) => {
+  try {
+    const userId = req.internalUserId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    const user = await User.findById(userId).select("balance");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      balance: Number(user.balance),
+    });
+  } catch (error) {
+    console.error("Internal user balance lookup failed:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch user balance.",
+    });
+  }
+};
+
+export const getUserBalanceTransactionsInternal = async (req, res) => {
+  try {
+    const userId = req.internalUserId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    const page = Number(req.body?.page ?? 1);
+    const pageSize = Number(req.body?.pageSize ?? 10);
+
+    if (
+      !Number.isSafeInteger(page) ||
+      page < 1 ||
+      !Number.isSafeInteger(pageSize) ||
+      pageSize < 1 ||
+      pageSize > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid pagination parameters.",
+      });
+    }
+
+    const filter = {
+      userId,
+      action: { $ne: "billing-balance-credit" },
+    };
+    const skip = (page - 1) * pageSize;
+
+    const [transactions, total] = await Promise.all([
+      BalanceTransaction.find(filter)
+        .select(
+          "transactionId amount action serviceName resourceName resourceId reportUrl balanceAfter createdAt updatedAt",
+        )
+        .sort({ createdAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(pageSize)
+        .lean(),
+
+      BalanceTransaction.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        transactions,
+        pagination: {
+          page,
+          pageSize,
+          total,
+          totalPages: Math.ceil(total / pageSize),
+        },
+      },
+    });
+  } catch (error) {
+    console.error(
+      "Internal balance transaction history lookup failed:",
+      error.message,
+    );
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to fetch transaction history.",
+    });
+  }
+};
+
+export const creditBalanceInternal = async (req, res) => {
+  const userId = req.internalUserId;
+
+  const transactionId =
+    typeof req.body?.transactionId === "string"
+      ? req.body.transactionId.trim()
+      : "";
+
+  const amount = req.body?.amount;
+  const action = "billing-balance-credit";
+
+  let mongoSession;
+  let outcome;
+
+  try {
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "User authentication required.",
+      });
+    }
+
+    if (!transactionId || transactionId.length > 200) {
+      return res.status(400).json({
+        success: false,
+        message: "A valid transaction ID is required.",
+      });
+    }
+
+    if (!Number.isSafeInteger(amount) || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Amount must be a positive safe integer.",
+      });
+    }
+
+    mongoSession = await mongoose.startSession();
+
+    await mongoSession.withTransaction(async () => {
+      // 1. Prevent duplicate credits for the same transaction.
+      const existingTransaction = await BalanceTransaction.findOne({
+        userId,
+        transactionId,
+      }).session(mongoSession);
+
+      if (existingTransaction) {
+        if (
+          existingTransaction.amount !== amount ||
+          existingTransaction.action !== action
+        ) {
+          outcome = { type: "conflict" };
+          return;
+        }
+
+        outcome = {
+          type: "already-processed",
+          balance: Number(existingTransaction.balanceAfter),
+        };
+
+        return;
+      }
+
+      // 2. Read the current user balance.
+      const currentUser = await User.findById(userId)
+        .select("balance")
+        .session(mongoSession);
+
+      if (!currentUser) {
+        outcome = { type: "user-not-found" };
+        return;
+      }
+
+      // 3. Increase balance atomically, avoiding unsafe integers.
+      const updatedUser = await User.findOneAndUpdate(
+        {
+          _id: userId,
+          balance: { $lte: Number.MAX_SAFE_INTEGER - amount },
+        },
+        {
+          $inc: { balance: amount },
+        },
+        {
+          new: true,
+          runValidators: true,
+          session: mongoSession,
+        },
+      );
+
+      if (!updatedUser) {
+        outcome = { type: "balance-limit-exceeded" };
+        return;
+      }
+
+      // 4. Record the credit in the same MongoDB transaction.
+      await BalanceTransaction.create(
+        [
+          {
+            userId,
+            transactionId,
+            amount,
+            action,
+            serviceName: null,
+            resourceName: null,
+            resourceId: null,
+            reportUrl: null,
+            balanceAfter: Number(updatedUser.balance),
+          },
+        ],
+        { session: mongoSession },
+      );
+
+      outcome = {
+        type: "success",
+        balance: Number(updatedUser.balance),
+      };
+    });
+
+    if (!outcome) {
+      throw new Error("Balance credit completed without an outcome.");
+    }
+
+    if (outcome.type === "conflict") {
+      return res.status(409).json({
+        success: false,
+        message: "Transaction ID was already used with different details.",
+      });
+    }
+
+    if (outcome.type === "user-not-found") {
+      return res.status(404).json({
+        success: false,
+        message: "User account not found.",
+      });
+    }
+
+    if (outcome.type === "balance-limit-exceeded") {
+      return res.status(409).json({
+        success: false,
+        message: "The maximum supported balance would be exceeded.",
+      });
+    }
+
+    // MongoDB is authoritative. Redis synchronization is best-effort.
+    try {
+      const sessionIds = await redis.smembers(getUserSessionsKey(userId));
+
+      if (sessionIds.length > 0) {
+        const latestUser = await User.findById(userId);
+
+        if (latestUser) {
+          const sessionData = JSON.stringify(buildSessionData(latestUser));
+
+          const results = await Promise.allSettled(
+            sessionIds.map((sessionId) =>
+              redis.set(
+                getSessionKey(sessionId),
+                sessionData,
+                "EX",
+                SESSION_TTL,
+              ),
+            ),
+          );
+
+          if (results.some((result) => result.status === "rejected")) {
+            console.error(
+              "Some Redis sessions could not be synchronized after balance credit.",
+            );
+          }
+        }
+      }
+
+      await redis.expire(getUserSessionsKey(userId), SESSION_TTL);
+    } catch (redisError) {
+      console.error(
+        "Redis session synchronization failed after balance credit:",
+        redisError.message,
+      );
+    }
+
+    const alreadyProcessed = outcome.type === "already-processed";
+
+    return res.status(200).json({
+      success: true,
+      message: alreadyProcessed
+        ? "Balance credit already processed."
+        : "Balance credited successfully.",
+      balance: outcome.balance,
+      ...(alreadyProcessed
+        ? { alreadyProcessed: true }
+        : { creditedAmount: amount }),
+    });
+  } catch (error) {
+    // Recover safely if a concurrent request committed first.
+    try {
+      const existingTransaction = await BalanceTransaction.findOne({
+        userId,
+        transactionId,
+      });
+
+      if (existingTransaction) {
+        if (
+          existingTransaction.amount !== amount ||
+          existingTransaction.action !== action
+        ) {
+          return res.status(409).json({
+            success: false,
+            message: "Transaction ID was already used with different details.",
+          });
+        }
+
+        return res.status(200).json({
+          success: true,
+          message: "Balance credit already processed.",
+          balance: Number(existingTransaction.balanceAfter),
+          alreadyProcessed: true,
+        });
+      }
+    } catch (recoveryError) {
+      console.error("Balance credit recovery failed:", recoveryError.message);
+    }
+
+    console.error("Internal balance credit failed:", error.message);
+
+    return res.status(500).json({
+      success: false,
+      message: "Unable to update balance. Please retry safely.",
+    });
+  } finally {
+    if (mongoSession) {
+      await mongoSession.endSession();
+    }
+  }
+};

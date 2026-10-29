@@ -163,7 +163,7 @@ const App = () => {
         <Suspense
           fallback={
             <div
-              className="flex min-h-[60vh] items-center justify-center bg-[#0A0A0A]"
+              className="flex min-h-[60vh] items-center justify-center"
               role="status"
               aria-label="Loading page"
             >

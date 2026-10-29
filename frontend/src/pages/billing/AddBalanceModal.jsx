@@ -121,7 +121,7 @@ export default function AddBalanceModal({
                       ? "—"
                       : Number(currentBalance).toLocaleString("en-IN")}
                     <span className="ml-2 text-xs font-normal text-white/40">
-                      RIO units
+                      INR
                     </span>
                   </p>
                 </div>

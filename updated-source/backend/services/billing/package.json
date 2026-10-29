@@ -1,0 +1,21 @@
+{
+  "name": "billing-service",
+  "version": "1.0.0",
+  "private": true,
+  "description": "RIO Billing and Payment Service",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node --watch index.js",
+    "start": "node index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.5",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "mongoose": "^9.11.0",
+    "razorpay": "^2.9.6",
+    "zod": "^4.6.5"
+  }
+}

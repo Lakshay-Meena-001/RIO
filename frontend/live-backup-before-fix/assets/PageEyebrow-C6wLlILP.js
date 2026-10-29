@@ -1,0 +1,1 @@
+import{m as e}from"./index-CpAc2b9B.js";var t=e();function n({children:e,className:n=``,dot:r=!0,as:i=`p`}){return e?(0,t.jsxs)(i,{className:`rio-page-eyebrow ${n}`.trim(),children:[r?(0,t.jsx)(`span`,{className:`rio-page-eyebrow__dot`,"aria-hidden":`true`}):null,(0,t.jsx)(`span`,{children:e})]}):null}export{n as t};

@@ -148,11 +148,11 @@ const NewInterview = ({ user, setUser }) => {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(
-  () => localStorage.getItem("rio-sidebar-open") !== "false"
-);
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
 
   const [starting, setStarting] = useState(false);
-  const [error, setError] = useState("");
+  const [, setError] = useState("");
 
   const [checkingActiveInterview, setCheckingActiveInterview] = useState(true);
   const [activeInterview, setActiveInterview] = useState(null);
@@ -297,29 +297,49 @@ const NewInterview = ({ user, setUser }) => {
    * ---------------------------------------------------------
    */
 
+  // Validate in the same top-to-bottom order as the visible form.
   const validateForm = (techStack = form.techStack) => {
-    if (form.interviewType === "coding" && !form.codingLanguage) {
-      return "Select a programming language for the coding interview.";
-    }
     if (!form.role.trim()) {
-      return "Please enter the role you want to practice for.";
+      return {
+        message: "Please enter the role you want to practice for.",
+        targetId: "interview-role",
+      };
+    }
+
+    if (form.interviewType === "coding" && !form.codingLanguage) {
+      return {
+        message: "Select a programming language for the coding interview.",
+        targetId: "interview-coding-language",
+      };
     }
 
     if (form.interviewType === "core" && form.subjects.length === 0) {
-      return "Select at least one Core CS subject.";
+      return {
+        message: "Select at least one Core CS subject.",
+        targetId: "interview-core-subjects",
+      };
     }
 
     if (form.interviewType === "development" && techStack.length === 0) {
-      return "Add at least one technology for the development interview.";
+      return {
+        message: "Add at least one technology for the development interview.",
+        targetId: "interview-tech-stack",
+      };
     }
 
-    if (form.interviewType === "project") {
+    if (form.interviewType === "project" || form.interviewType === "full") {
       if (!form.projectContext.projectName.trim()) {
-        return "Please enter your project name.";
+        return {
+          message: "Please enter your project name.",
+          targetId: "interview-project-name",
+        };
       }
 
       if (!form.projectContext.description.trim()) {
-        return "Please describe your project.";
+        return {
+          message: "Please describe your project.",
+          targetId: "interview-project-description",
+        };
       }
     }
 
@@ -353,7 +373,16 @@ const NewInterview = ({ user, setUser }) => {
     const validationError = validateForm(effectiveTechStack);
 
     if (validationError) {
-      setError(validationError);
+      setError(validationError.message);
+      requestAnimationFrame(() => {
+        const target = document.getElementById(validationError.targetId);
+        if (!target) return;
+        target.scrollIntoView({ behavior: "smooth", block: "center" });
+        const focusable = target.matches("input, textarea, select, button")
+          ? target
+          : target.querySelector("input, textarea, select, button");
+        focusable?.focus({ preventScroll: true });
+      });
       return;
     }
 
@@ -413,10 +442,10 @@ const NewInterview = ({ user, setUser }) => {
    */
 
   const inputClass =
-    "w-full rounded-[13px] border border-white/[0.10] bg-white/[0.045] px-4 py-3 text-sm text-white outline-none transition-all duration-200 placeholder:text-[#52525B] hover:border-white/[0.14] focus:border-white/[0.22] focus:bg-white/[0.06]";
+    "w-full min-w-0 rounded-2xl border border-white/[0.10] bg-white/[0.045] px-4 py-2.5 text-sm text-white outline-none transition-all duration-200 placeholder:text-[#52525B] hover:border-white/[0.14] focus:border-white/[0.22] focus:bg-white/[0.06]";
 
   const optionClass = (active) =>
-    `cursor-pointer rounded-[13px] border px-4 py-3 transition-all duration-200 ${
+    `cursor-pointer rounded-full border px-3.5 py-2.5 text-sm transition-all duration-200 ${
       active
         ? "border-white/[0.20] bg-white/[0.085] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
         : "border-white/[0.09] bg-white/[0.028] text-[#A1A1AA] hover:border-white/[0.15] hover:bg-white/[0.05] hover:text-white"
@@ -518,7 +547,7 @@ const NewInterview = ({ user, setUser }) => {
               sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
             }`}
           >
-            <div className="mx-auto w-full max-w-[1400px] px-4 pb-32 pt-[86px] sm:px-6 lg:px-8 lg:py-8 lg:pb-12">
+            <div className="mx-auto w-full max-w-[1400px] px-4 pb-18 pt-[86px] sm:px-6 lg:px-8 lg:py-8 lg:pb-12">
               {/* Header */}
               <div className="mb-8">
                 <div className="mb-6 border-b border-white/[0.08] pb-4">
@@ -579,7 +608,7 @@ const NewInterview = ({ user, setUser }) => {
 
               <div className="overflow-hidden rounded-[22px] border border-white/[0.12] bg-[#111315] shadow-[0_26px_75px_rgba(0,0,0,0.22)]">
                 {/* Basic configuration */}
-                <section className="relative overflow-hidden border-b border-white/[0.08] p-5 sm:p-7">
+                <section className="relative overflow-hidden border-b border-white/[0.08] p-4 sm:p-5 lg:p-6">
                   <div className="mb-6 flex items-center gap-3">
                     <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[#A1A1AA] sm:flex">
                       <FiUser size={17} />
@@ -599,7 +628,7 @@ const NewInterview = ({ user, setUser }) => {
                   </div>
 
                   <div className="grid gap-5 lg:grid-cols-2">
-                    <div>
+                    <div id="interview-role">
                       <label className="mb-2 block text-xs font-medium text-[#A1A1AA]">
                         Role
                       </label>
@@ -611,7 +640,7 @@ const NewInterview = ({ user, setUser }) => {
                           updateField("role", event.target.value)
                         }
                         placeholder="e.g. Software Engineer"
-                        className={inputClass  }
+                        className={inputClass}
                       />
                     </div>
 
@@ -667,7 +696,7 @@ const NewInterview = ({ user, setUser }) => {
                 </section>
 
                 {/* Interview mode: existing Standard flow or optional Agent UI */}
-                <section className="border-b border-white/[0.08] p-5 sm:p-7">
+                <section className="border-b border-white/[0.08] p-4 sm:p-5 lg:p-6">
                   <div className="mb-4">
                     <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#6F727A]">
                       Interview experience
@@ -699,7 +728,7 @@ const NewInterview = ({ user, setUser }) => {
                         key={mode.value}
                         type="button"
                         onClick={() => updateField("interviewMode", mode.value)}
-                        className={`rounded-xl border p-4 text-left transition ${form.interviewMode === mode.value ? "border-white/25 bg-white/[0.08]" : "border-white/10 bg-white/[0.025] hover:bg-white/[0.05]"}`}
+                        className={`min-w-0 rounded-2xl border px-4 py-3 text-left transition-colors duration-200 ${form.interviewMode === mode.value ? "border-white/25 bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]" : "border-white/10 bg-white/[0.025] hover:border-white/[0.16] hover:bg-white/[0.05]"}`}
                       >
                         <span className="block text-sm font-semibold text-white">
                           {mode.title}
@@ -713,7 +742,7 @@ const NewInterview = ({ user, setUser }) => {
                 </section>
 
                 {/* Interview type */}
-                <section className="border-b border-white/[0.08] p-5 sm:p-7">
+                <section className="border-b border-white/[0.08] p-4 sm:p-5 lg:p-6">
                   <div className="mb-6 flex items-center gap-3">
                     <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[#A1A1AA] sm:flex">
                       <FiLayers size={17} />
@@ -784,7 +813,10 @@ const NewInterview = ({ user, setUser }) => {
 
                 {/* Coding language */}
                 {form.interviewType === "coding" && (
-                  <section className="border-b border-white/[0.08] p-5 sm:p-7">
+                  <section
+                    id="interview-coding-language"
+                    className="border-b border-white/[0.08] p-4 sm:p-5 lg:p-6"
+                  >
                     <div className="mb-5">
                       <p className="text-xs font-medium text-[#A1A1AA]">
                         Programming language
@@ -823,7 +855,10 @@ const NewInterview = ({ user, setUser }) => {
 
                 {/* Core subjects */}
                 {form.interviewType === "core" && (
-                  <section className="border-b border-white/[0.08] p-5 sm:p-7">
+                  <section
+                    id="interview-core-subjects"
+                    className="border-b border-white/[0.08] p-4 sm:p-5 lg:p-6"
+                  >
                     <p className="mb-4 text-xs font-medium text-[#A1A1AA]">
                       Select Core CS subjects
                     </p>
@@ -847,7 +882,10 @@ const NewInterview = ({ user, setUser }) => {
 
                 {/* Development stack */}
                 {form.interviewType === "development" && (
-                  <section className="border-b border-white/[0.08] p-5 sm:p-7">
+                  <section
+                    id="interview-tech-stack"
+                    className="border-b border-white/[0.08] p-4 sm:p-5 lg:p-6"
+                  >
                     <p className="mb-2 text-xs font-medium text-[#A1A1AA]">
                       Technology stack
                     </p>
@@ -920,7 +958,7 @@ const NewInterview = ({ user, setUser }) => {
                 {/* Project context */}
                 {(form.interviewType === "project" ||
                   form.interviewType === "full") && (
-                  <section className="border-b border-white/[0.08] p-5 sm:p-7">
+                  <section className="border-b border-white/[0.08] p-4 sm:p-5 lg:p-6">
                     <div className="mb-5">
                       <p className="text-xs font-medium text-[#A1A1AA]">
                         Project context
@@ -932,7 +970,7 @@ const NewInterview = ({ user, setUser }) => {
                     </div>
 
                     <div className="grid gap-5">
-                      <div>
+                      <div id="interview-project-name">
                         <label className="mb-2 block text-xs text-[#A1A1AA]">
                           Project name
                         </label>
@@ -951,7 +989,7 @@ const NewInterview = ({ user, setUser }) => {
                         />
                       </div>
 
-                      <div>
+                      <div id="interview-project-description">
                         <label className="mb-2 block text-xs text-[#A1A1AA]">
                           Project description
                         </label>
@@ -993,7 +1031,7 @@ const NewInterview = ({ user, setUser }) => {
                 )}
 
                 {/* Interview settings */}
-                <section className="border-b border-white/[0.08] p-5 sm:p-7">
+                <section className="border-b border-white/[0.08] p-4 sm:p-5 lg:p-6">
                   <div className="mb-6 flex items-center gap-3">
                     <div className="hidden h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-[#A1A1AA] sm:flex">
                       <FiTarget size={17} />
@@ -1131,7 +1169,7 @@ const NewInterview = ({ user, setUser }) => {
                 </section>
 
                 {/* Cost / CTA desktop */}
-                <section className="p-5 sm:p-7">
+                <section className="p-4 sm:p-5 lg:p-6">
                   <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <div className="flex items-center gap-2">
@@ -1159,7 +1197,7 @@ const NewInterview = ({ user, setUser }) => {
                       type="button"
                       onClick={handleStartInterview}
                       disabled={starting || checkingActiveInterview}
-                      className="hidden items-center justify-center gap-2 rounded-[13px] bg-white px-6 py-3.5 text-sm font-semibold text-[#17191C] shadow-[0_12px_30px_rgba(0,0,0,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(0,0,0,0.24)] disabled:cursor-not-allowed disabled:opacity-50 sm:flex"
+                      className="hidden items-center justify-center gap-2 rounded-full bg-white px-6 py-3.5 text-sm font-semibold text-[#17191C] shadow-[0_12px_30px_rgba(0,0,0,0.18)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(0,0,0,0.24)] disabled:cursor-not-allowed disabled:opacity-50 sm:flex"
                     >
                       {starting ? (
                         <>
@@ -1179,14 +1217,6 @@ const NewInterview = ({ user, setUser }) => {
                       )}
                     </button>
                   </div>
-                  {error && (
-                    <p
-                      role="alert"
-                      className="hidden mt-3 text-right text-xs leading-5 text-[#F2A97B] sm:block sm:ml-auto"
-                    >
-                      {error}
-                    </p>
-                  )}
                 </section>
               </div>
             </div>
@@ -1194,39 +1224,40 @@ const NewInterview = ({ user, setUser }) => {
         </div>
       </div>
 
-      {/* Mobile fixed CTA */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 p-3 backdrop-blur-xl sm:hidden">
-        <button
-          type="button"
-          onClick={handleStartInterview}
-          disabled={starting || checkingActiveInterview}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3.5 text-sm font-semibold text-[#17191C] disabled:opacity-50"
-        >
-          {starting ? (
-            <>
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#52525E] border-t-[#17191C]" />
-              Starting...
-            </>
-          ) : (
-            <>
-              <FiPlay size={15} />
-              {checkingActiveInterview
-                ? "Checking active interview..."
-                : starting
-                  ? "Starting..."
-                  : "Start Interview"}
-              <FiArrowRight size={15} />
-            </>
-          )}
-        </button>
-        {error && (
-          <p
-            role="alert"
-            className="mx-auto mt-2 max-w-3xl text-center text-xs leading-5 text-[#F2A97B]"
+      {/* Mobile primary action — keep identical to the Interview Dashboard */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/88 p-3 backdrop-blur-xl sm:hidden">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => navigate("/mock-interview/history")}
+            className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20"
           >
-            {error}
-          </p>
-        )}
+            <FiClock size={14} />
+            <span>View history</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleStartInterview}
+            disabled={starting || checkingActiveInterview}
+            className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {starting ? (
+              <>
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-[#52525E] border-t-[#17191C]" />
+                <span>Starting...</span>
+              </>
+            ) : (
+              <>
+                <FiPlay size={14} />
+                <span>
+                  {checkingActiveInterview ? "Checking..." : "Start interview"}
+                </span>
+                <FiArrowRight size={14} />
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
