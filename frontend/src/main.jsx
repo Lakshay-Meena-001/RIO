@@ -6,6 +6,7 @@ import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { store } from "./redux/store.js";
 import rioIcon from "./assets/rio-logo.svg";
+import "./styles/rio-theme-style.css";
 
 const favicon = document.querySelector('link[rel="icon"]');
 if (favicon) {

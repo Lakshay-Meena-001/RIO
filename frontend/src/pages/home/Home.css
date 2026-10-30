@@ -1,0 +1,63 @@
+
+/* Home page typography */
+.rio-home-page {
+  font-family: "Assistant", sans-serif;
+  font-weight: 400;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Main hero heading stays bold */
+.rio-home-page h1 {
+  font-weight: 700 !important;
+}
+
+/* Section headings: medium, not heavy */
+.rio-home-page h2,
+.rio-home-page h3 {
+  font-weight: 600 !important;
+}
+
+/* Buttons: readable, medium weight */
+.rio-home-page button {
+  font-weight: 500 !important;
+  letter-spacing: -0.01em;
+}
+
+/* Supporting text: improve contrast and readability */
+.rio-home-page p {
+  font-weight: 300;
+  color: rgba(235, 235, 238, 0.82);
+}
+
+/* Background grid */
+.rio-home-page .rio-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    black 16%,
+    black 84%,
+    transparent
+  );
+}
+
+@media (max-width: 639px) {
+  .rio-home-page h1 {
+    letter-spacing: -0.055em;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rio-home-page *,
+  .rio-home-page *::before,
+  .rio-home-page *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

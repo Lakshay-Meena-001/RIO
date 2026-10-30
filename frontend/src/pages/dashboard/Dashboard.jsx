@@ -16,7 +16,7 @@ import {
   FiTrendingUp,
   FiZap,
 } from "react-icons/fi";
-import Sidebar from "../../components/SideBar";
+import Sidebar from "../../components/sidebar/SideBar";
 import Surface from "../../components/ui/Surface";
 import {
   getInterviewHistory,
@@ -30,6 +30,9 @@ import {
 } from "../../api/billing/billing.api";
 import PageHeader from "../../components/ui/PageHeader";
 import MobileHeader from "../../components/MobileHeader";
+import DashboardStatCard from "../../components/dashboard/DashboardStatCard";
+import DashboardReveal from "../../components/dashboard/DashboardReveal";
+import DashboardMobileActionBar from "../../components/dashboard/DashboardMobileActionBar";
 
 const ease = [0.22, 1, 0.36, 1];
 
@@ -94,6 +97,13 @@ const getResumeTitle = (resume) =>
   resume?.name ||
   "Resume";
 
+const Shimmer = ({ className = "" }) => (
+  <span
+    aria-hidden="true"
+    className={`rio-shimmer block rounded-md ${className}`}
+  />
+);
+
 const Dashboard = ({ user, setUser }) => {
   const navigate = useNavigate();
   const reduceMotion = useReducedMotion();
@@ -101,6 +111,17 @@ const Dashboard = ({ user, setUser }) => {
   const [sidebarOpen, setSidebarOpen] = useState(
     () => localStorage.getItem("rio-sidebar-open") !== "false",
   );
+  const [compactDesktop, setCompactDesktop] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia(
+      "(min-width: 768px) and (max-width: 1023px)",
+    );
+    const syncViewport = () => setCompactDesktop(media.matches);
+    syncViewport();
+    media.addEventListener?.("change", syncViewport);
+    return () => media.removeEventListener?.("change", syncViewport);
+  }, []);
   const [refreshKey, setRefreshKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [, setRefreshing] = useState(false);
@@ -350,7 +371,22 @@ const Dashboard = ({ user, setUser }) => {
       };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#17191C] text-white selection:bg-white/30 selection:text-white">
+    <div className="rio-dashboard relative min-h-screen overflow-x-clip bg-[#17191C] text-white selection:bg-white/30 selection:text-white">
+      <style>{`
+        @keyframes rio-dashboard-shimmer {
+          0% { background-position: 180% 0; }
+          100% { background-position: -80% 0; }
+        }
+        .rio-dashboard .rio-shimmer {
+          background: linear-gradient(100deg, rgba(255,255,255,.045) 20%, rgba(255,255,255,.105) 38%, rgba(255,255,255,.045) 56%);
+          background-size: 220% 100%;
+          animation: rio-dashboard-shimmer 1.45s ease-in-out infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .rio-dashboard .rio-shimmer { animation: none; }
+          .rio-dashboard * { scroll-behavior: auto !important; }
+        }
+      `}</style>
       <div aria-hidden="true" className="pointer-events-none fixed inset-0">
         <div
           className="absolute inset-0"
@@ -366,22 +402,22 @@ const Dashboard = ({ user, setUser }) => {
           mobileOpen={mobileOpen}
           setMobileOpen={setMobileOpen}
           user={user}
-          sidebarOpen={sidebarOpen}
+          sidebarOpen={compactDesktop ? false : sidebarOpen}
           setUser={setUser}
           setSidebarOpen={setSidebarOpen}
         />
         <main
-          className={`min-w-0 flex-1 transition-[margin-left] duration-300 ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
+          className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${compactDesktop ? "md:ml-[76px]" : sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
           <MobileHeader
             onOpenNavigation={() => setMobileOpen(true)}
             user={user}
           />
 
-          <div className="mx-auto w-full max-w-[1540px] px-4 pb-8 pt-[88px] sm:px-6 md:pb-10 lg:px-9 lg:py-9">
+          <div className="mx-auto w-full max-w-[1600px] px-4 pt-[clamp(5.5rem,10vh,6.5rem)] pb-[calc(5rem+env(safe-area-inset-bottom))] min-[480px]:px-5 sm:pt-8 sm:pb-10 md:px-6 md:pt-8 lg:px-8 xl:px-10">
             <motion.div
               {...enter}
-              className="mb-7 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between"
+              className="mb-6 flex min-w-0 flex-col gap-4 sm:mb-7 sm:gap-5 lg:flex-row lg:items-end lg:justify-between"
             >
               <PageHeader
                 size="hero"
@@ -397,11 +433,11 @@ const Dashboard = ({ user, setUser }) => {
                 description="Your work, learning progress and account activity — together in one place."
               />
 
-              <div className="hidden shrink-0 flex-wrap gap-2 md:flex">
+              <div className="hidden max-w-full shrink-0 flex-wrap gap-2 lg:flex">
                 <button
                   type="button"
                   onClick={() => navigate("/builder/dashboard")}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+                  className="inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-white transition-colors hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
                 >
                   Resume Builder <FiArrowRight size={14} />
                 </button>
@@ -409,7 +445,7 @@ const Dashboard = ({ user, setUser }) => {
                 <button
                   type="button"
                   onClick={() => navigate("/roadmap")}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+                  className="inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-white transition-colors hover:bg-white/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40"
                 >
                   My Roadmaps <FiArrowRight size={14} />
                 </button>
@@ -417,7 +453,7 @@ const Dashboard = ({ user, setUser }) => {
                 <button
                   type="button"
                   onClick={() => navigate("/mock-interview/new")}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-white/90"
+                  className="inline-flex min-h-10 max-w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition-colors hover:bg-white/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
                 >
                   Start Interview <FiArrowRight size={14} />
                 </button>
@@ -445,415 +481,425 @@ const Dashboard = ({ user, setUser }) => {
             </AnimatePresence>
 
             <motion.div
-              {...enter}
-              className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4"
+              variants={
+                reduceMotion
+                  ? undefined
+                  : {
+                      hidden: { opacity: 1 },
+                      show: {
+                        opacity: 1,
+                        transition: {
+                          staggerChildren: 0.075,
+                          delayChildren: 0.04,
+                        },
+                      },
+                    }
+              }
+              initial={reduceMotion ? false : "hidden"}
+              animate="show"
+              className="mb-4 grid min-w-0 grid-cols-1 gap-3 min-[420px]:grid-cols-2 2xl:grid-cols-4 sm:gap-4"
             >
-              {stats.map((stat) => {
-                const Icon = stat.icon;
-                return (
-                  <button
-                    type="button"
-                    key={stat.label}
-                    onClick={() => navigate(stat.action)}
-                    className="group relative min-w-0 overflow-hidden rounded-[20px] border border-white/[0.09] bg-gradient-to-br from-white/[0.035] to-transparent p-4 text-left shadow-[0_8px_30px_rgba(0,0,0,0.10)] transition-[transform,border-color,background-color,box-shadow] duration-200 ease-out hover:-translate-y-0.5 hover:border-white/[0.16] hover:shadow-[0_12px_34px_rgba(0,0,0,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 sm:p-5"
-                  >
-                    <div
-                      aria-hidden="true"
-                      className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-white/[0.045] blur-2xl transition group-hover:bg-white/[0.09]"
-                    />
-                    <div className="relative flex items-start justify-between gap-3">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.17em] text-[#92949B]">
-                        {stat.label}
-                      </span>
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white/90 transition-colors duration-200 group-hover:border-white/[0.16]  group-hover:bg-white/[0.08] group-hover:text-white">
-                        <Icon size={16} />
-                      </span>
-                    </div>
-                    <p className="relative mt-5 break-words text-2xl font-medium tracking-[-0.04em] text-white sm:text-[27px]">
-                      {loading ? (
-                        <span className="inline-block h-7 w-20 animate-pulse rounded bg-white/[0.055]" />
-                      ) : (
-                        stat.value
-                      )}
-                    </p>
-                    <div className="relative mt-2 flex items-center justify-between gap-2">
-                      <span className="text-[11px] text-[#92949B]">
-                        {loading ? "Loading live data…" : stat.note}
-                      </span>
-                      <FiArrowRight
-                        size={14}
-                        className="text-[#92949B] transition group-hover:translate-x-1 group-hover:text-white"
-                      />
-                    </div>
-                  </button>
-                );
-              })}
+              {stats.map((stat, index) => (
+                <DashboardStatCard
+                  key={stat.label}
+                  stat={stat}
+                  loading={loading}
+                  onClick={() => navigate(stat.action)}
+                  index={index}
+                />
+              ))}
             </motion.div>
 
-            <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.8fr)]">
-              <Surface className="p-5 sm:p-7">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
-                      Continue where you left off
-                    </p>
-                    <h2 className="mt-2 text-xl font-medium tracking-[-0.03em] sm:text-2xl">
-                      Your next move
-                    </h2>
-                    <p className="mt-2 max-w-xl text-xs leading-5 text-[#92949B]">
-                      Jump back into an active session or keep building momentum
-                      across your workspace.
-                    </p>
-                  </div>
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.055] text-white">
-                    <FiTarget size={18} />
-                  </span>
-                </div>
-                {activeInterview ? (
-                  <div className="mt-6 rounded-2xl border border-white/[0.14] bg-white/[0.055] p-4 sm:p-5">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
-                        <FiPlay size={17} />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-white">
-                          Active mock interview
-                        </p>
-                        <p className="mt-1 text-xs text-[#92949B]">
-                          {activeInterview?.role ||
-                            activeInterview?.title ||
-                            "Resume your interview session"}
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-white/[0.14] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-white">
-                        In progress
-                      </span>
+            <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(290px,0.8fr)]">
+              <DashboardReveal delay={0.06} reduceMotion={reduceMotion}>
+                <Surface className="min-w-0 p-4 min-[480px]:p-5 sm:p-6 xl:p-7">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
+                        Continue where you left off
+                      </p>
+                      <h2 className="mt-2 text-xl font-medium tracking-[-0.03em] sm:text-2xl">
+                        Your next move
+                      </h2>
+                      <p className="mt-2 max-w-xl text-xs leading-5 text-[#92949B]">
+                        Jump back into an active session or keep building
+                        momentum across your workspace.
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          activeInterview?._id || activeInterview?.id
-                            ? `/mock-interview/${activeInterview._id || activeInterview.id}`
-                            : "/mock-interview",
-                        )
-                      }
-                      className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full bg-white px-4 text-xs font-semibold text-[#17191C] hover:bg-white"
-                    >
-                      Resume interview <FiArrowRight size={14} />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          latestRoadmap?._id
-                            ? `/roadmap/${latestRoadmap._id}`
-                            : "/roadmap",
-                        )
-                      }
-                      className="group rounded-2xl border border-white/[0.10] bg-white/[0.045] p-4 text-left transition hover:border-white/[0.14] hover:bg-white/[0.055]"
-                    >
-                      <div className="flex items-center justify-between">
-                        <FiBookOpen size={17} className="text-white" />
-                        <FiArrowRight
-                          size={14}
-                          className="text-[#92949B] transition group-hover:translate-x-1 group-hover:text-white"
-                        />
-                      </div>
-                      <p className="mt-4 text-sm font-medium text-white">
-                        {latestRoadmap?.roadmap?.title ||
-                          latestRoadmap?.catalogRoadmap?.title ||
-                          latestRoadmap?.title ||
-                          "Explore your roadmap"}
-                      </p>
-                      <p className="mt-1 text-[11px] text-[#92949B]">
-                        {latestRoadmap
-                          ? `${getRoadmapProgress(latestRoadmap)}% progress · continue learning`
-                          : "Choose a learning path to get started"}
-                      </p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        navigate(
-                          latestResume ? "/builder/dashboard" : "/builder",
-                        )
-                      }
-                      className="group rounded-2xl border border-white/[0.10] bg-white/[0.045] p-4 text-left transition hover:border-white/[0.14] hover:bg-white/[0.055]"
-                    >
-                      <div className="flex items-center justify-between">
-                        <FiFileText size={17} className="text-white" />
-                        <FiArrowRight
-                          size={14}
-                          className="text-[#92949B] transition group-hover:translate-x-1 group-hover:text-white"
-                        />
-                      </div>
-                      <p className="mt-4 text-sm font-medium text-white">
-                        {latestResume
-                          ? getResumeTitle(latestResume)
-                          : "Build your resume"}
-                      </p>
-                      <p className="mt-1 text-[11px] text-[#92949B]">
-                        {latestResume
-                          ? "Open your resume workspace"
-                          : "Create and refine your professional profile"}
-                      </p>
-                    </button>
-                  </div>
-                )}
-                <div className="mt-6 border-t border-white/[0.10] pt-5">
-                  <div className="mb-3 flex items-center justify-between">
-                    <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#92949B]">
-                      Workspace completion
-                    </span>
-                    <span className="text-xs font-medium text-white">
-                      {profileCompletion}%
+                    <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.055] text-white">
+                      <FiTarget size={18} />
                     </span>
                   </div>
-                  <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.055]">
-                    <motion.div
-                      initial={false}
-                      animate={{ width: `${profileCompletion}%` }}
-                      transition={{ duration: 0.5 }}
-                      className="h-full rounded-full bg-gradient-to-r from-[#a1a1aa] to-[#f4f4f5]"
-                    />
-                  </div>
-                  <p className="mt-2 text-[10px] text-[#92949B]">
-                    Based on available account profile fields, not an assessment
-                    score.
-                  </p>
-                </div>
-              </Surface>
-
-              <Surface className="p-5 sm:p-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
-                      Learning overview
-                    </p>
-                    <h2 className="mt-2 text-xl font-medium tracking-[-0.03em]">
-                      Your momentum
-                    </h2>
-                  </div>
-                  <FiTrendingUp size={18} className="text-white" />
-                </div>
-                <div className="mt-6 space-y-5">
-                  {[
-                    {
-                      label: "Roadmap progress",
-                      value: roadmapProgress,
-                      detail: data.roadmaps.length
-                        ? `${data.roadmaps.length} saved learning path${data.roadmaps.length === 1 ? "" : "s"}`
-                        : "No roadmaps yet",
-                    },
-                    {
-                      label: "Interview completion",
-                      value: data.interviews.length
-                        ? Math.round(
-                            (completedInterviews / data.interviews.length) *
-                              100,
-                          )
-                        : 0,
-                      detail: `${completedInterviews} of ${data.interviews.length} sessions completed`,
-                    },
-                  ].map((item) => (
-                    <div key={item.label}>
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <span className="text-xs font-medium text-white">
-                          {item.label}
+                  {activeInterview ? (
+                    <div className="mt-6 rounded-2xl border border-white/[0.14] bg-white/[0.055] p-4 sm:p-5">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white">
+                          <FiPlay size={17} />
                         </span>
-                        <span className="text-xs font-semibold text-white">
-                          {loading ? "—" : `${item.value}%`}
-                        </span>
-                      </div>
-                      <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.055]">
-                        <motion.div
-                          initial={false}
-                          animate={{ width: `${loading ? 0 : item.value}%` }}
-                          transition={{ duration: 0.6, ease }}
-                          className="h-full rounded-full bg-white"
-                        />
-                      </div>
-                      <p className="mt-2 text-[10px] text-[#92949B]">
-                        {loading ? "Loading" : item.detail}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-6 rounded-2xl border border-white/[0.10] bg-white/[0.045] p-4">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.055] text-white">
-                      <FiZap size={16} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-white">
-                        Keep your progress real
-                      </p>
-                      <p className="mt-1 text-[10px] leading-4 text-[#92949B]">
-                        Stats update from your saved activity; unavailable
-                        services are not replaced with sample numbers.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </Surface>
-            </div>
-
-            <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-              <Surface className="p-5 sm:p-6">
-                <div className="flex items-end justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
-                      Latest updates
-                    </p>
-                    <h2 className="mt-2 text-xl font-medium tracking-[-0.03em]">
-                      Recent activity
-                    </h2>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => navigate("/mock-interview/history")}
-                    className="inline-flex items-center gap-1 text-[11px] text-[#92949B] transition hover:text-white"
-                  >
-                    View history <FiChevronRight size={14} />
-                  </button>
-                </div>
-                {loading ? (
-                  <div className="mt-5 space-y-4">
-                    {[0, 1, 2].map((key) => (
-                      <div key={key} className="flex gap-3">
-                        <div className="h-10 w-10 animate-pulse rounded-xl bg-white/[0.055]" />
-                        <div className="flex-1 space-y-2 py-1">
-                          <div className="h-3 w-1/2 animate-pulse rounded bg-white/[0.055]" />
-                          <div className="h-2.5 w-1/3 animate-pulse rounded bg-white/[0.045]" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-white">
+                            Active mock interview
+                          </p>
+                          <p className="mt-1 text-xs text-[#92949B]">
+                            {activeInterview?.role ||
+                              activeInterview?.title ||
+                              "Resume your interview session"}
+                          </p>
                         </div>
+                        <span className="rounded-full border border-white/[0.14] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-wider text-white">
+                          In progress
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            activeInterview?._id || activeInterview?.id
+                              ? `/mock-interview/${activeInterview._id || activeInterview.id}`
+                              : "/mock-interview",
+                          )
+                        }
+                        className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-full bg-white px-4 text-xs font-semibold text-[#17191C] hover:bg-white"
+                      >
+                        Resume interview <FiArrowRight size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            latestRoadmap?._id
+                              ? `/roadmap/${latestRoadmap._id}`
+                              : "/roadmap",
+                          )
+                        }
+                        className="group rounded-2xl border border-white/[0.10] bg-white/[0.045] p-4 text-left transition hover:border-white/[0.14] hover:bg-white/[0.055]"
+                      >
+                        <div className="flex items-center justify-between">
+                          <FiBookOpen size={17} className="text-white" />
+                          <FiArrowRight
+                            size={14}
+                            className="text-[#92949B] transition group-hover:translate-x-1 group-hover:text-white"
+                          />
+                        </div>
+                        <p className="mt-4 text-sm font-medium text-white">
+                          {latestRoadmap?.roadmap?.title ||
+                            latestRoadmap?.catalogRoadmap?.title ||
+                            latestRoadmap?.title ||
+                            "Explore your roadmap"}
+                        </p>
+                        <p className="mt-1 text-[11px] text-[#92949B]">
+                          {latestRoadmap
+                            ? `${getRoadmapProgress(latestRoadmap)}% progress · continue learning`
+                            : "Choose a learning path to get started"}
+                        </p>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigate(
+                            latestResume ? "/builder/dashboard" : "/builder",
+                          )
+                        }
+                        className="group rounded-2xl border border-white/[0.10] bg-white/[0.045] p-4 text-left transition hover:border-white/[0.14] hover:bg-white/[0.055]"
+                      >
+                        <div className="flex items-center justify-between">
+                          <FiFileText size={17} className="text-white" />
+                          <FiArrowRight
+                            size={14}
+                            className="text-[#92949B] transition group-hover:translate-x-1 group-hover:text-white"
+                          />
+                        </div>
+                        <p className="mt-4 text-sm font-medium text-white">
+                          {latestResume
+                            ? getResumeTitle(latestResume)
+                            : "Build your resume"}
+                        </p>
+                        <p className="mt-1 text-[11px] text-[#92949B]">
+                          {latestResume
+                            ? "Open your resume workspace"
+                            : "Create and refine your professional profile"}
+                        </p>
+                      </button>
+                    </div>
+                  )}
+                  <div className="mt-6 border-t border-white/[0.10] pt-5">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[#92949B]">
+                        Workspace completion
+                      </span>
+                      <span className="text-xs font-medium text-white">
+                        {profileCompletion}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.055]">
+                      <motion.div
+                        initial={false}
+                        animate={{ width: `${profileCompletion}%` }}
+                        transition={{ duration: 0.5 }}
+                        className="h-full rounded-full bg-gradient-to-r from-[#a1a1aa] to-[#f4f4f5]"
+                      />
+                    </div>
+                    <p className="mt-2 text-[10px] text-[#92949B]">
+                      Based on available account profile fields, not an
+                      assessment score.
+                    </p>
+                  </div>
+                </Surface>
+              </DashboardReveal>
+
+              <DashboardReveal delay={0.12} reduceMotion={reduceMotion}>
+                <Surface className="min-w-0 p-4 min-[480px]:p-5 sm:p-6">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
+                        Learning overview
+                      </p>
+                      <h2 className="mt-2 text-xl font-medium tracking-[-0.03em]">
+                        Your momentum
+                      </h2>
+                    </div>
+                    <FiTrendingUp size={18} className="text-white" />
+                  </div>
+                  <div className="mt-6 space-y-5">
+                    {[
+                      {
+                        label: "Roadmap progress",
+                        value: roadmapProgress,
+                        detail: data.roadmaps.length
+                          ? `${data.roadmaps.length} saved learning path${data.roadmaps.length === 1 ? "" : "s"}`
+                          : "No roadmaps yet",
+                      },
+                      {
+                        label: "Interview completion",
+                        value: data.interviews.length
+                          ? Math.round(
+                              (completedInterviews / data.interviews.length) *
+                                100,
+                            )
+                          : 0,
+                        detail: `${completedInterviews} of ${data.interviews.length} sessions completed`,
+                      },
+                    ].map((item) => (
+                      <div key={item.label}>
+                        <div className="mb-2 flex items-center justify-between gap-3">
+                          <span className="text-xs font-medium text-white">
+                            {item.label}
+                          </span>
+                          <span className="text-xs font-semibold text-white">
+                            {loading ? (
+                              <Shimmer className="h-3 w-8" />
+                            ) : (
+                              `${item.value}%`
+                            )}
+                          </span>
+                        </div>
+                        <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.055]">
+                          <motion.div
+                            initial={false}
+                            animate={{ width: `${loading ? 0 : item.value}%` }}
+                            transition={{ duration: 0.6, ease }}
+                            className="h-full rounded-full bg-white"
+                          />
+                        </div>
+                        <p className="mt-2 text-[10px] text-[#92949B]">
+                          {loading ? (
+                            <Shimmer className="mt-2 h-2.5 w-32 max-w-full" />
+                          ) : (
+                            item.detail
+                          )}
+                        </p>
                       </div>
                     ))}
                   </div>
-                ) : activity.length ? (
-                  <div className="mt-4 divide-y divide-white/[0.07]">
-                    {activity.map((item) => {
+                  <div className="mt-6 rounded-2xl border border-white/[0.10] bg-white/[0.045] p-4">
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.055] text-white">
+                        <FiZap size={16} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-white">
+                          Keep your progress real
+                        </p>
+                        <p className="mt-1 text-[10px] leading-4 text-[#92949B]">
+                          Stats update from your saved activity; unavailable
+                          services are not replaced with sample numbers.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Surface>
+              </DashboardReveal>
+            </div>
+
+            <div className="mt-4 grid min-w-0 grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
+              <DashboardReveal delay={0.08} reduceMotion={reduceMotion}>
+                <Surface className="min-w-0 p-4 min-[480px]:p-5 sm:p-6">
+                  <div className="flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
+                        Latest updates
+                      </p>
+                      <h2 className="mt-2 text-xl font-medium tracking-[-0.03em]">
+                        Recent activity
+                      </h2>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/mock-interview/history")}
+                      className="inline-flex min-h-10 shrink-0 items-center gap-1 rounded-lg px-2 text-[11px] text-[#92949B] transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                    >
+                      View history <FiChevronRight size={14} />
+                    </button>
+                  </div>
+                  {loading ? (
+                    <div
+                      className="mt-5 divide-y divide-white/[0.06]"
+                      aria-label="Loading recent activity"
+                    >
+                      {[0, 1, 2].map((key) => (
+                        <div
+                          key={key}
+                          className="flex items-center gap-3 py-4 first:pt-1"
+                        >
+                          <Shimmer className="h-10 w-10 shrink-0 rounded-xl" />
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <Shimmer className="h-3 w-2/3 max-w-full" />
+                            <Shimmer className="h-2.5 w-1/2 max-w-full" />
+                          </div>
+                          <Shimmer className="h-2.5 w-12 shrink-0" />
+                        </div>
+                      ))}
+                    </div>
+                  ) : activity.length ? (
+                    <div className="mt-4 divide-y divide-white/[0.07]">
+                      {activity.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            type="button"
+                            key={item.id}
+                            onClick={() => navigate(item.action)}
+                            className="flex min-h-[60px] w-full items-center gap-3 py-4 text-left first:pt-1 last:pb-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/30"
+                          >
+                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white">
+                              <Icon size={16} />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-xs font-medium text-white">
+                                {item.title}
+                              </span>
+                              <span className="mt-1 block truncate text-[10px] capitalize text-[#92949B]">
+                                {item.detail}
+                              </span>
+                            </span>
+                            <span className="shrink-0 text-[10px] text-[#92949B]">
+                              {formatRelativeDate(item.date)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-5 rounded-2xl border border-dashed border-white/[0.10] px-4 py-8 text-center">
+                      <FiActivity
+                        className="mx-auto text-[#92949B]"
+                        size={20}
+                      />
+                      <p className="mt-3 text-xs font-medium text-white">
+                        No recent activity yet
+                      </p>
+                      <p className="mt-1 text-[10px] text-[#92949B]">
+                        Your saved interviews, roadmaps, resumes and billing
+                        events will appear here.
+                      </p>
+                    </div>
+                  )}
+                </Surface>
+              </DashboardReveal>
+
+              <DashboardReveal delay={0.14} reduceMotion={reduceMotion}>
+                <Surface className="min-w-0 p-4 min-[480px]:p-5 sm:p-6">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
+                    Quick access
+                  </p>
+                  <h2 className="mt-2 text-xl font-medium tracking-[-0.03em]">
+                    Your tools
+                  </h2>
+                  <div className="mt-4 space-y-2">
+                    {[
+                      {
+                        title: "Resume builder",
+                        desc: "Create and manage resumes",
+                        icon: FiFileText,
+                        to: "/builder/dashboard",
+                      },
+                      {
+                        title: "Mock interviews",
+                        desc: "Practice and review sessions",
+                        icon: FiPlay,
+                        to: "/mock-interview",
+                      },
+                      {
+                        title: "Learning roadmaps",
+                        desc: "Continue your learning paths",
+                        icon: FiBookOpen,
+                        to: "/roadmap",
+                      },
+                      {
+                        title: "Resume scorer",
+                        desc: "Review your resume score",
+                        icon: FiTarget,
+                        to: "/scorer",
+                      },
+                      {
+                        title: "Billing & balance",
+                        desc: "Manage credits and payments",
+                        icon: FiCreditCard,
+                        to: "/billing",
+                      },
+                    ].map((item) => {
                       const Icon = item.icon;
                       return (
                         <button
                           type="button"
-                          key={item.id}
-                          onClick={() => navigate(item.action)}
-                          className="flex w-full items-center gap-3 py-4 text-left first:pt-1 last:pb-1"
+                          key={item.title}
+                          onClick={() => navigate(item.to)}
+                          className="group flex min-h-[58px] w-full items-center gap-3 rounded-xl border border-transparent px-3 py-3 text-left transition-colors hover:border-white/[0.10] hover:bg-white/[0.045] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                         >
-                          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white">
-                            <Icon size={16} />
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white">
+                            <Icon size={15} />
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="block truncate text-xs font-medium text-white">
+                            <span className="block text-xs font-medium text-white">
                               {item.title}
                             </span>
-                            <span className="mt-1 block truncate text-[10px] capitalize text-[#92949B]">
-                              {item.detail}
+                            <span className="mt-1 block text-[10px] text-[#92949B]">
+                              {item.desc}
                             </span>
                           </span>
-                          <span className="shrink-0 text-[10px] text-[#92949B]">
-                            {formatRelativeDate(item.date)}
-                          </span>
+                          <FiArrowRight
+                            size={14}
+                            className="text-[#92949B] transition group-hover:translate-x-0.5 group-hover:text-white"
+                          />
                         </button>
                       );
                     })}
                   </div>
-                ) : (
-                  <div className="mt-5 rounded-2xl border border-dashed border-white/[0.10] px-4 py-8 text-center">
-                    <FiActivity className="mx-auto text-[#92949B]" size={20} />
-                    <p className="mt-3 text-xs font-medium text-white">
-                      No recent activity yet
-                    </p>
-                    <p className="mt-1 text-[10px] text-[#92949B]">
-                      Your saved interviews, roadmaps, resumes and billing
-                      events will appear here.
-                    </p>
-                  </div>
-                )}
-              </Surface>
-
-              <Surface className="p-5 sm:p-6">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white">
-                  Quick access
-                </p>
-                <h2 className="mt-2 text-xl font-medium tracking-[-0.03em]">
-                  Your tools
-                </h2>
-                <div className="mt-4 space-y-2">
-                  {[
-                    {
-                      title: "Resume builder",
-                      desc: "Create and manage resumes",
-                      icon: FiFileText,
-                      to: "/builder/dashboard",
-                    },
-                    {
-                      title: "Mock interviews",
-                      desc: "Practice and review sessions",
-                      icon: FiPlay,
-                      to: "/mock-interview",
-                    },
-                    {
-                      title: "Learning roadmaps",
-                      desc: "Continue your learning paths",
-                      icon: FiBookOpen,
-                      to: "/roadmap",
-                    },
-                    {
-                      title: "Resume scorer",
-                      desc: "Review your resume score",
-                      icon: FiTarget,
-                      to: "/scorer",
-                    },
-                    {
-                      title: "Billing & balance",
-                      desc: "Manage credits and payments",
-                      icon: FiCreditCard,
-                      to: "/billing",
-                    },
-                  ].map((item) => {
-                    const Icon = item.icon;
-                    return (
-                      <button
-                        type="button"
-                        key={item.title}
-                        onClick={() => navigate(item.to)}
-                        className="group flex w-full items-center gap-3 rounded-xl border border-transparent px-3 py-3 text-left transition hover:border-white/[0.10] hover:bg-white/[0.045]"
-                      >
-                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.10] bg-white/[0.045] text-white">
-                          <Icon size={15} />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-xs font-medium text-white">
-                            {item.title}
-                          </span>
-                          <span className="mt-1 block text-[10px] text-[#92949B]">
-                            {item.desc}
-                          </span>
-                        </span>
-                        <FiArrowRight
-                          size={14}
-                          className="text-[#92949B] transition group-hover:translate-x-0.5 group-hover:text-white"
-                        />
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => navigate("/builder/dashboard")}
-                  className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.055] px-4 text-xs font-semibold text-[var(--accent)] transition hover:bg-white/[0.1]"
-                >
-                  Open your workspace <FiArrowDownRight size={14} />
-                </button>
-              </Surface>
+                  <button
+                    type="button"
+                    onClick={() => navigate("/builder/dashboard")}
+                    className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-white/[0.14] bg-white/[0.055] px-4 text-xs font-semibold text-[var(--accent)] transition hover:bg-white/[0.1]"
+                  >
+                    Open your workspace <FiArrowDownRight size={14} />
+                  </button>
+                </Surface>
+              </DashboardReveal>
             </div>
 
-            <footer className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-white/[0.10] py-5 text-[10px] text-[#92949B] sm:flex-row">
+            <footer className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-white/[0.10] py-5 text-center text-[10px] text-[#92949B] sm:flex-row sm:text-left">
               <span>
                 RIO Workspace <span className="mx-1 text-white">.</span> Your
                 progress, in one place
@@ -863,28 +909,10 @@ const Dashboard = ({ user, setUser }) => {
               </span>
             </footer>
           </div>
-          <nav
-            aria-label="Dashboard quick actions"
-            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl md:hidden"
-          >
-            <div className="mx-auto flex max-w-md items-center gap-2">
-              <button
-                type="button"
-                onClick={() => navigate("/mock-interview/new")}
-                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.045] px-3 py-3 text-xs font-semibold text-[#E4E4E7] transition active:scale-[0.98]"
-              >
-                <FiPlay size={13} /> Start interview
-              </button>
-              <button
-                type="button"
-                onClick={() => navigate("/builder/dashboard")}
-                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] transition active:scale-[0.98]"
-              >
-                <FiFileText size={14} /> Resume Builder{" "}
-                <FiArrowRight size={13} />
-              </button>
-            </div>
-          </nav>
+          <DashboardMobileActionBar
+            onStartInterview={() => navigate("/mock-interview/new")}
+            onOpenResume={() => navigate("/builder/dashboard")}
+          />
         </main>
       </div>
     </div>

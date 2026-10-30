@@ -50,7 +50,9 @@ export const updateResume = async (resumeData) => {
 };
 
 export const deleteResume = async (resumeId) => {
-  const response = await api.delete(`/api/resumes/${resumeId}`);
+  const response = await api.delete(
+    `/api/resumes/${encodeURIComponent(resumeId)}`,
+  );
   return response.data;
 };
 

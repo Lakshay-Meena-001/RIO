@@ -1,3 +1,4 @@
+import MobileActionBar from "../../components/MobileActionBar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
@@ -337,7 +338,7 @@ export default function BillingHistoryPage({ user }) {
       }),
     [transactions, filter, search],
   );
-  
+
   const selected =
     filtered.find((t) => idOf(t) === selectedId) ||
     transactions.find((t) => idOf(t) === selectedId) ||
@@ -1189,7 +1190,7 @@ export default function BillingHistoryPage({ user }) {
         </aside>
 
         {/* Mobile actions stay anchored at the bottom, outside the scrollable content. */}
-        <div className="fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#111315]/90 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden">
+        <MobileActionBar className="md:hidden">
           <div className="grid grid-cols-2 gap-2">
             {selectedIsLivePending ? (
               <>
@@ -1234,7 +1235,7 @@ export default function BillingHistoryPage({ user }) {
               </>
             )}
           </div>
-        </div>
+        </MobileActionBar>
 
         <button
           onClick={() => void load()}

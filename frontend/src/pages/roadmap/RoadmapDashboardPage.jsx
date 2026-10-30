@@ -1,3 +1,5 @@
+import MobileActionBar from "../../components/MobileActionBar";
+import ServiceNavigation from "../../components/ServiceNavigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { motion } from "framer-motion";
@@ -6,8 +8,6 @@ import { useNavigate } from "react-router-dom";
 
 import { getUserRoadmaps } from "../../api/roadmap/roadmap.api.js";
 
-import Sidebar from "../../components/SideBar";
-import MobileHeader from "../../components/MobileHeader";
 import Surface from "../../components/ui/Surface";
 
 import {
@@ -151,8 +151,8 @@ const RoadmapDashboardPage = ({
   }, [fetchRoadmaps]);
 
   const [sidebarOpen, setSidebarOpen] = useState(
-  () => localStorage.getItem("rio-sidebar-open") !== "false"
-);
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
 
   const firstName = user?.name?.split(" ")?.[0] || "there";
 
@@ -267,25 +267,20 @@ const RoadmapDashboardPage = ({
       </div>
 
       <div className="relative z-10">
-        <MobileHeader
-          onOpenNavigation={() => setMobileOpen(true)}
-          user={user}
-        />
-
         <div className="flex min-h-screen">
-          <Sidebar
-            mobileOpen={mobileOpen}
-            setMobileOpen={setMobileOpen}
-            user={user}
-            sidebarOpen={sidebarOpen}
-            setUser={setUser}
-            setSidebarOpen={setSidebarOpen}
-          />
+          <ServiceNavigation
+          user={user}
+          setUser={setUser}
+          mobileOpen={mobileOpen}
+          setMobileOpen={setMobileOpen}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+        />
 
           <main
             className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
           >
-            <div className="mx-auto w-full max-w-[1480px] px-5 pb-6 pt-[88px] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10">
+            <div className="mx-auto w-full max-w-[1480px] px-5 pb-6 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10">
               {/***** Editorial hero: typography, spacing and actions copied from Mock Interview. *****/}
 
               <motion.section
@@ -842,7 +837,7 @@ const RoadmapDashboardPage = ({
 
       {/***** Same fixed mobile action pattern as Mock Interview. *****/}
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/[0.92] p-3 backdrop-blur-xl sm:hidden">
+      <MobileActionBar className="sm:hidden">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -866,7 +861,7 @@ const RoadmapDashboardPage = ({
             <FiArrowRight size={14} className="sm:hidden" />
           </button>
         </div>
-      </div>
+      </MobileActionBar>
     </div>
   );
 };

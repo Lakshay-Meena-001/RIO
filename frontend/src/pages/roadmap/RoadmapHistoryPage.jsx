@@ -1,3 +1,4 @@
+import MobileActionBar from "../../components/MobileActionBar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import RoadmapDetailPage from "./RoadmapDetailPage.jsx";
@@ -1179,7 +1180,7 @@ export default function RoadmapHistoryPage() {
       </div>
 
       {/* Mobile actions stay anchored at the bottom, outside the scrollable content. */}
-      <div className="rio-history-mobile-bottom-bar fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#111315]/88 px-3 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
+      <MobileActionBar className="lg:hidden">
         {selectedId ? (
           <div className="mx-auto grid max-w-md grid-cols-2 gap-2">
             <button
@@ -1213,7 +1214,7 @@ export default function RoadmapHistoryPage() {
             <FiArrowRight size={14} />
           </button>
         )}
-      </div>
+      </MobileActionBar>
 
       {confirmDelete && (
         <div

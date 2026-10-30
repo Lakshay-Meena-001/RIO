@@ -1,3 +1,7 @@
+import MobileActionBar from "../../components/MobileActionBar";
+import ServiceNavigation from "../../components/ServiceNavigation";
+import TransactionStatusLabel from "../../components/billing/TransactionStatusLabel";
+import BillingMetricCard from "../../components/billing/BillingMetricCard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
@@ -9,11 +13,9 @@ import {
   FiRefreshCw,
   FiAlertCircle,
   FiCheckCircle,
-  FiXCircle,
   FiPlus,
 } from "react-icons/fi";
 
-import Sidebar from "../../components/SideBar";
 import Surface from "../../components/ui/Surface";
 
 import {
@@ -28,7 +30,6 @@ import {
 
 import AddBalanceModal from "./AddBalanceModal";
 import PageEyebrow from "../../components/ui/PageEyebrow";
-import MobileHeader from "../../components/MobileHeader";
 
 const ease = [0.22, 1, 0.36, 1];
 
@@ -139,29 +140,13 @@ const getStatus = (transaction) =>
     transaction?.status ?? transaction?.paymentStatus ?? "unknown",
   ).toLowerCase();
 
-const SUCCESS_STATUSES = [
+const SUCCESS_STATUSES = new Set([
   "paid",
   "completed",
   "captured",
   "success",
   "succeeded",
-];
-
-function StatusLabel({ status }) {
-  const normalized = String(status || "unknown").toLowerCase();
-
-  const isSuccess = SUCCESS_STATUSES.includes(normalized);
-  const isPending = ["pending", "created", "processing"].includes(normalized);
-
-  const Icon = isSuccess ? FiCheckCircle : isPending ? FiClock : FiXCircle;
-
-  return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/[0.09] bg-white/[0.035] px-2.5 py-1 text-[10px] font-medium capitalize text-[#B9BBC2]">
-      <Icon size={12} />
-      {normalized.replaceAll("-", " ")}
-    </span>
-  );
-}
+]);
 
 export default function BillingDashboardPage({ user, setUser }) {
   const navigate = useNavigate();
@@ -539,7 +524,7 @@ export default function BillingDashboardPage({ user, setUser }) {
   const paidTransactions = useMemo(
     () =>
       transactions.filter((transaction) =>
-        SUCCESS_STATUSES.includes(getStatus(transaction)),
+        SUCCESS_STATUSES.has(getStatus(transaction)),
       ),
     [transactions],
   );
@@ -588,14 +573,12 @@ export default function BillingDashboardPage({ user, setUser }) {
       </div>
 
       {/* Shared mobile app bar */}
-      <MobileHeader onOpenNavigation={() => setMobileOpen(true)} user={user} />
-
       <div className="relative z-10 flex min-h-screen">
-        <Sidebar
-          mobileOpen={mobileOpen}
-          setMobileOpen={setMobileOpen}
+        <ServiceNavigation
           user={user}
           setUser={setUser}
+          mobileOpen={mobileOpen}
+          setMobileOpen={setMobileOpen}
           sidebarOpen={sidebarOpen}
           setSidebarOpen={setSidebarOpen}
         />
@@ -605,7 +588,7 @@ export default function BillingDashboardPage({ user, setUser }) {
             sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
           }`}
         >
-          <div className="mx-auto w-full max-w-[1480px] px-5 pb-22 pt-[88px] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
+          <div className="mx-auto w-full max-w-[1480px] px-5 pb-22 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
             {/* Page heading */}
             <motion.section
               initial={reduceMotion ? false : { opacity: 0, y: 10 }}
@@ -743,39 +726,14 @@ export default function BillingDashboardPage({ user, setUser }) {
             {/* Billing overview */}
             <section aria-label="Billing overview" className="mb-9">
               <div className="grid gap-3 md:grid-cols-3">
-                {stats.map(({ label, value, detail, Icon }, index) => (
-                  <motion.div
-                    key={label}
-                    initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      duration: 0.35,
-                      delay: index * 0.055,
-                      ease,
-                    }}
-                  >
-                    <Surface className="h-full p-5 sm:p-6">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.15em] text-[#777A82]">
-                          {label}
-                        </p>
-
-                        <Icon size={17} className="shrink-0 text-[#92949B]" />
-                      </div>
-
-                      <p className="mt-5 break-words text-[30px] font-semibold tracking-[-0.05em] sm:text-[36px]">
-                        {loading ? (
-                          <span className="inline-block h-9 w-24 animate-pulse rounded-lg bg-white/[0.08]" />
-                        ) : (
-                          value
-                        )}
-                      </p>
-
-                      <p className="mt-2 text-[11px] leading-5 text-[#71747C]">
-                        {detail}
-                      </p>
-                    </Surface>
-                  </motion.div>
+                {stats.map((stat, index) => (
+                  <BillingMetricCard
+                    key={stat.label}
+                    {...stat}
+                    loading={loading}
+                    index={index}
+                    reduceMotion={reduceMotion}
+                  />
                 ))}
               </div>
             </section>
@@ -856,7 +814,9 @@ export default function BillingDashboardPage({ user, setUser }) {
                         </div>
 
                         <div className="flex items-center justify-between gap-4 pl-[52px] sm:pl-0">
-                          <StatusLabel status={getStatus(transaction)} />
+                          <TransactionStatusLabel
+                            status={getStatus(transaction)}
+                          />
 
                           <span className="text-sm font-semibold text-white">
                             {transaction?.source === "balance" ||
@@ -942,7 +902,7 @@ export default function BillingDashboardPage({ user, setUser }) {
       </div>
 
       {/* Mobile bottom actions */}
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/[0.08] bg-[#111315]/90 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur-xl sm:hidden">
+      <MobileActionBar className="sm:hidden">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -966,7 +926,7 @@ export default function BillingDashboardPage({ user, setUser }) {
             <FiArrowRight size={14} />
           </button>
         </div>
-      </div>
+      </MobileActionBar>
       {cancelConfirmOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
           <section

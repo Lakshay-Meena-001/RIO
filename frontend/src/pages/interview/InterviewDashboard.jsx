@@ -1,9 +1,9 @@
+import MobileActionBar from "../../components/MobileActionBar";
+import ServiceNavigation from "../../components/ServiceNavigation";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
-import Sidebar from "../../components/SideBar";
-import MobileHeader from "../../components/MobileHeader";
 import {
   getInterviewHistory,
   getActiveInterview,
@@ -21,8 +21,8 @@ const MockInterview = ({ user, setUser }) => {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(
-  () => localStorage.getItem("rio-sidebar-open") !== "false"
-);
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
   const [activeInterview, setActiveInterview] = useState(null);
   const [activeLoading, setActiveLoading] = useState(true);
   const [showReplaceInterviewModal, setShowReplaceInterviewModal] =
@@ -403,18 +403,13 @@ const MockInterview = ({ user, setUser }) => {
 
       <div className="relative z-10">
         {/* Mobile navigation */}
-        <MobileHeader
-          onOpenNavigation={() => setMobileOpen(true)}
-          user={user}
-        />
-
         <div className="flex min-h-screen">
-          <Sidebar
+          <ServiceNavigation
+            user={user}
+            setUser={setUser}
             mobileOpen={mobileOpen}
             setMobileOpen={setMobileOpen}
-            user={user}
             sidebarOpen={sidebarOpen}
-            setUser={setUser}
             setSidebarOpen={setSidebarOpen}
           />
 
@@ -423,7 +418,7 @@ const MockInterview = ({ user, setUser }) => {
               sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
             }`}
           >
-            <div className="mx-auto w-full max-w-[1480px] px-5 pb-22 pt-[88px] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10">
+            <div className="mx-auto w-full max-w-[1480px] px-5 pb-22 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10">
               {/* Editorial header */}
               <motion.section
                 initial={{ opacity: 0, y: 10 }}
@@ -1007,7 +1002,8 @@ const MockInterview = ({ user, setUser }) => {
               </motion.section>
 
               {/* Closing action — intentionally open, not another card. */}
-              {!loading && !error && interviews.length > 0 && (
+              {/* Closing action */}
+              {!loading && !error && (
                 <motion.section
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1108,7 +1104,7 @@ const MockInterview = ({ user, setUser }) => {
       )}
 
       {/* Mobile primary action */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/88 p-3 backdrop-blur-xl sm:hidden">
+      <MobileActionBar className="sm:hidden">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -1129,7 +1125,7 @@ const MockInterview = ({ user, setUser }) => {
             <FiArrowRight size={14} />
           </button>
         </div>
-      </div>
+      </MobileActionBar>
     </div>
   );
 };

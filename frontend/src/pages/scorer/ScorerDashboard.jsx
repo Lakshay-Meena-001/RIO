@@ -1,3 +1,4 @@
+import ServiceNavigation from "../../components/ServiceNavigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -16,8 +17,6 @@ import {
 } from "react-icons/fi";
 
 import api from "../../utils/axios";
-import Sidebar from "../../components/SideBar";
-import MobileHeader from "../../components/MobileHeader";
 import Surface from "../../components/ui/Surface";
 
 import { getCurrentUser } from "../../api/user/user.api";
@@ -269,22 +268,20 @@ export default function ScorerDashboard({ user, setUser }) {
         />
       </div>
 
-      <MobileHeader onOpenNavigation={() => setMobileOpen(true)} user={user} />
-
       <div className="relative z-10 flex min-h-screen w-full min-w-0">
-        <Sidebar
+        <ServiceNavigation
+          user={user}
+          setUser={setUser}
           mobileOpen={mobileOpen}
           setMobileOpen={setMobileOpen}
-          user={user}
           sidebarOpen={sidebarOpen}
-          setUser={setUser}
           setSidebarOpen={setSidebarOpen}
         />
 
         <main
           className={`min-w-0 w-full flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
-          <div className="mx-auto w-full min-w-0 max-w-[1480px] px-4 pb-16 pt-[88px] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
+          <div className="mx-auto w-full min-w-0 max-w-[1480px] px-4 pb-16 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
             <section className="mb-8 flex min-w-0 flex-col gap-6 lg:mb-10 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 max-w-3xl">
                 <PageEyebrow className="mb-4">Resume intelligence</PageEyebrow>
@@ -627,7 +624,7 @@ export default function ScorerDashboard({ user, setUser }) {
 
         <nav
           aria-label="Resume scorer quick actions"
-          className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.10] bg-[#111315]/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:hidden"
+          className="rio-mobile-action-bar fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.10] bg-[#111315]/95 px-4 pb-[max(12px,env(safe-area-inset-bottom))] pt-3 shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:hidden"
         >
           <div className="mx-auto flex max-w-md items-center gap-3">
             <button

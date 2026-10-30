@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useNavigate } from "react-router-dom";
 import {
   FiArrowRight,
   FiClock,
   FiFileText,
-  FiPlus,
   FiEdit3,
   FiCheckCircle,
   FiTrendingUp,
@@ -14,38 +13,19 @@ import {
 } from "react-icons/fi";
 
 import { getResumes } from "../../api/resume/resume.api";
-import Sidebar from "../../components/SideBar";
+import Sidebar from "../../components/sidebar/SideBar";
 import MobileHeader from "../../components/MobileHeader";
-import Surface from "../../components/ui/Surface";
 import PageEyebrow from "../../components/ui/PageEyebrow";
+import Surface from "../../components/ui/Surface";
+import {
+  PrimaryButton,
+  SecondaryButton,
+} from "../../components/resume-builder/dashboard/ResumeActionButtons";
+import ResumeDashboardMobileActionBar from "../../components/resume-builder/dashboard/ResumeDashboardMobileActionBar";
+import ResumeDashboardStats from "../../components/resume-builder/dashboard/ResumeDashboardStats";
+import "./resume-builder.css";
 
 const ease = [0.22, 1, 0.36, 1];
-
-const PrimaryButton = ({ children, onClick, className = "" }) => (
-  <motion.button
-    type="button"
-    onClick={onClick}
-    whileHover={{ y: -1 }}
-    whileTap={{ scale: 0.99 }}
-    transition={{ duration: 0.18, ease }}
-    className={`group inline-flex min-h-10 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.06)] transition duration-200 hover:shadow-[0_14px_34px_rgba(255,255,255,0.10)] sm:px-5 ${className}`}
-  >
-    {children}
-  </motion.button>
-);
-
-const SecondaryButton = ({ children, onClick, className = "" }) => (
-  <motion.button
-    type="button"
-    onClick={onClick}
-    whileHover={{ y: -1 }}
-    whileTap={{ scale: 0.99 }}
-    transition={{ duration: 0.18, ease }}
-    className={`group inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20 sm:px-5 ${className}`}
-  >
-    {children}
-  </motion.button>
-);
 
 const getPayload = (response) =>
   response?.data?.data ?? response?.data ?? response;
@@ -206,7 +186,7 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-x-clip bg-[#17191C] text-white">
+    <div className="rio-resume-dashboard relative min-h-screen overflow-x-clip bg-[#17191C] text-white">
       <div
         aria-hidden="true"
         className="pointer-events-none fixed inset-0"
@@ -234,7 +214,7 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
             sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
           }`}
         >
-          <div className="mx-auto w-full max-w-[1600px] px-4 pb-20 pt-[88px] sm:px-7 sm:pb-10 lg:px-9 lg:pt-9">
+          <div className="rio-dashboard-content mx-auto w-full max-w-[1600px] px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-10 sm:pt-8 lg:px-9 lg:pt-9">
             {/* Page heading */}
             <motion.section
               initial={reduceMotion ? false : { opacity: 0, y: 10 }}
@@ -274,53 +254,11 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
               </div>
             </motion.section>
 
-            {/* Four overview cards */}
-            <section aria-label="Resume overview" className="mb-9">
-              <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-                {stats.map((stat, index) => {
-                  const Icon = stat.icon;
-
-                  return (
-                    <motion.div
-                      key={stat.label}
-                      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{
-                        duration: 0.35,
-                        delay: index * 0.055,
-                        ease,
-                      }}
-                      whileHover={reduceMotion ? undefined : { y: -3 }}
-                    >
-                      <Surface className="h-full p-4 sm:p-5">
-                        {/* Title and icon unchanged */}
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-[#777A82]">
-                            {stat.label}
-                          </p>
-                          <Icon className="shrink-0 text-[#777A82]" size={16} />
-                        </div>
-
-                        {/* Number centered */}
-                        <p className="mt-4 text-center text-[28px] font-semibold tracking-[-0.05em] sm:text-[34px]">
-                          {loading ? (
-                            <span className="inline-block h-8 w-12 animate-pulse rounded-lg bg-white/[0.08]" />
-                          ) : (
-                            stat.value
-                          )}
-                        </p>
-
-                        {/* Supporting text centered */}
-                        <p className="mt-1 text-center text-[10px] leading-4 text-[#71747C]">
-                          {stat.detail}
-                        </p>
-                      </Surface>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </section>
-
+            <ResumeDashboardStats
+              stats={stats}
+              loading={loading}
+              reduceMotion={reduceMotion}
+            />
             {/* Continue editing */}
             <section className="mb-10">
               <div className="mb-5 flex items-end justify-center gap-3 sm:justify-between">
@@ -574,29 +512,10 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
         </main>
       </div>
 
-      {/* Mobile bottom bar: matching the dashboard action-bar style */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/88 p-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur-xl sm:hidden">
-        <div className="mx-auto flex max-w-md items-center gap-2">
-          <button
-            type="button"
-            onClick={openHistory}
-            className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20"
-          >
-            <FiClock size={14} />
-            <span>History</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={openBuilder}
-            className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 active:scale-[0.99]"
-          >
-            <FiPlus size={14} />
-            <span>Resume Builder</span>
-            <FiArrowRight size={14} />
-          </button>
-        </div>
-      </div>
+      <ResumeDashboardMobileActionBar
+        onOpenHistory={openHistory}
+        onOpenBuilder={openBuilder}
+      />
     </div>
   );
 };

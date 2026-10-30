@@ -1,3 +1,5 @@
+import MobileActionBar from "../../components/MobileActionBar";
+import ServiceNavigation from "../../components/ServiceNavigation";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -16,8 +18,6 @@ import {
   FiX,
 } from "react-icons/fi";
 
-import Sidebar from "../../components/SideBar";
-import MobileHeader from "../../components/MobileHeader";
 import {
   startInterview,
   getActiveInterview,
@@ -527,27 +527,22 @@ const NewInterview = ({ user, setUser }) => {
 
       <div className="relative z-10">
         {/* Mobile top bar */}
-        <MobileHeader
-          onOpenNavigation={() => setMobileOpen(true)}
-          user={user}
-        />
-
         <div className="flex min-h-screen">
-          <Sidebar
-            mobileOpen={mobileOpen}
-            setMobileOpen={setMobileOpen}
-            user={user}
-            sidebarOpen={sidebarOpen}
-            setUser={setUser}
-            setSidebarOpen={setSidebarOpen}
-          />
+          <ServiceNavigation
+          user={user}
+          setUser={setUser}
+          mobileOpen={mobileOpen}
+          setMobileOpen={setMobileOpen}
+          sidebarOpen={sidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+        />
 
           <main
             className={`min-w-0 flex-1 transition-[margin-left] duration-300 ${
               sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
             }`}
           >
-            <div className="mx-auto w-full max-w-[1400px] px-4 pb-18 pt-[86px] sm:px-6 lg:px-8 lg:py-8 lg:pb-12">
+            <div className="mx-auto w-full max-w-[1400px] px-4 pb-18 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-6 lg:px-8 lg:py-8 lg:pb-12">
               {/* Header */}
               <div className="mb-8">
                 <div className="mb-6 border-b border-white/[0.08] pb-4">
@@ -1225,7 +1220,7 @@ const NewInterview = ({ user, setUser }) => {
       </div>
 
       {/* Mobile primary action — keep identical to the Interview Dashboard */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/88 p-3 backdrop-blur-xl sm:hidden">
+      <MobileActionBar className="sm:hidden">
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -1258,7 +1253,7 @@ const NewInterview = ({ user, setUser }) => {
             )}
           </button>
         </div>
-      </div>
+      </MobileActionBar>
     </div>
   );
 };

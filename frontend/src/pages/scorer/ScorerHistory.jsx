@@ -1,3 +1,4 @@
+import MobileActionBar from "../../components/MobileActionBar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -581,7 +582,7 @@ export default function ScorerHistory() {
         </div>
       </main>
 
-      <div className="rio-history-mobile-bottom-bar fixed inset-x-0 bottom-0 z-[60] border-t border-white/[0.08] bg-[#111315]/88 px-3 pt-2.5 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur-xl lg:hidden">
+      <MobileActionBar className="lg:hidden">
         <div className="mx-auto grid max-w-md grid-cols-2 gap-2">
           <button
             type="button"
@@ -598,7 +599,7 @@ export default function ScorerHistory() {
             <FiBarChart2 size={14} /> New analysis
           </button>
         </div>
-      </div>
+      </MobileActionBar>
 
       {showDeleteModal &&
         createPortal(

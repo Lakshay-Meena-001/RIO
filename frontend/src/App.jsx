@@ -8,6 +8,7 @@ import {
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
 import { Toaster } from "react-hot-toast";
+import "./pages/resume/resume-builder.css";
 
 // Existing pages
 const Home = lazy(() => import("./pages/home/Home"));
@@ -99,10 +100,13 @@ const App = () => {
     getUser();
   }, []);
 
-  // Fetch user's resume
+  // Fetch the user's resume collection when the account changes, not whenever
+  // another part of the user object (for example, balance) is refreshed.
+  const currentUserId =
+    user?.userId || user?._id || user?.id || user?.email || null;
 
   useEffect(() => {
-    if (!user) return;
+    if (!currentUserId) return;
 
     const getResumeData = async () => {
       try {
@@ -124,15 +128,17 @@ const App = () => {
     };
 
     getResumeData();
-  }, [user, dispatch]);
+  }, [currentUserId, dispatch]);
 
   // Initial loading
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A]">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-white" />
-      </div>
+      <>
+        <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A]">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-white" />
+        </div>
+      </>
     );
   }
 
@@ -163,11 +169,23 @@ const App = () => {
         <Suspense
           fallback={
             <div
-              className="flex min-h-[60vh] items-center justify-center"
+              className="rio-route-skeleton"
               role="status"
               aria-label="Loading page"
             >
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/10 border-t-white" />
+              <span className="sr-only">Loading page…</span>
+              <div className="rio-route-skeleton__sidebar" aria-hidden="true" />
+              <div className="rio-route-skeleton__content" aria-hidden="true">
+                <div className="rio-route-skeleton__line rio-route-skeleton__line--title" />
+                <div className="rio-route-skeleton__line rio-route-skeleton__line--subtitle" />
+                <div className="rio-route-skeleton__stats">
+                  <i />
+                  <i />
+                  <i />
+                  <i />
+                </div>
+                <div className="rio-route-skeleton__panel" />
+              </div>
             </div>
           }
         >

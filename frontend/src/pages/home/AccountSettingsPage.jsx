@@ -1,3 +1,4 @@
+import ServiceNavigation from "../../components/ServiceNavigation";
 import { useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -22,8 +23,6 @@ import {
 import { auth } from "../../utils/firebase";
 import api from "../../utils/axios";
 import toast from "react-hot-toast";
-import Sidebar from "../../components/SideBar";
-import MobileHeader from "../../components/MobileHeader";
 import Surface from "../../components/ui/Surface";
 import PageEyebrow from "../../components/ui/PageEyebrow";
 
@@ -279,9 +278,8 @@ export default function AccountSettingsPage({ user, setUser }) {
             "radial-gradient(ellipse 70% 55% at 88% 4%, rgba(255,255,255,0.065) 0%, rgba(255,255,255,0.02) 42%, transparent 72%), radial-gradient(ellipse 65% 55% at 0% 92%, rgba(255,255,255,0.03) 0%, transparent 70%), linear-gradient(135deg, #191b1e 0%, #17191c 48%, #141619 100%)",
         }}
       />
-      <MobileHeader onOpenNavigation={() => setMobileOpen(true)} user={user} />
       <div className="relative z-10 flex min-h-screen">
-        <Sidebar
+        <ServiceNavigation
           user={user}
           setUser={setUser}
           mobileOpen={mobileOpen}
@@ -292,7 +290,7 @@ export default function AccountSettingsPage({ user, setUser }) {
         <main
           className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
-          <div className="mx-auto w-full max-w-[1480px] px-5 pb-10 pt-[88px] sm:px-7 lg:px-10 lg:pt-10">
+          <div className="mx-auto w-full max-w-[1480px] px-5 pb-10 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 lg:px-10 lg:pt-10">
             <motion.header
               initial={reduceMotion ? false : { opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}

@@ -1,3 +1,4 @@
+import MobileActionBar from "../../components/MobileActionBar";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import InterviewReport from "./InterviewReport";
@@ -657,7 +658,7 @@ export default function InterviewHistory() {
           </div>
         </main>
       </div>
-      <div className="rio-history-mobile-bottom-bar fixed inset-x-0 bottom-0 z-[60] border-t border-white/[.08] bg-[#111315]/92 px-4 pt-3 backdrop-blur-2xl pb-[calc(.75rem+env(safe-area-inset-bottom))] lg:hidden">
+      <MobileActionBar className="lg:hidden">
         {interviews.length === 0 && !loading && !error ? (
           <button
             onClick={() => navigate("/mock-interview/new")}
@@ -686,7 +687,7 @@ export default function InterviewHistory() {
             </button>
           </div>
         )}
-      </div>
+      </MobileActionBar>
     </div>
   );
 }

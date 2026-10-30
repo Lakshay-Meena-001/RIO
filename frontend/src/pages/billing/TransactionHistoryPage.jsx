@@ -1145,7 +1145,7 @@ export default function BillingHistoryPage({ user }) {
 
         <div
           className={cx(
-            "rio-history-mobile-bottom-bar fixed inset-x-0 bottom-0 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-2.5 pb-3 backdrop-blur-xl md:hidden",
+            "rio-history-mobile-bottom-bar rio-mobile-action-bar fixed inset-x-0 bottom-0 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-2.5 pb-3 backdrop-blur-xl md:hidden",
             mobileOpen ? "z-40" : "z-[60]",
           )}
           style={{

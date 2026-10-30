@@ -136,7 +136,6 @@
   border-color: var(--border-strong);
 }
 
-
 .rio-button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -1179,4 +1178,16 @@ a {
   .pdf-actions-responsive {
     display: flex !important;
   }
+}
+
+
+/* Shared mobile action-bar surface only. Layout stays component-owned so a
+   page's flex/grid structure is never overwritten by a global selector. */
+.rio-mobile-action-bar {
+  box-sizing: border-box;
+  border-color: var(--border, rgba(255, 255, 255, 0.08));
+  background: color-mix(in srgb, var(--surface, #111315) 92%, transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
 }

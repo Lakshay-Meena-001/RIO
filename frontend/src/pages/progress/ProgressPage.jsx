@@ -1,3 +1,6 @@
+import ProgressBar from "../../components/progress/ProgressBar";
+import ProgressStatCard from "../../components/progress/ProgressStatCard";
+import ServiceNavigation from "../../components/ServiceNavigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -13,8 +16,6 @@ import {
   FiTrendingUp,
   FiZap,
 } from "react-icons/fi";
-import Sidebar from "../../components/SideBar.jsx";
-import MobileHeader from "../../components/MobileHeader";
 import Surface from "../../components/ui/Surface";
 import { getUserRoadmaps } from "../../api/roadmap/roadmap.api.js";
 import { getInterviewHistory } from "../../api/interview/interview.api.js";
@@ -39,18 +40,6 @@ const dateLabel = (value) => {
         year: "numeric",
       });
 };
-
-const ProgressBar = ({ value = 0 }) => (
-  <div className="h-1.5 overflow-hidden rounded-full bg-white/[.08]">
-    <div
-      className="h-full rounded-full transition-all duration-700"
-      style={{
-        width: `${Math.max(0, Math.min(100, value))}%`,
-        background: "linear-gradient(90deg, #D4D4D8, #FFFFFF)",
-      }}
-    />
-  </div>
-);
 
 export default function ProgressPage({ user, setUser }) {
   const navigate = useNavigate();
@@ -261,7 +250,7 @@ export default function ProgressPage({ user, setUser }) {
         }}
       />
       <div className="relative z-20">
-        <Sidebar
+        <ServiceNavigation
           user={user}
           setUser={setUser}
           mobileOpen={mobileOpen}
@@ -272,12 +261,8 @@ export default function ProgressPage({ user, setUser }) {
       </div>
       {/* mx-auto w-full max-w-[1480px] px-5 pb-6 pt-[88px] sm:px-7 lg:px-10 lg:pb-12 lg:pt-10 */}
       <main
-        className={`relative z-10 min-h-screen px-5 pb-6 pt-[88px] transition-[margin] duration-300 sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10 ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
+        className={`relative z-10 min-h-screen px-5 pb-6 pt-[clamp(5.5rem,10vh,6.5rem)] transition-[margin] duration-300 sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10 ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
       >
-        <MobileHeader
-          onOpenNavigation={() => setMobileOpen(true)}
-          user={user}
-        />
         <div className="mx-auto w-full max-w-[1600px]">
           <div className="mb-8 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
             <div>
@@ -392,36 +377,9 @@ export default function ProgressPage({ user, setUser }) {
             </div>
           )}
           <div className="mb-7 grid grid-cols-2 gap-3 xl:grid-cols-4">
-            {stats.map((s, index) => {
-              const Icon = s.icon;
-              return (
-                <motion.div
-                  key={s.label}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <Surface className="h-full">
-                    <div className="p-3 sm:p-5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] leading-4 text-[#92949B] sm:text-xs">
-                          {s.label}
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-white/[0.055] p-2 text-[#D4D4D8]">
-                          <Icon size={16} />
-                        </span>
-                      </div>
-                      <div className="mt-4 text-2xl font-semibold tracking-[-.045em] sm:mt-5 sm:text-3xl">
-                        {loading ? "—" : s.value}
-                      </div>
-                      <p className="mt-2 text-[10px] leading-4 text-[#777A82] sm:text-[11px]">
-                        {loading ? "Loading saved data…" : s.note}
-                      </p>
-                    </div>
-                  </Surface>
-                </motion.div>
-              );
-            })}
+            {stats.map((stat, index) => (
+              <ProgressStatCard key={stat.label} stat={stat} loading={loading} index={index} />
+            ))}
           </div>
           <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
             <Surface>
@@ -593,7 +551,7 @@ export default function ProgressPage({ user, setUser }) {
           </p>
           <nav
             aria-label="Progress quick actions"
-            className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl md:hidden"
+            className="rio-mobile-action-bar fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl md:hidden"
           >
             <div className="mx-auto flex max-w-md items-center gap-2">
               <button

@@ -1,3 +1,6 @@
+import MobileActionBar from "../../components/MobileActionBar";
+import ServiceNavigation from "../../components/ServiceNavigation";
+import { ProfilePanel as Panel, ProfileIconButton as IconButton } from "../../components/profile/ProfilePrimitives";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -22,10 +25,8 @@ import {
 } from "react-icons/fi";
 
 import toast from "react-hot-toast";
-import Sidebar from "../../components/SideBar";
 import { updateProfessionalProfile, logoutUser } from "../../api/user/user.api";
 import PageEyebrow from "../../components/ui/PageEyebrow";
-import MobileHeader from "../../components/MobileHeader";
 import ConfirmDialog from "../../components/ui/ConfirmDialog";
 
 const ease = [0.22, 1, 0.36, 1];
@@ -75,35 +76,6 @@ const formFields = [
   },
 ];
 
-const Panel = ({ children, className = "" }) => (
-  <section
-    className={`relative overflow-hidden rounded-[22px] border border-white/[0.09] bg-[#111315] ${className}`}
-  >
-    <div
-      aria-hidden="true"
-      className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_75%_85%_at_100%_0%,rgba(255,255,255,0.045),transparent_68%)]"
-    />
-    <div className="relative">{children}</div>
-  </section>
-);
-
-const IconButton = ({
-  children,
-  onClick,
-  disabled,
-  className = "",
-  ...props
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    disabled={disabled}
-    className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-4 text-xs font-semibold text-white/75 transition hover:border-white/20 hover:bg-white/[0.075] disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
-    {...props}
-  >
-    {children}
-  </button>
-);
 
 const safeLink = (value) => {
   if (!value || typeof value !== "string") return "";
@@ -365,10 +337,8 @@ export default function ProfilePage({ user, setUser }) {
         aria-hidden="true"
         className="pointer-events-none fixed inset-0 bg-[radial-gradient(ellipse_70%_45%_at_85%_0%,rgba(255,255,255,0.045),transparent_70%)]"
       />
-      <MobileHeader onOpenNavigation={() => setMobileOpen(true)} user={user} />
-
       <div className="relative z-10 flex min-h-screen">
-        <Sidebar
+        <ServiceNavigation
           user={user}
           setUser={setUser}
           mobileOpen={mobileOpen}
@@ -379,7 +349,7 @@ export default function ProfilePage({ user, setUser }) {
         <main
           className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
-          <div className="mx-auto w-full max-w-[1600px] px-4 pb-28 pt-[88px] sm:px-7 sm:pb-12 lg:px-9 lg:pt-9">
+          <div className="mx-auto w-full max-w-[1600px] px-4 pb-28 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-12 lg:px-9 lg:pt-9">
             <motion.header
               initial={reveal()}
               animate={enter()}
@@ -1174,7 +1144,7 @@ export default function ProfilePage({ user, setUser }) {
         )}
       </AnimatePresence>
 
-      <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/[0.08] bg-[#111315]/92 p-3 pb-[max(12px,env(safe-area-inset-bottom))] backdrop-blur-xl md:hidden">
+      <MobileActionBar className="md:hidden">
         <div className="mx-auto flex w-full max-w-md flex-row items-center justify-center gap-2">
           {!editing ? (
             <>
@@ -1220,7 +1190,7 @@ export default function ProfilePage({ user, setUser }) {
             </>
           )}
         </div>
-      </div>
+      </MobileActionBar>
 
       <ConfirmDialog
         open={logoutConfirm}

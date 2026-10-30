@@ -1,0 +1,508 @@
+/* RIO theme foundation v3. Import only after checking legacy selector conflicts. */
+
+:root,
+[data-rio-theme="dark"] {
+  color-scheme: dark;
+  --rio-bg: #0b0b0c;
+  --rio-bg-secondary: #111112;
+  --rio-surface: #171718;
+  --rio-surface-elevated: #202021;
+  --rio-surface-hover: #29292a;
+  --rio-text: #f2f0eb;
+  --rio-text-muted: #a5a29b;
+  --rio-text-subtle: #d2cfc8;
+  --rio-border: rgb(242 240 235 / 9%);
+  --rio-border-strong: rgb(242 240 235 / 16%);
+  --rio-glass: rgb(242 240 235 / 3.5%);
+  --rio-glass-strong: rgb(242 240 235 / 6.5%);
+  --rio-control: rgb(242 240 235 / 6%);
+  --rio-control-hover: rgb(242 240 235 / 11%);
+  --rio-accent: #f2f0eb;
+  --rio-accent-hover: #dedbd3;
+  --rio-accent-foreground: #171716;
+  --rio-focus-ring: rgb(242 240 235 / 35%);
+  --rio-success: #78b89a;
+  --rio-warning: #dbb06c;
+  --rio-danger: #e07e79;
+  --rio-danger-solid: #8f302d;
+  --rio-danger-foreground: #ffffff;
+  --rio-info: #8caee8;
+  --rio-page-background: linear-gradient(
+    145deg,
+    #0b0b0c 0%,
+    #101011 48%,
+    #0b0b0c 100%
+  );
+  --rio-card-background: linear-gradient(
+    145deg,
+    rgb(255 255 255 / 5.5%),
+    rgb(255 255 255 / 1.2%)
+  );
+  --rio-shadow-sm: 0 4px 18px rgb(0 0 0 / 22%);
+  --rio-shadow-md: 0 10px 32px rgb(0 0 0 / 30%);
+  --rio-shadow-lg: 0 22px 65px rgb(0 0 0 / 40%);
+}
+
+[data-rio-theme="light"] {
+  color-scheme: light;
+  --rio-bg: #f5f4f0;
+  --rio-bg-secondary: #eeede8;
+  --rio-surface: #fcfbf8;
+  --rio-surface-elevated: #fffefa;
+  --rio-surface-hover: #eeede8;
+  --rio-text: #20201f;
+  --rio-text-muted: #6f706d;
+  --rio-text-subtle: #454642;
+  --rio-border: rgb(32 32 31 / 9%);
+  --rio-border-strong: rgb(32 32 31 / 15%);
+  --rio-glass: rgb(255 255 255 / 76%);
+  --rio-glass-strong: rgb(255 255 255 / 92%);
+  --rio-control: #f2f1ed;
+  --rio-control-hover: #eae9e4;
+  --rio-accent: #242522;
+  --rio-accent-hover: #393a36;
+  --rio-accent-foreground: #ffffff;
+  --rio-focus-ring: rgb(36 37 34 / 28%);
+  --rio-success: #267a56;
+  --rio-warning: #96620e;
+  --rio-danger: #b83d39;
+  --rio-danger-solid: #a52f2b;
+  --rio-danger-foreground: #ffffff;
+  --rio-info: #315f9f;
+  --rio-page-background: linear-gradient(
+    145deg,
+    #f8f7f4 0%,
+    #f2f1ed 54%,
+    #f6f5f1 100%
+  );
+  --rio-card-background: linear-gradient(145deg, #fffefa, #faf9f5);
+  --rio-shadow-sm: 0 4px 18px rgb(24 24 22 / 5%);
+  --rio-shadow-md: 0 10px 32px rgb(24 24 22 / 8%);
+  --rio-shadow-lg: 0 22px 65px rgb(24 24 22 / 12%);
+}
+
+:root {
+  --rio-font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+  --rio-text-xs: 0.75rem;
+  --rio-text-sm: 0.875rem;
+  --rio-text-md: 1rem;
+  --rio-text-lg: 1.125rem;
+  --rio-heading-sm: clamp(1.125rem, 1rem + 0.35vw, 1.375rem);
+  --rio-heading-md: clamp(1.375rem, 1.1rem + 0.8vw, 1.875rem);
+  --rio-heading-lg: clamp(1.75rem, 1.25rem + 1.5vw, 2.5rem);
+  --rio-page-gutter: clamp(1rem, 2.4vw, 2rem);
+  --rio-page-max: 80rem;
+  --rio-content-gap: clamp(1.25rem, 2vw, 1.75rem);
+  --rio-card-padding: clamp(1rem, 1.5vw, 1.5rem);
+  --rio-control-height: 2.75rem;
+  /* Project-wide shape system: pill actions, restrained controls, soft containers. */
+  --rio-radius-sm: 0.5rem;
+  --rio-radius-md: 0.75rem;
+  --rio-radius-lg: 1rem;
+  --rio-radius-xl: 1.25rem;
+  --rio-radius-pill: 999px;
+  --rio-radius-circle: 50%;
+  --rio-motion-fast: 140ms;
+  --rio-motion-normal: 220ms;
+  --rio-motion-slow: 360ms;
+  --rio-motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+html {
+  font-family: var(--rio-font-family);
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--rio-page-background);
+  color: var(--rio-text);
+  font-family: var(--rio-font-family);
+}
+
+[data-rio-theme] {
+  color: var(--rio-text);
+}
+
+.rio-foundation-page {
+  width: min(100%, var(--rio-page-max));
+  min-width: 0;
+  margin-inline: auto;
+  padding: clamp(1.25rem, 2.4vw, 2rem) var(--rio-page-gutter);
+  padding-bottom: calc(
+    clamp(1.25rem, 2.4vw, 2rem) + env(safe-area-inset-bottom, 0px)
+  );
+}
+
+.rio-foundation-stack {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--rio-content-gap);
+}
+
+.rio-foundation-header {
+  display: flex;
+  min-width: 0;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.rio-foundation-heading {
+  margin: 0;
+  color: var(--rio-text);
+  font-size: var(--rio-heading-lg);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 1.12;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.rio-foundation-description {
+  max-width: 68ch;
+  margin: 0.65rem 0 0;
+  color: var(--rio-text-muted);
+  font-size: var(--rio-text-sm);
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+
+.rio-foundation-card {
+  min-width: 0;
+  border: 1px solid var(--rio-border);
+  border-radius: var(--rio-radius-lg);
+  background: var(--rio-card-background);
+  color: var(--rio-text);
+  box-shadow: var(--rio-shadow-sm);
+}
+
+.rio-foundation-card--interactive {
+  transition:
+    border-color var(--rio-motion-normal) var(--rio-motion-ease),
+    background-color var(--rio-motion-normal) var(--rio-motion-ease),
+    box-shadow var(--rio-motion-normal) var(--rio-motion-ease),
+    transform var(--rio-motion-normal) var(--rio-motion-ease);
+}
+
+.rio-foundation-card--interactive:hover {
+  border-color: var(--rio-border-strong);
+  box-shadow: var(--rio-shadow-md);
+  transform: translateY(-2px);
+}
+
+.rio-foundation-card--glass {
+  background: var(--rio-glass);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+}
+
+/* Buttons: restrained motion, clear hierarchy, no neon/glow treatment. */
+.rio-foundation-button {
+  display: inline-flex;
+  min-width: 0;
+  min-height: var(--rio-control-height);
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.68rem 1rem;
+  border: 1px solid var(--rio-border-strong);
+  border-radius: var(--rio-radius-pill);
+  background: var(--rio-control);
+  color: var(--rio-text);
+  font: inherit;
+  font-size: var(--rio-text-sm);
+  font-weight: 560;
+  line-height: 1.25;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background-color var(--rio-motion-normal) var(--rio-motion-ease),
+    border-color var(--rio-motion-normal) var(--rio-motion-ease),
+    color var(--rio-motion-normal) var(--rio-motion-ease),
+    box-shadow var(--rio-motion-normal) var(--rio-motion-ease),
+    transform var(--rio-motion-fast) var(--rio-motion-ease);
+}
+
+.rio-foundation-button:hover:not(:disabled) {
+  background: var(--rio-control-hover);
+  border-color: var(--rio-border-strong);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 7%);
+  transform: translateY(-1px);
+}
+
+.rio-foundation-button:active:not(:disabled) {
+  box-shadow: none;
+  transform: translateY(0);
+}
+
+/* Keyboard users retain a quiet indicator; no focus glow on text fields. */
+.rio-foundation-button:focus-visible {
+  outline: 2px solid var(--rio-focus-ring);
+  outline-offset: 3px;
+}
+
+.rio-foundation-button:disabled,
+.rio-foundation-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.48;
+  box-shadow: none;
+  transform: none;
+}
+
+.rio-foundation-button--primary {
+  border-color: transparent;
+  background: var(--rio-accent);
+  color: var(--rio-accent-foreground);
+  box-shadow: 0 2px 5px rgb(0 0 0 / 8%);
+}
+
+.rio-foundation-button--primary:hover:not(:disabled) {
+  background: var(--rio-accent-hover);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 11%);
+}
+
+.rio-foundation-button--secondary {
+  border-color: var(--rio-border-strong);
+  background: transparent;
+  color: var(--rio-text);
+}
+
+.rio-foundation-button--secondary:hover:not(:disabled) {
+  background: var(--rio-control-hover);
+}
+
+.rio-foundation-button--quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--rio-text-muted);
+  box-shadow: none;
+}
+
+.rio-foundation-button--quiet:hover:not(:disabled) {
+  background: var(--rio-control-hover);
+  color: var(--rio-text);
+  box-shadow: none;
+}
+
+.rio-foundation-button--danger {
+  border-color: transparent;
+  background: var(--rio-danger-solid);
+  color: var(--rio-danger-foreground);
+}
+
+.rio-foundation-button--danger:hover:not(:disabled) {
+  filter: brightness(0.94);
+}
+
+.rio-foundation-button--icon {
+  width: var(--rio-control-height);
+  min-width: var(--rio-control-height);
+  padding: 0;
+  border-radius: var(--rio-radius-circle);
+}
+
+/* Inputs/textareas intentionally do not grow a border or glow on focus. */
+.rio-foundation-control {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--rio-control-height);
+  padding: 0.72rem 0.85rem;
+  border: 1px solid var(--rio-border-strong);
+  border-radius: var(--rio-radius-md);
+  background: var(--rio-glass-strong);
+  color: var(--rio-text);
+  font: inherit;
+  font-size: var(--rio-text-sm);
+  line-height: 1.5;
+  box-shadow: none;
+  caret-color: var(--rio-text);
+  transition: background-color var(--rio-motion-normal) var(--rio-motion-ease);
+}
+
+.rio-foundation-control:hover {
+  background: var(--rio-control);
+}
+
+.rio-foundation-control:focus,
+.rio-foundation-control:focus-visible {
+  border-color: var(--rio-border-strong);
+  outline: none;
+  box-shadow: none;
+  background: var(--rio-glass-strong);
+}
+
+.rio-foundation-control:focus-visible {
+  /* Avoid the distracting outline on textareas; keep the field geometry stable. */
+  outline: none;
+}
+
+.rio-foundation-control::placeholder {
+  color: var(--rio-text-muted);
+  opacity: 0.82;
+}
+
+.rio-foundation-control:disabled,
+.rio-foundation-control[readonly] {
+  background: var(--rio-control);
+  color: var(--rio-text-muted);
+  cursor: not-allowed;
+}
+
+textarea.rio-foundation-control {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+select.rio-foundation-control {
+  cursor: pointer;
+}
+
+/* Shared micro-interactions and form rhythm. */
+.rio-foundation-link {
+  color: var(--rio-text-subtle);
+  text-decoration: underline;
+  text-decoration-color: var(--rio-border-strong);
+  text-underline-offset: 0.2em;
+  transition:
+    color var(--rio-motion-fast) var(--rio-motion-ease),
+    text-decoration-color var(--rio-motion-fast) var(--rio-motion-ease);
+}
+
+.rio-foundation-link:hover {
+  color: var(--rio-text);
+  text-decoration-color: currentColor;
+}
+
+.rio-foundation-label {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--rio-text-subtle);
+  font-size: var(--rio-text-sm);
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+.rio-foundation-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rio-foundation-help {
+  margin: 0;
+  color: var(--rio-text-muted);
+  font-size: var(--rio-text-xs);
+  line-height: 1.5;
+}
+
+.rio-foundation-divider {
+  height: 1px;
+  border: 0;
+  background: var(--rio-border);
+}
+
+.rio-foundation-action-bar {
+  position: fixed;
+  z-index: 40;
+  inset-inline: 0;
+  bottom: 0;
+  padding: 0.75rem max(1rem, env(safe-area-inset-left, 0px))
+    max(0.75rem, env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--rio-border);
+  background: color-mix(in srgb, var(--rio-surface) 90%, transparent);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+.rio-foundation-action-bar__inner {
+  display: grid;
+  width: min(100%, 48rem);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+  margin-inline: auto;
+}
+
+.rio-foundation-action-bar__inner > * {
+  width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rio-foundation-action-bar__inner[data-action-count="3"] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.rio-foundation-action-bar__inner[data-action-count="3"] > * {
+  padding-inline: 0.65rem;
+}
+
+.rio-foundation-has-action-bar {
+  padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Floating theme toggle — bottom-right */
+.rio-theme-toggle {
+  position: fixed !important;
+  right: 24px !important;
+  bottom: 24px !important;
+  top: auto !important;
+  left: auto !important;
+
+  z-index: 99999 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 12px 16px;
+  border: 1px solid var(--rio-border, #444);
+  border-radius: 999px;
+  background: var(--rio-surface, #222);
+  color: var(--rio-text, #fff);
+
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 20%);
+}
+
+.rio-theme-toggle:hover {
+  transform: translateY(-2px);
+}
+
+/* Keep it above the mobile bottom action bar */
+@media (max-width: 767px) {
+  .rio-theme-toggle {
+    right: 16px !important;
+    bottom: calc(80px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 359px) {
+  .rio-foundation-action-bar__inner {
+    gap: 0.375rem;
+  }
+
+  .rio-foundation-action-bar__inner > * {
+    padding-inline: 0.45rem;
+    font-size: 0.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

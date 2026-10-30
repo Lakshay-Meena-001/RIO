@@ -108,7 +108,7 @@ app.patch(
   "/api/profile",
   isAuth,
   proxy(services.auth, {
-    proxyReqPathResolver: () => "/profile",
+   proxyReqPathResolver: () => "/auth/professional-profile",
     proxyReqOptDecorator: attachTrustedHeaders,
     proxyErrorHandler: createProxyErrorHandler("Auth Service"),
   }),
