@@ -1,6 +1,7 @@
 import { motion } from "motion/react";
 import { FiCheck, FiMap } from "react-icons/fi";
-import { SectionHeading, reveal } from "./HomePrimitives.jsx";
+import { SectionHeading } from "./HomePrimitives.jsx";
+import { reveal } from "./homeMotion.js";
 
 export default function HomeRoadmapSection() {
   return (

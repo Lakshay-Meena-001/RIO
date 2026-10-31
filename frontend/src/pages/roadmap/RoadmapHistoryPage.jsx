@@ -7,7 +7,6 @@ import { FiArrowLeft, FiPlay } from "react-icons/fi";
 import {
   FiArrowRight,
   FiBookOpen,
-  FiPlus,
   FiRefreshCw,
   FiSearch,
   FiTrash2,
@@ -21,6 +20,7 @@ import {
 } from "../../api/roadmap/roadmap.api.js";
 
 import { Clock3 } from "lucide-react";
+import useDrawerSwipe from "../../hooks/useDrawerSwipe";
 
 const unwrap = (response) => response?.data ?? response ?? null;
 
@@ -143,7 +143,7 @@ const formatDate = (value) => {
 };
 
 const FLOATING_SIDEBAR =
-  "absolute inset-y-5 w-[min(282px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl";
+  "flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl";
 
 function ProgressRing({ value }) {
   const radius = 28;
@@ -184,12 +184,10 @@ function ProgressRing({ value }) {
 
 function FloatingProgressSidebar({
   roadmap,
-
   template,
-
   onDelete,
-
   deleteLoading,
+  mobileOpen = false,
 }) {
   const states = Array.isArray(roadmap?.nodes) ? roadmap.nodes : [];
 
@@ -216,7 +214,7 @@ function FloatingProgressSidebar({
 
   return (
     <aside
-      className={`${FLOATING_SIDEBAR}   border border-white/[.09] !bg-transparent !shadow-none right-4 z-30 hidden lg:inset-y-5 lg:right-5 lg:flex`}
+      className={`${FLOATING_SIDEBAR} fixed inset-y-4 right-4 z-[90] flex w-[80vw] max-w-[360px] border border-white/[.09] !bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "translate-x-[calc(100%+1rem)]"} lg:absolute lg:inset-y-5 lg:right-5 lg:z-30 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 lg:!bg-transparent lg:!shadow-none`}
     >
       <div className="min-h-0 flex-1 overflow-y-auto p-5  [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex items-start justify-between gap-3">
@@ -439,6 +437,10 @@ export default function RoadmapHistoryPage() {
   const [error, setError] = useState("");
 
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+
+  const [mobileProgressOpen, setMobileProgressOpen] = useState(false);
+  useDrawerSwipe(mobileHistoryOpen, setMobileHistoryOpen, "left");
+  useDrawerSwipe(mobileProgressOpen, setMobileProgressOpen, "right");
 
   const [deleteLoading, setDeleteLoading] = useState(false);
 
@@ -866,7 +868,7 @@ export default function RoadmapHistoryPage() {
       </div>
       <div className="relative z-10 flex h-full min-h-0">
         <aside
-          className={`${FLOATING_SIDEBAR} top-4 bottom-20 left-4 z-50 w-[min(282px,calc(100vw-1rem))] shadow-[0_24px_80px_rgba(0,0,0,.32)]  backdrop-blur-2xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"} flex`}
+          className={`${FLOATING_SIDEBAR} absolute top-4 bottom-20 left-4 z-50 w-[80vw] max-w-[360px] shadow-[0_24px_80px_rgba(0,0,0,.32)]  backdrop-blur-2xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"} flex`}
         >
           <div className="shrink-0 border-b border-white/[0.065] bg-white/[0.012] px-5 pb-5 pt-6">
             <div className="flex items-start justify-between gap-3">
@@ -876,7 +878,7 @@ export default function RoadmapHistoryPage() {
                 </p>
 
                 <h1 className="mt-2 text-[19px] font-semibold tracking-[-0.035em] text-white">
-                  Roadmap history
+                  My Learnings
                 </h1>
 
                 <p className="mt-1.5 text-[11px] leading-5 text-[#70727A]">
@@ -1053,11 +1055,20 @@ export default function RoadmapHistoryPage() {
           />
         )}
 
+        {mobileProgressOpen && (
+          <button
+            type="button"
+            aria-label="Close roadmap progress"
+            onClick={() => setMobileProgressOpen(false)}
+            className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm lg:hidden"
+          />
+        )}
         <FloatingProgressSidebar
           roadmap={roadmap}
           template={template}
           onDelete={() => setConfirmDelete(true)}
           deleteLoading={deleteLoading}
+          mobileOpen={mobileProgressOpen}
         />
 
         <main className="min-w-0 flex-1 overflow-hidden pb-[env(safe-area-inset-bottom)] lg:mx-[302px] lg:px-0">
@@ -1182,11 +1193,20 @@ export default function RoadmapHistoryPage() {
       {/* Mobile actions stay anchored at the bottom, outside the scrollable content. */}
       <MobileActionBar className="lg:hidden">
         {selectedId ? (
-          <div className="mx-auto grid max-w-md grid-cols-2 gap-2">
+          <div className="mx-auto grid w-full max-w-none grid-cols-2 gap-2 md:grid-cols-4">
+            <button
+              type="button"
+              onClick={() => setMobileProgressOpen((open) => !open)}
+              className="order-3 hidden h-11 min-w-0 w-full items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.035] px-2 text-[11px] font-semibold text-[#D4D4D8] transition-colors hover:bg-white/[0.065] md:inline-flex"
+              aria-label="Open roadmap progress"
+            >
+              <FiBookOpen size={13} />
+              <span>Progress</span>
+            </button>
             <button
               type="button"
               onClick={() => setMobileHistoryOpen((open) => !open)}
-              className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 text-xs font-semibold text-[#D4D4D8] transition-colors duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
+              className="order-1 inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 text-xs font-semibold text-[#D4D4D8] transition-colors duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20"
               aria-label="Open roadmap history"
             >
               <Clock3 size={14} />
@@ -1194,9 +1214,17 @@ export default function RoadmapHistoryPage() {
             </button>
             <button
               type="button"
+              onClick={() => setConfirmDelete(true)}
+              disabled={deleteLoading}
+              className="order-2 hidden h-11 min-w-0 w-full items-center justify-center gap-1 rounded-full border border-rose-300/20 bg-rose-300/[.07] px-2 text-[11px] font-semibold text-rose-200 disabled:opacity-40 md:inline-flex"
+            >
+              <FiTrash2 size={13} /> Delete
+            </button>
+            <button
+              type="button"
               onClick={() => navigate("/roadmap/new")}
               disabled={deleteLoading}
-              className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C] transition-colors duration-200 hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+              className="order-4 inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C] transition-colors duration-200 hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
             >
               <FiPlay size={14} />
               New Roadmap
@@ -1204,15 +1232,36 @@ export default function RoadmapHistoryPage() {
             </button>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => navigate("/roadmap/new")}
-            className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C] transition-colors duration-200 hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
-          >
-            <FiPlus size={16} />
-            Build a roadmap
-            <FiArrowRight size={14} />
-          </button>
+          <div className="mx-auto grid w-full max-w-none grid-cols-2 gap-2 md:grid-cols-4">
+            <button
+              type="button"
+              disabled
+              className="order-3 hidden h-11 min-w-0 w-full items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.035] px-2 text-[11px] font-semibold text-[#D4D4D8] opacity-40 md:inline-flex"
+            >
+              <FiBookOpen size={13} /> Progress
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileHistoryOpen((open) => !open)}
+              className="order-1 h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 text-xs font-semibold text-[#D4D4D8]"
+            >
+              <Clock3 size={14} /> My Learnings
+            </button>
+            <button
+              type="button"
+              disabled
+              className="order-2 hidden h-11 min-w-0 w-full items-center justify-center gap-1 rounded-full border border-rose-300/20 bg-rose-300/[.07] px-2 text-[11px] font-semibold text-rose-200 opacity-40 md:inline-flex"
+            >
+              <FiTrash2 size={13} /> Delete
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/roadmap/new")}
+              className="order-4 h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full bg-white px-3 text-xs font-semibold text-[#17191C]"
+            >
+              <FiPlay size={14} /> New Roadmap <FiArrowRight size={14} />
+            </button>
+          </div>
         )}
       </MobileActionBar>
 

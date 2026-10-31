@@ -304,7 +304,7 @@ function Sidebar({
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.16 }}
                   onClick={() => setMobileOpen?.(false)}
-                  className="fixed inset-0 z-[60] cursor-default bg-black/48 backdrop-blur-md md:hidden motion-reduce:transition-none"
+                  className="fixed inset-0 z-[60] cursor-default bg-black/45 backdrop-blur-md md:hidden motion-reduce:transition-none"
                   aria-label="Close navigation"
                 />
                 <motion.aside

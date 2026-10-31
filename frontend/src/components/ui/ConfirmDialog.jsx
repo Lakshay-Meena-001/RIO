@@ -1,4 +1,3 @@
-
 import Modal from "./Modal.jsx";
 import { FiLogOut, FiX } from "react-icons/fi";
 
@@ -14,8 +13,7 @@ export default function ConfirmDialog({
   loading = false,
 }) {
   const isLogout =
-    variant === "danger" ||
-    /log out|logout/i.test(`${title} ${confirmLabel}`);
+    variant === "danger" || /log out|logout/i.test(`${title} ${confirmLabel}`);
 
   return (
     <Modal
@@ -42,7 +40,7 @@ export default function ConfirmDialog({
             disabled={loading}
             className={`min-h-11 flex-1 rounded-full px-4 text-xs font-bold transition active:scale-[0.99] disabled:opacity-50 ${
               isLogout
-                ? "bg-[#C94D55] text-white hover:bg-[#D95760]"
+                ? "bg-white text-[#17191C] hover:bg-[#F5F5F5]"
                 : "bg-white text-[#17191C] hover:bg-[#F5F5F5]"
             }`}
           >

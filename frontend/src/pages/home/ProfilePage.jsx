@@ -1,6 +1,9 @@
 import MobileActionBar from "../../components/MobileActionBar";
 import ServiceNavigation from "../../components/ServiceNavigation";
-import { ProfilePanel as Panel, ProfileIconButton as IconButton } from "../../components/profile/ProfilePrimitives";
+import {
+  ProfilePanel as Panel,
+  ProfileIconButton as IconButton,
+} from "../../components/profile/ProfilePrimitives";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -75,7 +78,6 @@ const formFields = [
     maxLength: 300,
   },
 ];
-
 
 const safeLink = (value) => {
   if (!value || typeof value !== "string") return "";
@@ -349,7 +351,7 @@ export default function ProfilePage({ user, setUser }) {
         <main
           className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
-          <div className="mx-auto w-full max-w-[1600px] px-4 pb-28 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-12 lg:px-9 lg:pt-9">
+          <div className="mx-auto w-full min-w-0 max-w-[1480px] px-5 pb-28 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-12 lg:px-10 lg:pt-9">
             <motion.header
               initial={reveal()}
               animate={enter()}
@@ -378,7 +380,7 @@ export default function ProfilePage({ user, setUser }) {
                     whileTap={reduceMotion ? undefined : { scale: 0.99 }}
                     className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-white px-5 text-xs font-semibold text-[#17191C] shadow-[0_10px_30px_rgba(255,255,255,0.07)]"
                   >
-                    <FiEdit3 /> Edit profile <FiArrowUpRight />
+                    <FiEdit3 /> Edit Profile <FiArrowUpRight />
                   </motion.button>
                 )}
               </div>
@@ -1096,7 +1098,7 @@ export default function ProfilePage({ user, setUser }) {
       <AnimatePresence>
         {discardConfirm && (
           <motion.div
-            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4 backdrop-blur-md"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -1144,8 +1146,8 @@ export default function ProfilePage({ user, setUser }) {
         )}
       </AnimatePresence>
 
-      <MobileActionBar className="md:hidden">
-        <div className="mx-auto flex w-full max-w-md flex-row items-center justify-center gap-2">
+      <MobileActionBar className="lg:hidden">
+        <div className="mx-auto flex w-full max-w-none flex-row items-center justify-center gap-2">
           {!editing ? (
             <>
               <button
@@ -1154,7 +1156,7 @@ export default function ProfilePage({ user, setUser }) {
                 className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-2 sm:px-4 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition hover:bg-[#E8E8EB] active:scale-[0.99]"
               >
                 <FiEdit3 size={14} />
-                Edit profile
+                Edit Profile
               </button>
 
               <button
@@ -1163,7 +1165,7 @@ export default function ProfilePage({ user, setUser }) {
                 className="flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/12 bg-white/[0.045] px-2 sm:px-4 text-xs font-semibold text-white/80 transition hover:bg-white/[0.09] active:scale-[0.99]"
               >
                 <FiArrowUpRight size={14} />
-                Log out
+                Logout
               </button>
             </>
           ) : (

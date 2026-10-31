@@ -20,8 +20,10 @@ export default function Modal({
   useEffect(() => {
     if (!open) return undefined;
     previousFocusRef.current = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
     const onKeyDown = (event) => {
       if (event.key === "Escape") onClose?.();
       if (event.key === "Tab" && dialogRef.current) {
@@ -53,7 +55,8 @@ export default function Modal({
     });
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
       previousFocusRef.current?.focus?.();
     };
   }, [open, onClose]);

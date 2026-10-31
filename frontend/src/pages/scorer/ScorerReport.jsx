@@ -35,7 +35,7 @@ function Section({ icon: Icon, title, count, children, className = "" }) {
     <Surface
       variant="scorer"
       className={cx(
-        "p-4 sm:p-6 shadow-[0_18px_50px_rgba(0,0,0,0.13)]",
+        "border-white/[0.09] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.16)] transition-colors duration-200 sm:p-6",
         className,
       )}
     >
@@ -113,11 +113,7 @@ function Meta({ label, value }) {
   );
 }
 
-export default function ScorerReport({
-  resume,
-  onBackToScorer,
-  onDeleteHistory,
-}) {
+export default function ScorerReport({ resume, onBackToScorer }) {
   const [profileImportStatus, setProfileImportStatus] = useState({});
   const importToProfile = async (
     key,
@@ -250,8 +246,8 @@ export default function ScorerReport({
       : "Saved assessment";
 
   return (
-    <div className="mx-auto w-full max-w-[1440px] space-y-4 px-1 text-white sm:space-y-5 sm:px-0">
-      <div className="flex flex-col justify-between gap-3 border-b border-white/[0.08] pb-4 sm:gap-4 sm:pb-6 sm:flex-row sm:items-end">
+    <div className="mx-auto w-full max-w-[1440px] space-y-5 px-1 text-white sm:space-y-6 sm:px-0">
+      <div className="flex flex-col justify-between gap-3 border-b border-white/[0.09] pb-5 sm:gap-4 sm:pb-7 sm:flex-row sm:items-end">
         <div className="min-w-0">
           <p className="flex items-center gap-2 text-[9px] font-semibold uppercase tracking-[0.22em] text-[#858994]">
             <span className="h-1.5 w-1.5 rounded-full bg-white/75" /> Resume
@@ -266,16 +262,6 @@ export default function ScorerReport({
           </p>
         </div>
         <div className="hidden sm:flex flex-wrap items-center justify-center gap-2 sm:justify-end">
-          {onDeleteHistory && (
-            <button
-              type="button"
-              onClick={onDeleteHistory}
-              className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-white-500/20 px-4 py-2.5 text-xs font-semibold bg-white bg-white text-[#17191C] transition "
-            >
-              Delete History
-            </button>
-          )}
-
           {onBackToScorer && (
             <button
               type="button"
@@ -289,8 +275,8 @@ export default function ScorerReport({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <Surface className="p-4 sm:p-7">
+      <div className="grid gap-4 xl:grid-cols-[1.12fr_0.88fr]">
+        <Surface className="border-white/[0.12] bg-[radial-gradient(ellipse_75%_100%_at_100%_0%,rgba(255,255,255,0.09),transparent_68%),linear-gradient(135deg,rgba(255,255,255,0.035),transparent_58%)] p-4 shadow-[0_24px_70px_rgba(0,0,0,0.22)] sm:p-7">
           <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-center sm:gap-5 sm:text-left">
             <div className="relative h-[116px] w-[116px] shrink-0">
               <svg viewBox="0 0 116 116" className="h-full w-full -rotate-90">
@@ -349,7 +335,7 @@ export default function ScorerReport({
           </div>
         </Surface>
 
-        <Surface className="p-4 sm:p-6">
+        <Surface className="border-white/[0.11] p-4 shadow-[0_20px_55px_rgba(0,0,0,0.16)] sm:p-6">
           <div className="flex flex-col items-center gap-3 text-center sm:flex-row sm:items-start sm:text-left">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.035] text-[#D4D4D8]">
               <FileText size={17} />

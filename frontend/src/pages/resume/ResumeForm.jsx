@@ -8,17 +8,16 @@ import {
   emptyProject,
 } from "../../components/resume-builder/shared/resumeBuilderConstants";
 import {
-  ProfileSection, SummarySection, ExperienceSection, EducationSection,
-  ProjectsSection, SkillsSection, CertificationsSection, AchievementsSection, LanguagesSection,
+  ProfileSection,
+  SummarySection,
+  ExperienceSection,
+  EducationSection,
+  ProjectsSection,
+  SkillsSection,
+  CertificationsSection,
+  AchievementsSection,
+  LanguagesSection,
 } from "../../components/resume-builder/form/ResumeFormSections";
-
-/* -------------------------------------------------------------------------- */
-/*                               Small Helpers                                */
-/* -------------------------------------------------------------------------- */
-
-/* -------------------------------------------------------------------------- */
-/*                              Resume Form                                   */
-/* -------------------------------------------------------------------------- */
 
 export default function ResumeForm({ data, onChange, fieldErrors = {} }) {
   const [profileImportStatus, setProfileImportStatus] = useState({});
@@ -171,11 +170,23 @@ export default function ResumeForm({ data, onChange, fieldErrors = {} }) {
   };
 
   const sectionProps = {
-    data, fieldErrors, updateProfile, updateRootField, profileImportButton,
-    profileImportStatus, setProfileImportStatus, importToProfile,
-    addExperience, updateExperience, removeExperience,
-    addEducation, updateEducation, removeEducation,
-    addProject, updateProject, removeProject,
+    data,
+    fieldErrors,
+    updateProfile,
+    updateRootField,
+    profileImportButton,
+    profileImportStatus,
+    setProfileImportStatus,
+    importToProfile,
+    addExperience,
+    updateExperience,
+    removeExperience,
+    addEducation,
+    updateEducation,
+    removeEducation,
+    addProject,
+    updateProject,
+    removeProject,
   };
 
   /* ------------------------------------------------------------------------ */

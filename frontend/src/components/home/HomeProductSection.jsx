@@ -1,7 +1,8 @@
 import { motion } from "motion/react";
 import { FiArrowUpRight, FiTarget, FiTrendingUp } from "react-icons/fi";
 import { skills } from "../../pages/home/homeData.jsx";
-import { SectionHeading, reveal } from "./HomePrimitives.jsx";
+import { SectionHeading } from "./HomePrimitives.jsx";
+import { reveal } from "./homeMotion.js";
 
 export default function HomeProductSection() {
   return (

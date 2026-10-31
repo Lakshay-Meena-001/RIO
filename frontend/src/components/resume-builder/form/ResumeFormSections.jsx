@@ -3,7 +3,7 @@ import { getCurrentUser, updateProfessionalProfile } from "../../../api/user/use
 import { Field, TextField, TagInput, FormSection, EntryHeader, EmptyState } from "../shared/ResumeFormFields";
 
 export function ProfileSection(props) {
-  const { data, fieldErrors, updateProfile, updateRootField, profileImportButton, profileImportStatus, setProfileImportStatus, importToProfile, addExperience, updateExperience, removeExperience, addEducation, updateEducation, removeEducation, addProject, updateProject, removeProject } = props;
+  const { data, fieldErrors, updateProfile, profileImportButton } = props;
   return (
     <FormSection
         title="Profile"
@@ -111,7 +111,7 @@ export function ProfileSection(props) {
 }
 
 export function SummarySection(props) {
-  const { data, fieldErrors, updateProfile, updateRootField, profileImportButton, profileImportStatus, setProfileImportStatus, importToProfile, addExperience, updateExperience, removeExperience, addEducation, updateEducation, removeEducation, addProject, updateProject, removeProject } = props;
+  const { data, fieldErrors, updateRootField, profileImportButton } = props;
   return (
     <FormSection
         title="Professional Summary"
@@ -133,7 +133,7 @@ export function SummarySection(props) {
 }
 
 export function ExperienceSection(props) {
-  const { data, fieldErrors, updateProfile, updateRootField, profileImportButton, profileImportStatus, setProfileImportStatus, importToProfile, addExperience, updateExperience, removeExperience, addEducation, updateEducation, removeEducation, addProject, updateProject, removeProject } = props;
+  const { data, fieldErrors, addExperience, updateExperience, removeExperience } = props;
   return (
     <FormSection
         title="Work Experience"
@@ -263,7 +263,7 @@ export function ExperienceSection(props) {
 }
 
 export function EducationSection(props) {
-  const { data, fieldErrors, updateProfile, updateRootField, profileImportButton, profileImportStatus, setProfileImportStatus, importToProfile, addExperience, updateExperience, removeExperience, addEducation, updateEducation, removeEducation, addProject, updateProject, removeProject } = props;
+  const { data, fieldErrors, addEducation, updateEducation, removeEducation } = props;
   return (
     <FormSection
         title="Education"
@@ -385,7 +385,7 @@ export function EducationSection(props) {
 }
 
 export function ProjectsSection(props) {
-  const { data, fieldErrors, updateProfile, updateRootField, profileImportButton, profileImportStatus, setProfileImportStatus, importToProfile, addExperience, updateExperience, removeExperience, addEducation, updateEducation, removeEducation, addProject, updateProject, removeProject } = props;
+  const { data, fieldErrors, addProject, updateProject, removeProject } = props;
   return (
     <FormSection
         title="Projects"
@@ -514,7 +514,7 @@ export function ProjectsSection(props) {
 }
 
 export function SkillsSection(props) {
-  const { data, fieldErrors, updateProfile, updateRootField, profileImportButton, profileImportStatus, setProfileImportStatus, importToProfile, addExperience, updateExperience, removeExperience, addEducation, updateEducation, removeEducation, addProject, updateProject, removeProject } = props;
+  const { data, fieldErrors, updateRootField, profileImportStatus, setProfileImportStatus, importToProfile } = props;
   return (
     <FormSection
         title="Skills"
@@ -585,7 +585,7 @@ export function SkillsSection(props) {
 }
 
 export function CertificationsSection(props) {
-  const { data, fieldErrors, updateProfile, updateRootField, profileImportButton, profileImportStatus, setProfileImportStatus, importToProfile, addExperience, updateExperience, removeExperience, addEducation, updateEducation, removeEducation, addProject, updateProject, removeProject } = props;
+  const { data, updateRootField } = props;
   return (
     <FormSection
         title="Certifications"
@@ -602,7 +602,7 @@ export function CertificationsSection(props) {
 }
 
 export function AchievementsSection(props) {
-  const { data, fieldErrors, updateProfile, updateRootField, profileImportButton, profileImportStatus, setProfileImportStatus, importToProfile, addExperience, updateExperience, removeExperience, addEducation, updateEducation, removeEducation, addProject, updateProject, removeProject } = props;
+  const { data, updateRootField } = props;
   return (
     <FormSection
         title="Achievements"
@@ -620,7 +620,7 @@ export function AchievementsSection(props) {
 }
 
 export function LanguagesSection(props) {
-  const { data, fieldErrors, updateProfile, updateRootField, profileImportButton, profileImportStatus, setProfileImportStatus, importToProfile, addExperience, updateExperience, removeExperience, addEducation, updateEducation, removeEducation, addProject, updateProject, removeProject } = props;
+  const { data, updateRootField } = props;
   return (
     <FormSection
         title="Languages"

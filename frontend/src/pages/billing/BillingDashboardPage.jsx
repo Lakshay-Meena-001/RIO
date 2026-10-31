@@ -148,22 +148,47 @@ const SUCCESS_STATUSES = new Set([
   "succeeded",
 ]);
 
+// Keep the last successful billing snapshot while the user navigates between
+// dashboard pages. Explicit refreshes and payment actions still fetch fresh data.
+const billingDashboardCacheByUser = new Map();
+
+const getBillingDashboardCache = (userKey) => {
+  if (!billingDashboardCacheByUser.has(userKey)) {
+    billingDashboardCacheByUser.set(userKey, {
+      summary: null,
+      transactions: [],
+      pendingPayment: null,
+      loadedAt: 0,
+    });
+  }
+
+  return billingDashboardCacheByUser.get(userKey);
+};
+
 export default function BillingDashboardPage({ user, setUser }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const reduceMotion = useReducedMotion();
+  const billingCacheKey = String(
+    user?._id || user?.id || user?.uid || user?.email || "anonymous",
+  );
+  const billingDashboardCache = getBillingDashboardCache(billingCacheKey);
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(
     () => localStorage.getItem("rio-sidebar-open") !== "false",
   );
 
-  const [summary, setSummary] = useState(null);
-  const [transactions, setTransactions] = useState([]);
-  const [pendingPayment, setPendingPayment] = useState(null);
+  const [summary, setSummary] = useState(billingDashboardCache.summary);
+  const [transactions, setTransactions] = useState(
+    billingDashboardCache.transactions,
+  );
+  const [pendingPayment, setPendingPayment] = useState(
+    billingDashboardCache.pendingPayment,
+  );
   const [remainingSeconds, setRemainingSeconds] = useState(0);
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!billingDashboardCache.loadedAt);
   const [error, setError] = useState("");
 
   const [addBalanceOpen, setAddBalanceOpen] = useState(false);
@@ -205,86 +230,105 @@ export default function BillingDashboardPage({ user, setUser }) {
 
   const firstName = user?.name?.trim()?.split(/\s+/)?.[0] || "there";
 
-  const loadBilling = useCallback(async () => {
-    setLoading(true);
-    setError("");
+  const loadBilling = useCallback(
+    async ({ forceLoading = false } = {}) => {
+      if (forceLoading || !billingDashboardCache.loadedAt) setLoading(true);
+      setError("");
 
-    try {
-      const [summaryResult, transactionsResult, pendingResult] =
-        await Promise.allSettled([
-          getBillingSummary(),
-          getBillingTransactions({ page: 1, pageSize: 5 }),
-          getPendingBillingPayment(),
-        ]);
+      try {
+        const [summaryResult, transactionsResult, pendingResult] =
+          await Promise.allSettled([
+            getBillingSummary(),
+            getBillingTransactions({ page: 1, pageSize: 5 }),
+            getPendingBillingPayment(),
+          ]);
 
-      if (summaryResult.status === "fulfilled") {
-        const nextSummary = unwrap(summaryResult.value);
-        setSummary(nextSummary);
-        const currentBalance =
-          nextSummary?.balance ??
-          nextSummary?.currentBalance ??
-          nextSummary?.availableBalance;
-        if (currentBalance != null && Number.isFinite(Number(currentBalance))) {
-          setUser?.((current) => ({
-            ...(current || {}),
-            balance: Number(currentBalance),
-          }));
-          window.dispatchEvent(new Event("rio:balance-updated"));
+        if (summaryResult.status === "fulfilled") {
+          const nextSummary = unwrap(summaryResult.value);
+          setSummary(nextSummary);
+          billingDashboardCache.summary = nextSummary;
+          const currentBalance =
+            nextSummary?.balance ??
+            nextSummary?.currentBalance ??
+            nextSummary?.availableBalance;
+          if (
+            currentBalance != null &&
+            Number.isFinite(Number(currentBalance))
+          ) {
+            setUser?.((current) => ({
+              ...(current || {}),
+              balance: Number(currentBalance),
+            }));
+            window.dispatchEvent(new Event("rio:balance-updated"));
+          }
         }
-      }
 
-      if (transactionsResult.status === "fulfilled") {
-        const transactionList = getTransactionList(transactionsResult.value);
-        setTransactions(transactionList);
-      }
+        if (transactionsResult.status === "fulfilled") {
+          const transactionList = getTransactionList(transactionsResult.value);
+          setTransactions(transactionList);
+          billingDashboardCache.transactions = transactionList;
+        }
 
-      // The dedicated endpoint is not limited by the five recent history rows.
-      if (pendingResult.status === "fulfilled") {
-        const pending = unwrap(pendingResult.value);
-        setPendingPayment(pending && pending.transactionId ? pending : null);
-      } else if (transactionsResult.status === "fulfilled") {
-        const transactionList = getTransactionList(transactionsResult.value);
-        const pending = transactionList.find((transaction) => {
-          const status = getStatus(transaction);
-          const expiresAt = transaction?.expiresAt
-            ? new Date(transaction.expiresAt).getTime()
-            : 0;
-          return (
-            transaction?.source === "billing" &&
-            ["pending", "created", "processing"].includes(status) &&
-            Number.isFinite(expiresAt) &&
-            expiresAt > Date.now()
+        // The dedicated endpoint is not limited by the five recent history rows.
+        if (pendingResult.status === "fulfilled") {
+          const pending = unwrap(pendingResult.value);
+          const nextPending = pending && pending.transactionId ? pending : null;
+          setPendingPayment(nextPending);
+          billingDashboardCache.pendingPayment = nextPending;
+        } else if (transactionsResult.status === "fulfilled") {
+          const transactionList = getTransactionList(transactionsResult.value);
+          const pending = transactionList.find((transaction) => {
+            const status = getStatus(transaction);
+            const expiresAt = transaction?.expiresAt
+              ? new Date(transaction.expiresAt).getTime()
+              : 0;
+            return (
+              transaction?.source === "billing" &&
+              ["pending", "created", "processing"].includes(status) &&
+              Number.isFinite(expiresAt) &&
+              expiresAt > Date.now()
+            );
+          });
+          setPendingPayment(pending || null);
+          billingDashboardCache.pendingPayment = pending || null;
+        }
+
+        if (
+          summaryResult.status === "fulfilled" ||
+          transactionsResult.status === "fulfilled" ||
+          pendingResult.status === "fulfilled"
+        ) {
+          billingDashboardCache.loadedAt = Date.now();
+        }
+
+        if (
+          summaryResult.status === "rejected" &&
+          transactionsResult.status === "rejected"
+        ) {
+          setError(
+            summaryResult.reason?.response?.data?.message ||
+              transactionsResult.reason?.response?.data?.message ||
+              "We couldn't load your billing information.",
           );
-        });
-        setPendingPayment(pending || null);
-      }
-
-      if (
-        summaryResult.status === "rejected" &&
-        transactionsResult.status === "rejected"
-      ) {
-        setError(
-          summaryResult.reason?.response?.data?.message ||
+        } else if (summaryResult.status === "rejected") {
+          setError(
+            summaryResult.reason?.response?.data?.message ||
+              "Your billing summary couldn't be loaded.",
+          );
+        } else if (transactionsResult.status === "rejected") {
+          setError(
             transactionsResult.reason?.response?.data?.message ||
-            "We couldn't load your billing information.",
-        );
-      } else if (summaryResult.status === "rejected") {
-        setError(
-          summaryResult.reason?.response?.data?.message ||
-            "Your billing summary couldn't be loaded.",
-        );
-      } else if (transactionsResult.status === "rejected") {
-        setError(
-          transactionsResult.reason?.response?.data?.message ||
-            "Recent transactions couldn't be loaded.",
-        );
+              "Recent transactions couldn't be loaded.",
+          );
+        }
+      } catch {
+        setError("Something went wrong while loading billing data.");
+      } finally {
+        setLoading(false);
       }
-    } catch {
-      setError("Something went wrong while loading billing data.");
-    } finally {
-      setLoading(false);
-    }
-  }, [setUser]);
+    },
+    [setUser, billingDashboardCache],
+  );
 
   const handleAddBalance = async (amount, existingOrder = null) => {
     if (paymentLoading) return;
@@ -472,8 +516,22 @@ export default function BillingDashboardPage({ user, setUser }) {
   };
 
   useEffect(() => {
-    void loadBilling();
-  }, [loadBilling]);
+    setSummary(billingDashboardCache.summary);
+    setTransactions(billingDashboardCache.transactions);
+    setPendingPayment(billingDashboardCache.pendingPayment);
+    setLoading(!billingDashboardCache.loadedAt);
+
+    if (!billingDashboardCache.loadedAt) {
+      void loadBilling({ forceLoading: true });
+    }
+  }, [
+    billingCacheKey,
+    loadBilling,
+    billingDashboardCache.loadedAt,
+    billingDashboardCache.pendingPayment,
+    billingDashboardCache.summary,
+    billingDashboardCache.transactions,
+  ]);
 
   useEffect(() => {
     if (!pendingPayment?.expiresAt) {
@@ -651,7 +709,7 @@ export default function BillingDashboardPage({ user, setUser }) {
 
                 <button
                   type="button"
-                  onClick={() => void loadBilling()}
+                  onClick={() => void loadBilling({ forceLoading: true })}
                   className="shrink-0 text-xs font-semibold text-white underline underline-offset-4"
                 >
                   Retry
@@ -781,9 +839,16 @@ export default function BillingDashboardPage({ user, setUser }) {
                         }`}
                       >
                         <div className="flex min-w-0 items-start gap-3">
-                          <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.035] text-[#92949B]">
-                            <FiCreditCard size={16} />
-                          </span>
+                          {!(
+                            transaction?.source === "billing" ||
+                            transaction?.type === "balance_purchase" ||
+                            transaction?.balanceCredit != null ||
+                            transaction?.planId
+                          ) && (
+                            <span className="mt-0.5 hidden h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.035] text-[#92949B] sm:flex">
+                              <FiCreditCard size={16} />
+                            </span>
+                          )}
 
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-sm font-semibold text-[#D4D4D8]">
@@ -818,7 +883,30 @@ export default function BillingDashboardPage({ user, setUser }) {
                             status={getStatus(transaction)}
                           />
 
-                          <span className="text-sm font-semibold text-white">
+                          <span
+                            className={`text-sm font-semibold ${
+                              [
+                                "pending",
+                                "created",
+                                "processing",
+                                "authorized",
+                              ].includes(getStatus(transaction))
+                                ? "text-amber-200"
+                                : [
+                                      "failed",
+                                      "failure",
+                                      "cancelled",
+                                      "canceled",
+                                      "rejected",
+                                      "refunded",
+                                      "error",
+                                      "expired",
+                                    ].includes(getStatus(transaction)) ||
+                                    transaction?.type === "deduction"
+                                  ? "text-rose-300"
+                                  : "text-emerald-300"
+                            }`}
+                          >
                             {transaction?.source === "balance" ||
                             transaction?.amountUnit === "balance-unit" ? (
                               <span
@@ -882,35 +970,32 @@ export default function BillingDashboardPage({ user, setUser }) {
                   displayed here.
                 </p>
               </div>
-
-              <button
-                type="button"
-                onClick={() => void loadBilling()}
-                disabled={loading}
-                className="inline-flex items-center justify-center gap-2 self-center rounded-full bg-white px-5 py-3 text-xs font-semibold text-[#17191C] transition hover:-translate-y-0.5 hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-50 sm:self-start"
-              >
-                <FiRefreshCw
-                  size={14}
-                  className={loading ? "animate-spin" : ""}
-                />
-                Refresh billing
-                <FiArrowRight size={14} />
-              </button>
             </footer>
           </div>
         </main>
       </div>
 
+      <button
+        type="button"
+        onClick={() => void loadBilling({ forceLoading: true })}
+        disabled={loading}
+        aria-label="Refresh billing"
+        title="Refresh billing"
+        className="fixed bottom-24 right-5 z-30 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-[#242629] text-[#D4D4D8] shadow-[0_12px_35px_rgba(0,0,0,.35)] transition hover:border-white/20 hover:bg-[#303338] hover:text-white disabled:cursor-not-allowed disabled:opacity-50 lg:bottom-7 lg:right-7"
+      >
+        <FiRefreshCw size={16} className={loading ? "animate-spin" : ""} />
+      </button>
+
       {/* Mobile bottom actions */}
-      <MobileActionBar className="sm:hidden">
-        <div className="flex items-center gap-2">
+      <MobileActionBar className="lg:hidden">
+        <div className="mx-auto grid w-full grid-cols-2 gap-2">
           <button
             type="button"
             onClick={() => navigate("/billing/history")}
             className="group flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.035] px-3 py-3 text-xs font-semibold text-[#D4D4D8] transition duration-200 hover:border-white/[0.18] hover:bg-white/[0.065] hover:text-white focus:outline-none focus:ring-2 focus:ring-white/20"
           >
             <FiClock size={14} />
-            <span>History</span>
+            <span>My Transactions</span>
           </button>
 
           <button
@@ -922,7 +1007,7 @@ export default function BillingDashboardPage({ user, setUser }) {
             className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] shadow-[0_-10px_35px_rgba(0,0,0,0.22)] transition duration-200 hover:bg-[#E8E8EB] active:scale-[0.99] focus:outline-none focus:ring-2 focus:ring-white/30"
           >
             <FiPlus size={15} />
-            <span>Add balance</span>
+            <span>Add Balance</span>
             <FiArrowRight size={14} />
           </button>
         </div>

@@ -3,12 +3,12 @@ import { ArrowLeft, ArrowRight, Check, FileText, Plus, RefreshCw, Search, X } fr
 export default function ResumeHistorySidebar(props) {
   const {
     loadHistory, selectedId, loadingList, history, query, setQuery, setHistoryPage,
-    filtered, pagedHistory, dateLabel, navigate, chooseResume, mobileHistoryOpen,
+    filtered, pagedHistory, dateLabel, navigate, chooseResume, mobileHistoryOpen, setMobileHistoryOpen,
     historyPage, historyPages,
   } = props;
   return (
 <aside
-  className={`absolute top-4 bottom-20 left-4 flex w-[min(282px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "z-[90] translate-x-0" : "z-50 -translate-x-[calc(100%+1rem)]"}`}
+  className={`absolute top-4 bottom-20 left-4 flex w-[80vw] max-w-[360px] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "z-[90] translate-x-0" : "z-50 -translate-x-[calc(100%+1rem)]"}`}
 >
   <div className="shrink-0 border-b border-white/[0.065] bg-white/[0.012] px-5 pb-5 pt-6">
     <div className="flex items-start justify-between gap-3">
@@ -17,7 +17,7 @@ export default function ResumeHistorySidebar(props) {
           Your career
         </p>
         <h1 className="mt-2 text-[19px] font-semibold tracking-[-0.035em] text-white">
-          Resume history
+          My Resumes
         </h1>
         <p className="mt-1.5 text-[11px] leading-5 text-[#70727A]">
           Every version, detail and next step — in one place.

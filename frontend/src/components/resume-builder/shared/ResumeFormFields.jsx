@@ -1,12 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
-  emptyEducation,
-  emptyExperience,
-  emptyProject,
-} from "./resumeBuilderConstants";
-
-import {
   inputClassName,
   textareaClassName,
   labelClassName,

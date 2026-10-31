@@ -496,86 +496,56 @@ export const getCurrentUser = async (req, res) => {
 // Complete the minimum RIO account profile.
 export const completeProfile = async (req, res) => {
   try {
-    const { name, email, phoneNumber } = req.body ?? {};
-
-    const trimmedName = name?.trim();
-    const normalizedEmail = normalizeEmail(email);
-    const trimmedPhoneNumber = phoneNumber?.trim();
+    const trimmedName = req.body?.name?.trim();
 
     if (!trimmedName) {
-      return res.status(400).json({
-        success: false,
-        message: "Name is required.",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Name is required." });
     }
-
     if (trimmedName.length < 2 || trimmedName.length > 100) {
-      return res.status(400).json({
-        success: false,
-        message: "Name must be between 2 and 100 characters.",
-      });
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Name must be between 2 and 100 characters.",
+        });
     }
-
     if (trimmedName.toLowerCase() === "user") {
-      return res.status(400).json({
-        success: false,
-        message: "Name cannot be User.",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Name cannot be User." });
     }
 
     const authenticatedSession = await getAuthenticatedSession(req);
-
     if (!authenticatedSession) {
-      return res.status(401).json({
-        success: false,
-        message: "Your session has expired. Please sign in again.",
-      });
+      return res
+        .status(401)
+        .json({
+          success: false,
+          message: "Your session has expired. Please sign in again.",
+        });
     }
 
     const { sessionId, data: sessionData } = authenticatedSession;
-
     const user = await User.findById(sessionData.userId);
-
     if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: "User account not found.",
-      });
+      return res
+        .status(404)
+        .json({ success: false, message: "User account not found." });
     }
-
-    // Contact details are never accepted directly from this form. They must
-    // already have been verified by Firebase and synced through /login.
-    if (normalizedEmail && normalizedEmail !== user.email) {
-      return res.status(400).json({
-        success: false,
-        code: "EMAIL_VERIFICATION_REQUIRED",
-        message: "Verify and link your email before completing setup.",
-      });
-    }
-    if (trimmedPhoneNumber && trimmedPhoneNumber !== user.phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        code: "PHONE_VERIFICATION_REQUIRED",
-        message: "Verify and link your mobile number before completing setup.",
-      });
-    }
-    if (!user.email && !user.phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        message:
-          "At least one verified email address or mobile number is required.",
-      });
+    if (!user.email) {
+      return res
+        .status(400)
+        .json({
+          success: false,
+          message: "Sign in with an email-based account to complete setup.",
+        });
     }
 
     user.name = trimmedName;
     user.profileCompleted = true;
-
     await user.save();
-
-    /*
-     * Rebuild the Redis session from the saved MongoDB user.
-     * This automatically keeps balance synchronized as well.
-     */
     await syncUserSessions(sessionId, user);
 
     return res.status(200).json({
@@ -585,17 +555,12 @@ export const completeProfile = async (req, res) => {
     });
   } catch (error) {
     console.error("Account setup failed:", error);
-
-    if (error.code === 11000) {
-      return res.status(409).json({
+    return res
+      .status(500)
+      .json({
         success: false,
-        message: "This email or phone number is already in use.",
+        message: "Unable to complete account setup. Please try again.",
       });
-    }
-    return res.status(500).json({
-      success: false,
-      message: "Unable to complete account setup. Please try again.",
-    });
   }
 };
 
@@ -627,6 +592,7 @@ export const updateProfessionalProfile = async (req, res) => {
       linkedinUrl: { max: 300 },
       githubUrl: { max: 300 },
       portfolioUrl: { max: 300 },
+      phoneNumber: { max: 30 },
     };
 
     for (const [field, rules] of Object.entries(allowed)) {
@@ -643,7 +609,26 @@ export const updateProfessionalProfile = async (req, res) => {
           message: `${field} must be ${rules.max} characters or fewer.`,
         });
       }
-      user[field] = value;
+      if (field === "phoneNumber" && value) {
+        const existingPhone = await User.findOne({
+          phoneNumber: value,
+          _id: { $ne: user._id },
+        }).select("_id");
+        if (existingPhone) {
+          return res
+            .status(409)
+            .json({
+              success: false,
+              message:
+                "This contact number is already used by another account.",
+            });
+        }
+      }
+      if (field === "phoneNumber" && !value) {
+        user.phoneNumber = undefined;
+      } else {
+        user[field] = value;
+      }
     }
 
     if (req.body?.skills !== undefined) {

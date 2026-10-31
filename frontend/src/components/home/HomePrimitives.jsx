@@ -16,15 +16,6 @@ export function RioLogo({ compact = false }) {
   );
 }
 
-export const reveal = {
-  hidden: { opacity: 0, y: 28 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.65, ease: "easeOut" },
-  },
-};
-
 export function SectionHeading({
   eyebrow,
   title,

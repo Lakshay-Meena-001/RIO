@@ -71,7 +71,7 @@
   --sidebar-hover: rgba(255, 255, 255, 0.055);
   --sidebar-active: rgba(255, 255, 255, 0.105);
   --sidebar-card: rgba(255, 255, 255, 0.035);
-  --sidebar-icon-bg: rgba(255, 255, 255, 0.10);
+  --sidebar-icon-bg: rgba(255, 255, 255, 0.1);
   --sidebar-icon-hover: rgba(255, 255, 255, 0.16);
   --sidebar-avatar-bg: #e5e7eb;
   --sidebar-avatar-text: #17191c;
@@ -103,8 +103,6 @@ body,
   background: var(--selection);
   color: var(--text);
 }
-
-
 
 .theme-page {
   min-height: 100%;
@@ -352,4 +350,14 @@ body,
 }
 .rio-mobile-header__caption {
   color: var(--muted, rgba(255, 255, 255, 0.55));
+}
+
+/* Prevent the document behind dialogs from moving; dialog content owns scrolling. */
+html:has([aria-modal="true"]),
+body:has([aria-modal="true"]) {
+  overscroll-behavior: none;
+}
+[role="dialog"],
+[aria-modal="true"] {
+  overscroll-behavior: contain;
 }

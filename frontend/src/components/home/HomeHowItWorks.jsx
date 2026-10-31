@@ -2,7 +2,8 @@ import { motion } from "motion/react";
 import { FiArrowRight, FiArrowUpRight } from "react-icons/fi";
 import { FaArrowRight } from "react-icons/fa";
 import { journey } from "../../pages/home/homeData.jsx";
-import { SectionHeading, reveal } from "./HomePrimitives.jsx";
+import { SectionHeading } from "./HomePrimitives.jsx";
+import { reveal } from "./homeMotion.js";
 
 export default function HomeHowItWorks({ openLogin }) {
   return (

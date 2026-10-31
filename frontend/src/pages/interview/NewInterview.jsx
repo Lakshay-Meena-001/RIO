@@ -456,7 +456,7 @@ const NewInterview = ({ user, setUser }) => {
 
     const checkActiveInterview = async () => {
       try {
-        const result = await getActiveInterview();
+        const result = await getActiveInterview({ fresh: true });
 
         if (cancelled) return;
 

@@ -214,7 +214,7 @@ const ResumeBuilderDashboard = ({ user, setUser }) => {
             sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"
           }`}
         >
-          <div className="rio-dashboard-content mx-auto w-full max-w-[1600px] px-4 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-10 sm:pt-8 lg:px-9 lg:pt-9">
+          <div className="rio-dashboard-content mx-auto w-full min-w-0 max-w-[1480px] px-5 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-10 sm:pt-8 lg:px-10 lg:pt-9">
             {/* Page heading */}
             <motion.section
               initial={reduceMotion ? false : { opacity: 0, y: 10 }}

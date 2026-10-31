@@ -18,6 +18,7 @@ import {
 } from "react-icons/fi";
 
 import { getInterviewHistory } from "../../api/interview/interview.api";
+import useDrawerSwipe from "../../hooks/useDrawerSwipe";
 
 const getId = (item) => item?._id || item?.id || item?.interviewId || null;
 const dateOf = (item) => item?.createdAt || item?.startedAt || item?.updatedAt;
@@ -224,6 +225,7 @@ export default function InterviewHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+  useDrawerSwipe(mobileHistoryOpen, setMobileHistoryOpen, "left");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
@@ -381,7 +383,7 @@ export default function InterviewHistory() {
       />
       <div className="relative z-10 flex h-full min-h-0">
         <aside
-          className={`absolute top-4 bottom-20 left-4 z-50 flex w-[min(282px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"}`}
+          className={`absolute top-4 bottom-20 left-4 z-50 flex w-[80vw] max-w-[360px] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 ${mobileHistoryOpen ? "translate-x-0" : "-translate-x-[calc(100%+1rem)]"}`}
         >
           <div className="shrink-0 border-b border-white/[.065] bg-white/[.012] px-5 pb-4 pt-5">
             <div className="flex items-start justify-between gap-3">
@@ -390,7 +392,7 @@ export default function InterviewHistory() {
                   Your practice
                 </p>
                 <h1 className="mt-2 text-[19px] font-semibold tracking-[-.035em]">
-                  Interview history
+                  My Interviews
                 </h1>
                 <p className="mt-1.5 max-w-[205px] text-[11px] leading-5 text-[#70727A]">
                   Every round, result and next step — in one place.
@@ -659,34 +661,30 @@ export default function InterviewHistory() {
         </main>
       </div>
       <MobileActionBar className="lg:hidden">
-        {interviews.length === 0 && !loading && !error ? (
+        <div className="mx-auto grid w-full grid-cols-2 gap-2 md:grid-cols-3">
           <button
-            onClick={() => navigate("/mock-interview/new")}
-            className="w-full rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C]"
+            type="button"
+            onClick={() => setMobileHistoryOpen((open) => !open)}
+            className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[.035] px-2 text-xs font-semibold text-[#D4D4D8]"
           >
-            Start an interview <FiPlay className="ml-1 inline" size={13} />
+            <FiClock size={14} /> My Interviews
           </button>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setMobileHistoryOpen((open) => !open)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[.035] px-4 py-3 text-xs font-semibold text-[#D4D4D8]"
-            >
-              <FiClock size={14} />
-              My Interviews
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/mock-interview/new")}
-              disabled={!selectedInterviewId}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-xs font-semibold text-[#17191C] disabled:opacity-40"
-            >
-              <FiPlus size={16} />
-              New Interview
-            </button>
-          </div>
-        )}
+          <button
+            type="button"
+            onClick={() => setDeleteRequest(true)}
+            disabled={!selectedInterviewId}
+            className="hidden h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full border border-rose-300/20 bg-rose-300/[.07] px-2 text-xs font-semibold text-rose-200 disabled:opacity-40 md:inline-flex"
+          >
+            <FiTrash2 size={14} /> Delete
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate("/mock-interview/new")}
+            className="inline-flex h-11 min-w-0 w-full items-center justify-center gap-2 rounded-full bg-white px-2 text-xs font-semibold text-[#17191C]"
+          >
+            <FiPlus size={14} /> Start an Interview
+          </button>
+        </div>
       </MobileActionBar>
     </div>
   );

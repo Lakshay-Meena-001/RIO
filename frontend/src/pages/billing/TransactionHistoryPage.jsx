@@ -26,6 +26,7 @@ import {
 } from "../../api/billing/billing.api";
 
 import Surface from "../../components/ui/Surface";
+import useDrawerSwipe from "../../hooks/useDrawerSwipe";
 
 const cx = (...v) => v.filter(Boolean).join(" ");
 const unwrap = (r) => r?.data?.data ?? r?.data ?? r ?? {};
@@ -191,32 +192,22 @@ const amountOf = (t) => {
 
 const stateLabel = (t) => {
   const s = statusOf(t);
-
   if (PENDING.has(s)) return "Pending";
-  if (s === "expired") return "Expired";
-  if (SUCCESS.has(s)) {
-    return isDeduction(t) ? "Deducted" : "Added";
-  }
-
-  return s === "failed" ||
-    s === "failure" ||
-    s === "cancelled" ||
-    s === "canceled" ||
-    s === "rejected" ||
-    s === "refunded"
-    ? "Failed"
-    : titleCase(s || "Unknown");
+  if (isFailed(t)) return "Failed";
+  if (s === "completed") return "Completed";
+  if (SUCCESS.has(s)) return "Paid";
+  return titleCase(s || "Unknown");
 };
 
 const stateTone = (t) => {
   const s = statusOf(t);
   if (PENDING.has(s))
-    return "border-amber-300/20 bg-amber-300/[.08] text-amber-200";
-  if (!SUCCESS.has(s))
-    return "border-rose-300/20 bg-rose-300/[.08] text-rose-200";
-  return isDeduction(t)
-    ? "border-rose-300/20 bg-rose-300/[.08] text-rose-200"
-    : "border-emerald-300/20 bg-emerald-300/[.08] text-emerald-200";
+    return "border-amber-300/25 bg-amber-300/[.10] text-amber-200";
+  if (isFailed(t)) return "border-rose-300/25 bg-rose-300/[.10] text-rose-200";
+  if (s === "completed") return "border-white/20 bg-white/[.09] text-white";
+  if (SUCCESS.has(s))
+    return "border-emerald-300/25 bg-emerald-300/[.10] text-emerald-200";
+  return "border-white/[.10] bg-white/[.04] text-[#B9BBC2]";
 };
 
 function Badge({ transaction }) {
@@ -264,6 +255,7 @@ export default function BillingHistoryPage({ user }) {
   const [filter, setFilter] = useState("All");
   const [filterOpen, setFilterOpen] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  useDrawerSwipe(mobileOpen, setMobileOpen, "left");
   const [page, setPage] = useState(1);
   const pageSize = 10;
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
@@ -333,7 +325,7 @@ export default function BillingHistoryPage({ user }) {
     } else
       setError(
         tr.reason?.response?.data?.message ||
-          "Transaction history could not be loaded.",
+          "My Transactions could not be loaded.",
       );
     setLoading(false);
   }, [page, params]);
@@ -555,7 +547,7 @@ export default function BillingHistoryPage({ user }) {
 
         <div className="ml-3 min-w-0 border-l border-white/[0.09] pl-3">
           <p className="truncate text-xs font-semibold text-white">
-            Transaction history
+            My Transactions
           </p>
 
           <p className="mt-0.5 text-[9px] uppercase tracking-[0.14em] text-[#858994]">
@@ -573,16 +565,16 @@ export default function BillingHistoryPage({ user }) {
           <button
             aria-label="Close transaction list"
             onClick={() => setMobileOpen(false)}
-            className="absolute inset-0 z-30 bg-black/60 backdrop-blur-md transition-opacity duration-300 md:hidden"
+            className="absolute inset-0 z-30 bg-black/45 backdrop-blur-xl transition-opacity duration-300 lg:hidden"
           />
         )}
         <aside
           className={cx(
-            "absolute top-4 bottom-20 left-4 flex w-[min(282px,calc(100vw-1rem))] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 md:inset-y-4 md:left-4 md:right-auto md:w-[300px] lg:inset-y-5 lg:left-5",
+            "absolute top-4 bottom-20 left-4 flex w-[80vw] max-w-[360px] flex-col overflow-hidden rounded-[24px] border border-white/[.10] bg-[#111315]/95 shadow-[0_24px_80px_rgba(0,0,0,.32)] backdrop-blur-xl transition-transform duration-300 lg:inset-y-5 lg:left-5 lg:w-[300px]",
             mobileOpen ? "z-[90]" : "z-50",
             mobileOpen
               ? "z-[90] translate-x-0"
-              : "z-50 -translate-x-[calc(100%+1rem)] md:translate-x-0",
+              : "z-50 -translate-x-[calc(100%+1rem)]",
           )}
         >
           <div className="shrink-0 border-b border-white/[.07] px-5 pb-4 pt-5">
@@ -592,7 +584,7 @@ export default function BillingHistoryPage({ user }) {
                   RIO / ACCOUNT
                 </p>
                 <h1 className="mt-2 text-[20px] font-semibold tracking-[-.04em]">
-                  Transaction history<span className="text-[#858994]">.</span>
+                  My Transactions<span className="text-[#858994]">.</span>
                 </h1>
                 <p className="mt-1.5 text-[11px] leading-5 text-[#858994]">
                   Every balance movement, in one place.
@@ -1145,14 +1137,14 @@ export default function BillingHistoryPage({ user }) {
 
         <div
           className={cx(
-            "rio-history-mobile-bottom-bar rio-mobile-action-bar fixed inset-x-0 bottom-0 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-2.5 pb-3 backdrop-blur-xl md:hidden",
+            "rio-history-mobile-bottom-bar rio-mobile-action-bar fixed inset-x-0 bottom-0 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-2.5 pb-3 backdrop-blur-xl lg:hidden",
             mobileOpen ? "z-40" : "z-[60]",
           )}
           style={{
             paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
           }}
         >
-          <div className="mx-auto flex w-full max-w-xl items-center gap-2">
+          <div className="mx-auto grid w-full max-w-none grid-cols-2 items-stretch gap-2">
             {selectedIsLivePending ? (
               <>
                 <button
@@ -1187,7 +1179,7 @@ export default function BillingHistoryPage({ user }) {
                   aria-label="Open transaction history list"
                 >
                   <FiFileText size={14} />
-                  History
+                  My Transactions
                 </button>
 
                 <button

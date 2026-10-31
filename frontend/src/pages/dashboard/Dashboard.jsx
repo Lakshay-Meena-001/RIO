@@ -414,7 +414,7 @@ const Dashboard = ({ user, setUser }) => {
             user={user}
           />
 
-          <div className="mx-auto w-full max-w-[1600px] px-4 pt-[clamp(5.5rem,10vh,6.5rem)] pb-[calc(5rem+env(safe-area-inset-bottom))] min-[480px]:px-5 sm:pt-8 sm:pb-10 md:px-6 md:pt-8 lg:px-8 xl:px-10">
+          <div className="mx-auto w-full min-w-0 max-w-[1480px] px-5 pb-[calc(5rem+env(safe-area-inset-bottom))] pt-[clamp(5.5rem,10vh,6.5rem)] sm:pb-10 sm:pt-8 sm:px-7 lg:px-10">
             <motion.div
               {...enter}
               className="mb-6 flex min-w-0 flex-col gap-4 sm:mb-7 sm:gap-5 lg:flex-row lg:items-end lg:justify-between"

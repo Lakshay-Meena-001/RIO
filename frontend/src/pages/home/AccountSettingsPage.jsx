@@ -1,5 +1,5 @@
 import ServiceNavigation from "../../components/ServiceNavigation";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import {
@@ -13,13 +13,7 @@ import {
   FiShield,
   FiX,
 } from "react-icons/fi";
-import {
-  PhoneAuthProvider,
-  RecaptchaVerifier,
-  sendPasswordResetEmail,
-  verifyBeforeUpdateEmail,
-  updatePhoneNumber,
-} from "firebase/auth";
+import { sendPasswordResetEmail, verifyBeforeUpdateEmail } from "firebase/auth";
 import { auth } from "../../utils/firebase";
 import api from "../../utils/axios";
 import toast from "react-hot-toast";
@@ -92,37 +86,19 @@ export default function AccountSettingsPage({ user, setUser }) {
   const reduceMotion = useReducedMotion();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(
-  () => localStorage.getItem("rio-sidebar-open") !== "false"
-);
+    () => localStorage.getItem("rio-sidebar-open") !== "false",
+  );
   const [editing, setEditing] = useState("");
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [emailDraft, setEmailDraft] = useState("");
   const [phoneDraft, setPhoneDraft] = useState("");
-  const [otp, setOtp] = useState("");
-  const [verificationId, setVerificationId] = useState("");
-  const recaptchaRef = useRef(null);
 
   const email = user?.email || auth.currentUser?.email || "";
   const phone =
     user?.phoneNumber || user?.phone || auth.currentUser?.phoneNumber || "";
   const emailVerified = Boolean(
     auth.currentUser?.emailVerified || user?.emailVerified,
-  );
-  const phoneVerified = Boolean(
-    auth.currentUser?.phoneNumber || user?.phoneNumber,
-  );
-
-  useEffect(
-    () => () => {
-      try {
-        recaptchaRef.current?.clear?.();
-      } catch (error) {
-        console.warn("Could not clear reCAPTCHA:", error);
-      }
-      recaptchaRef.current = null;
-    },
-    [],
   );
 
   const syncUser = async () => {
@@ -138,11 +114,7 @@ export default function AccountSettingsPage({ user, setUser }) {
   const beginEdit = (section) => {
     setEditing(section);
     if (section === "email") setEmailDraft(email);
-    if (section === "phone") {
-      setPhoneDraft("");
-      setOtp("");
-      setVerificationId("");
-    }
+    if (section === "phone") setPhoneDraft(phone);
   };
 
   const saveEmail = async (event) => {
@@ -169,66 +141,24 @@ export default function AccountSettingsPage({ user, setUser }) {
     }
   };
 
-  const sendPhoneCode = async (event) => {
+  const savePhone = async (event) => {
     event.preventDefault();
-    const raw = phoneDraft.trim().replace(/[^\d+]/g, "");
-    const number = raw.startsWith("+") ? raw : `+91${raw}`;
-    if (!/^\+[1-9]\d{7,14}$/.test(number))
-      return toast.error(
-        "Enter a valid number with country code, e.g. +91XXXXXXXXXX.",
-      );
-    if (!auth.currentUser) return toast.error("Please sign in again.");
-    setBusy(true);
-    try {
-      if (!recaptchaRef.current)
-        recaptchaRef.current = new RecaptchaVerifier(
-          auth,
-          "settings-phone-recaptcha",
-          { size: "invisible" },
-        );
-      const provider = new PhoneAuthProvider(auth);
-      setVerificationId(
-        await provider.verifyPhoneNumber(number, recaptchaRef.current),
-      );
-      setPhoneDraft(number);
-      toast.success("OTP sent. Enter the 6-digit code.");
-    } catch (err) {
-      try {
-        recaptchaRef.current?.clear?.();
-      } catch (error) {
-        console.warn("Could not clear reCAPTCHA:", error);
-      }
-      recaptchaRef.current = null;
-      toast.error(
-        friendlyError(
-          err,
-          "Could not send OTP. Check the number and try again.",
-        ),
-      );
-    } finally {
-      setBusy(false);
+    const contactNumber = phoneDraft.trim();
+    if (contactNumber.length > 30) {
+      return toast.error("Contact number must be 30 characters or fewer.");
     }
-  };
-
-  const verifyPhone = async (event) => {
-    event.preventDefault();
-    if (!verificationId || !/^\d{6}$/.test(otp.trim()))
-      return toast.error("Enter the 6-digit OTP.");
     setBusy(true);
     try {
-      const credential = PhoneAuthProvider.credential(
-        verificationId,
-        otp.trim(),
-      );
-      await updatePhoneNumber(auth.currentUser, credential);
-      await syncUser();
+      const response = await api.patch("/api/auth/professional-profile", {
+        phoneNumber: contactNumber,
+      });
+      if (response.data?.user) setUser?.(response.data.user);
       setEditing("");
-      setVerificationId("");
-      setOtp("");
-      setPhoneDraft("");
-      toast.success("Phone number verified and updated.");
+      toast.success(
+        contactNumber ? "Contact number saved." : "Contact number removed.",
+      );
     } catch (err) {
-      toast.error(friendlyError(err, "Could not verify this phone number."));
+      toast.error(friendlyError(err, "Could not save the contact number."));
     } finally {
       setBusy(false);
     }
@@ -426,7 +356,7 @@ export default function AccountSettingsPage({ user, setUser }) {
                             Mobile number
                           </h2>
                           <p className="mt-1 text-[11px] text-[#777A82]">
-                            Verified contact for account access
+                            Optional contact detail for your profile and resume
                           </p>
                         </div>
                       </div>
@@ -442,66 +372,31 @@ export default function AccountSettingsPage({ user, setUser }) {
                     </div>
                     <div className="p-5 sm:p-6">
                       {editing === "phone" ? (
-                        <form
-                          onSubmit={
-                            verificationId ? verifyPhone : sendPhoneCode
-                          }
-                          className="space-y-4"
-                        >
-                          {!verificationId ? (
-                            <Field
-                              label="New mobile number"
-                              value={phoneDraft}
-                              onChange={(e) => setPhoneDraft(e.target.value)}
-                              type="tel"
-                              autoComplete="tel"
-                              placeholder="+91 98765 43210"
-                            />
-                          ) : (
-                            <>
-                              <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] px-3.5 py-3 text-xs text-[#92949B]">
-                                OTP sent to{" "}
-                                <span className="text-white">{phoneDraft}</span>
-                              </div>
-                              <Field
-                                label="6-digit verification code"
-                                value={otp}
-                                onChange={(e) =>
-                                  setOtp(
-                                    e.target.value
-                                      .replace(/\D/g, "")
-                                      .slice(0, 6),
-                                  )
-                                }
-                                autoComplete="one-time-code"
-                                placeholder="000000"
-                              />
-                            </>
-                          )}
-                          <div id="settings-phone-recaptcha" />
+                        <form onSubmit={savePhone} className="space-y-4">
+                          <Field
+                            label="Contact number (optional)"
+                            value={phoneDraft}
+                            onChange={(e) => setPhoneDraft(e.target.value)}
+                            type="tel"
+                            autoComplete="tel"
+                            placeholder="Add a contact number"
+                          />
+                          <p className="text-[11px] leading-5 text-[#777A82]">
+                            This is saved only as a profile detail and may be
+                            used on your resume. No OTP or phone verification is
+                            required.
+                          </p>
                           <div className="flex flex-wrap gap-2">
                             <button
-                              disabled={
-                                busy ||
-                                (verificationId && otp.length !== 6) ||
-                                (!verificationId && !phoneDraft.trim())
-                              }
+                              disabled={busy}
                               className="inline-flex min-h-10 items-center gap-2 rounded-full bg-white px-4 py-3 text-xs font-semibold text-[#17191C] transition hover:bg-[#E8E8EB] disabled:opacity-50"
                             >
-                              {busy
-                                ? "Please wait…"
-                                : verificationId
-                                  ? "Verify and save"
-                                  : "Send OTP"}{" "}
+                              {busy ? "Saving…" : "Save contact"}{" "}
                               <FiArrowRight size={13} />
                             </button>
                             <button
                               type="button"
-                              onClick={() => {
-                                setEditing("");
-                                setVerificationId("");
-                                setOtp("");
-                              }}
+                              onClick={() => setEditing("")}
                               className="min-h-10 rounded-full border border-white/10 px-4 py-3 text-xs text-[#D4D4D8] hover:bg-white/[0.05]"
                             >
                               Cancel
@@ -509,18 +404,9 @@ export default function AccountSettingsPage({ user, setUser }) {
                           </div>
                         </form>
                       ) : (
-                        <div>
-                          <p className="break-all text-sm font-medium text-[#E4E4E7]">
-                            {phone || "No phone linked"}
-                          </p>
-                          <p className="mt-2">
-                            {status(
-                              phoneVerified,
-                              "Linked to this account",
-                              "Not linked",
-                            )}
-                          </p>
-                        </div>
+                        <p className="break-all text-sm font-medium text-[#E4E4E7]">
+                          {phone || "No contact number added"}
+                        </p>
                       )}
                     </div>
                   </Surface>
@@ -584,18 +470,14 @@ export default function AccountSettingsPage({ user, setUser }) {
                       Your details stay yours.
                     </h2>
                     <p className="mt-3 text-xs leading-6 text-[#858994]">
-                      Email changes require verification. Phone changes require
-                      a one-time code, so a contact method is only updated after
-                      ownership is confirmed.
+                      Email changes require verification. Contact numbers are
+                      optional profile details and are saved without phone
+                      verification.
                     </p>
                     <div className="my-5 border-t border-white/[0.08]" />
                     <div className="space-y-3 text-xs text-[#92949B]">
                       <p className="flex items-center gap-2">
                         <FiCheck className="text-[#D4D4D8]" /> Email
-                        verification
-                      </p>
-                      <p className="flex items-center gap-2">
-                        <FiCheck className="text-[#D4D4D8]" /> Phone OTP
                         verification
                       </p>
                       <p className="flex items-center gap-2">

@@ -1,7 +1,7 @@
 import { motion } from "motion/react";
 import { FiCheck, FiTarget, FiTrendingUp } from "react-icons/fi";
 
-import { reveal } from "./HomePrimitives.jsx";
+import { reveal } from "./homeMotion.js";
 
 export default function HomeAssessmentSection() {
   return (

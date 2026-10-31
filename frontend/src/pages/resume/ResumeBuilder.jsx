@@ -10,7 +10,6 @@ import {
   Save,
   FilePlus2,
   ListChecks,
-  RefreshCw,
   X,
 } from "lucide-react";
 import { useDispatch } from "react-redux";
@@ -608,71 +607,37 @@ export default function ResumeBuilder() {
 
       {/* Mobile actions are kept outside the scrollable editor. */}
       <div className="rio-mobile-action-bar fixed inset-x-0 bottom-0 z-40 border-t border-white/[.09] bg-[#111315]/90 px-3 pt-2 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_rgba(0,0,0,0.18)] backdrop-blur-xl lg:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-2 gap-2">
+        <div className="mx-auto grid w-full max-w-xl grid-cols-3 gap-2">
           <button
             type="button"
             onClick={() => navigate("/builder/history")}
-            className="inline-flex min-h-10 items-center justify-center gap-2 min-h-11 rounded-full border border-white/10 bg-white/[.035] px-3 py-2 text-xs font-semibold text-white/75"
+            className="inline-flex min-w-0 w-full items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[.035] px-2 text-[10px] font-semibold text-white/75"
           >
-            <Clock3 className="h-3.5 w-3.5" /> History
+            <Clock3 className="h-3.5 w-3.5 shrink-0" /> History
           </button>
           <button
             type="button"
             onClick={openPreview}
-            className="inline-flex min-h-10 items-center justify-center gap-2 min-h-11 rounded-full border border-white/10 bg-white/[.035] px-3 py-2 text-xs font-semibold text-white/75"
+            className="inline-flex min-w-0 w-full items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[.035] px-2 text-[10px] font-semibold text-white/75"
           >
-            <Eye className="h-3.5 w-3.5" /> Preview
+            <Eye className="h-3.5 w-3.5 shrink-0" /> Preview
           </button>
-        </div>
-        {!resumeId ? (
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving || !hasResumeContent(data)}
-            className="mx-auto mt-2 flex min-h-10 w-full max-w-xl items-center justify-center gap-2 min-h-11 rounded-full bg-white px-3 py-2 text-xs font-semibold text-[#17191C] disabled:opacity-40"
+            disabled={saving || (resumeId ? !hasChanges : !hasResumeContent(data))}
+            className="inline-flex min-w-0 w-full items-center justify-center gap-1.5 rounded-full bg-white px-2 text-[10px] font-semibold text-[#17191C] disabled:opacity-40"
           >
             {saving ? (
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin" />
+            ) : resumeId ? (
+              <Save className="h-3.5 w-3.5 shrink-0" />
             ) : (
-              <FilePlus2 className="h-3.5 w-3.5" />
+              <FilePlus2 className="h-3.5 w-3.5 shrink-0" />
             )}
-            {saving ? "Creating…" : "Create Resume"}
+            <span className="truncate">{saving ? "Saving…" : resumeId ? "Update" : "Create"}</span>
           </button>
-        ) : (
-          hasChanges && (
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="mx-auto mt-2 flex min-h-10 w-full max-w-xl items-center justify-center gap-2 min-h-11 rounded-full bg-white px-3 py-2 text-xs font-semibold text-[#17191C] disabled:opacity-40"
-            >
-              {saving ? (
-                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Save className="h-3.5 w-3.5" />
-              )}
-              {saving ? "Updating…" : "Update Resume"}
-            </button>
-          )
-        )}
-        {!resumeId && hasResumeContent(data) && (
-          <button
-            type="button"
-            onClick={() => {
-              const blank = createBlankResume();
-              setData(blank);
-              setSavedData(clone(blank));
-              setFieldErrors({});
-              setError("");
-              setNotice("");
-              setCreatedResumeId("");
-              editorRef.current?.scrollTo({ top: 0, behavior: "smooth" });
-            }}
-            className="mx-auto mt-2 flex min-h-8 w-full max-w-xl items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[.035] px-3 text-[10px] font-semibold text-white/65"
-          >
-            <RefreshCw className="h-3 w-3" /> Create New (clear form)
-          </button>
-        )}
+        </div>
       </div>
 
       {showScorerModal && (

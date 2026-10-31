@@ -264,9 +264,9 @@
   display: grid;
   place-items: center;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.68);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(9, 11, 13, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 .rio-modal {
   width: min(100%, 34rem);
@@ -1180,7 +1180,6 @@ a {
   }
 }
 
-
 /* Shared mobile action-bar surface only. Layout stays component-owned so a
    page's flex/grid structure is never overwritten by a global selector. */
 .rio-mobile-action-bar {
@@ -1190,4 +1189,49 @@ a {
   -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom, 0px));
+}
+
+/* Consistent mobile/tablet action bars: layout owns spacing, buttons share one size. */
+.rio-mobile-action-bar {
+  box-sizing: border-box;
+  min-height: calc(2.75rem + 1rem + env(safe-area-inset-bottom, 0px));
+  padding-top: 0.5rem !important;
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px)) !important;
+}
+.rio-mobile-action-bar button {
+  box-sizing: border-box;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  max-height: 2.75rem;
+  min-width: 0;
+  flex: 1 1 0;
+  margin-block: 0;
+  padding-block: 0;
+  padding-inline: 0.5rem !important;
+  line-height: 1;
+  white-space: nowrap;
+  border-radius: 9999px !important;
+}
+.rio-mobile-action-bar > div {
+  min-width: 0;
+}
+.rio-mobile-action-bar button > span {
+  min-width: 0;
+}
+@media (min-width: 640px) and (max-width: 1023px) {
+  .rio-mobile-action-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding-inline: max(1rem, env(safe-area-inset-right, 0px));
+  }
+  .rio-mobile-action-bar > div {
+    width: auto;
+    max-width: 100%;
+    margin-left: auto;
+    margin-right: 0;
+  }
+  .rio-mobile-action-bar button {
+    flex: 0 1 auto;
+    min-width: 9rem;
+  }
 }

@@ -279,9 +279,9 @@ export default function ScorerDashboard({ user, setUser }) {
         />
 
         <main
-          className={`min-w-0 w-full flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
+          className={`min-w-0 flex-1 transition-[margin-left] duration-300 ease-out ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
         >
-          <div className="mx-auto w-full min-w-0 max-w-[1480px] px-4 pb-16 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
+          <div className="mx-auto w-full min-w-0 max-w-[1480px] px-5 pb-16 pt-[clamp(5.5rem,10vh,6.5rem)] sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10">
             <section className="mb-8 flex min-w-0 flex-col gap-6 lg:mb-10 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 max-w-3xl">
                 <PageEyebrow className="mb-4">Resume intelligence</PageEyebrow>

@@ -15,8 +15,10 @@ export default function AddBalanceModal({
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousHtmlOverflow = document.documentElement.style.overflow;
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
 
     const handleKeyDown = (event) => {
       if (event.key === "Escape" && !loading) onClose();
@@ -24,7 +26,8 @@ export default function AddBalanceModal({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose, loading]);
@@ -38,12 +41,12 @@ export default function AddBalanceModal({
 
   return (
     <div
-      className="fixed inset-0 z-[100] overflow-y-auto bg-black/70 p-3 backdrop-blur-md sm:p-5"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden overscroll-none bg-[#090b0d]/85 p-3 backdrop-blur-md sm:p-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !loading) onClose();
       }}
     >
-      <div className="flex min-h-full items-center justify-center">
+      <div className="flex max-h-full min-h-0 w-full items-center justify-center">
         <motion.section
           role="dialog"
           aria-modal="true"
@@ -52,7 +55,7 @@ export default function AddBalanceModal({
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={reduceMotion ? undefined : { opacity: 0, y: 8, scale: 0.99 }}
           transition={{ duration: 0.18 }}
-          className="relative w-full max-w-[860px] overflow-hidden rounded-[24px] border border-white/15 bg-[#17191C] text-white shadow-[0_30px_100px_rgba(0,0,0,0.58)] sm:rounded-[28px]"
+          className="relative max-h-full w-full max-w-[860px] overflow-y-auto overscroll-contain rounded-[24px] border border-white/15 bg-[#17191C] text-white shadow-[0_30px_100px_rgba(0,0,0,0.58)] sm:rounded-[28px]"
         >
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_55%_at_0%_0%,rgba(255,255,255,0.07),transparent_70%)]" />
 
@@ -69,7 +72,12 @@ export default function AddBalanceModal({
           <div className="relative grid md:min-h-[430px] md:grid-cols-[0.85fr_1.15fr]">
             <aside className="relative hidden flex-col justify-between border-r border-white/10 bg-white/[0.025] p-8 md:flex lg:p-10">
               <div>
-                <p className="text-base font-bold tracking-[0.22em] text-white">
+                <p
+                  className="text-base font-bold  tracking-[0.22em] text-white"
+                  style={{
+                    fontFamily: '"Zen Dots", sans-serif',
+                  }}
+                >
                   RIO
                 </p>
                 <p className="mt-1 text-[9px] uppercase tracking-[0.22em] text-white/35">
@@ -106,10 +114,10 @@ export default function AddBalanceModal({
                   id="add-balance-title"
                   className="mt-2 text-2xl font-semibold tracking-[-0.04em] sm:text-3xl"
                 >
-                  Add funds
+                  Add Balance
                 </h3>
                 <p className="mt-2 max-w-md text-sm leading-5 text-white/45">
-                  Select a top-up amount or enter a custom value.
+                  Select amount or enter a custom value.
                 </p>
               </div>
 
@@ -143,7 +151,7 @@ export default function AddBalanceModal({
                       disabled={loading}
                       onClick={() => setAmount(String(value))}
                       aria-pressed={selected}
-                      className={`min-h-10 rounded-xl border px-2 py-2.5 text-sm font-semibold transition ${
+                      className={`min-h-10 rounded-full border px-2 py-2.5 text-sm font-semibold transition ${
                         selected
                           ? "border-white bg-white text-[#17191C]"
                           : "border-white/10 bg-white/[0.025] text-white/75 hover:border-white/25 hover:bg-white/[0.06]"
@@ -161,7 +169,7 @@ export default function AddBalanceModal({
               >
                 Custom amount
               </label>
-              <div className="mt-2 flex items-center rounded-xl border border-white/15 bg-black/20 px-4 transition focus-within:border-white/35">
+              <div className="mt-2 flex items-center rounded-full border border-white/15 bg-black/20 px-4 transition focus-within:border-white/35">
                 <span className="mr-3 text-lg text-white/40">₹</span>
                 <input
                   id="custom-topup-amount"
@@ -194,7 +202,7 @@ export default function AddBalanceModal({
                 type="button"
                 onClick={() => onContinue(numericAmount)}
                 disabled={loading || !validAmount}
-                className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-semibold text-[#17191C] transition hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-40"
+                className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-[#17191C] transition hover:bg-[#E8E8EB] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {loading ? (
                   <>

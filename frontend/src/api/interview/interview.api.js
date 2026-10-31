@@ -19,8 +19,10 @@ export const startInterview = async (interviewData) => {
  *
  * GET /api/interview/active
  */
-export const getActiveInterview = async () => {
-  const response = await api.get("/api/interview/active");
+export const getActiveInterview = async ({ fresh = false } = {}) => {
+  const response = await api.get("/api/interview/active", {
+    ...(fresh ? { skipCache: true } : { cacheTTL: 5 * 60 * 1000 }),
+  });
 
   return response.data;
 };

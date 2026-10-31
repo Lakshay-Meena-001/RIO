@@ -13,21 +13,20 @@ import {
 } from "react-icons/fi";
 import {
   signInWithPopup,
+  linkWithCredential,
+  GithubAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendEmailVerification,
   sendPasswordResetEmail,
   updatePassword,
   updateProfile,
-  verifyBeforeUpdateEmail,
   signOut,
   signInWithPhoneNumber,
-  linkWithPhoneNumber,
   RecaptchaVerifier,
 } from "firebase/auth";
 import { FcGoogle } from "react-icons/fc";
 import { FaGithub } from "react-icons/fa";
-import { MdPhoneIphone } from "react-icons/md";
 import { useForm } from "react-hook-form";
 import { toast } from "react-hot-toast";
 
@@ -106,9 +105,9 @@ const Loginmodel = ({
   const [phoneNumber, setPhoneNumber] = useState("");
   const [confirmationResult, setConfirmationResult] = useState(null);
   const [otp, setOtp] = useState("");
-  const [phoneLinkConfirmation, setPhoneLinkConfirmation] = useState(null);
-  const [phoneLinkOtp, setPhoneLinkOtp] = useState("");
-  const [phoneLinkSent, setPhoneLinkSent] = useState(false);
+  // const [phoneLinkConfirmation, setPhoneLinkConfirmation] = useState(null);
+  // const [phoneLinkOtp, setPhoneLinkOtp] = useState("");
+  // const [phoneLinkSent, setPhoneLinkSent] = useState(false);
 
   const [emailVerificationStep, setEmailVerificationStep] = useState(false);
   const [passwordCreationStep, setPasswordCreationStep] = useState(false);
@@ -140,6 +139,15 @@ const Loginmodel = ({
   const passwordValue =
     useWatch({ control, name: "password", defaultValue: "" }) || "";
   const nameValue = useWatch({ control, name: "name", defaultValue: "" }) || "";
+
+  useEffect(() => {
+    if (!accountSetupStep) return;
+    const authenticatedEmail =
+      auth.currentUser?.email || accountSetupUser?.email || "";
+    if (authenticatedEmail)
+      setValue("email", authenticatedEmail, { shouldValidate: true });
+    if (accountSetupUser?.name) setValue("name", accountSetupUser.name);
+  }, [accountSetupStep, accountSetupUser, setValue]);
 
   // Supports both:
   const normalizeEmail = (value) => {
@@ -174,50 +182,134 @@ const Loginmodel = ({
     onClose();
   };
 
-  const handleSocialAuth = async (provider) => {
+  // Complete the same RIO login flow after a social sign-in or provider link.
+  // All Firebase providers must resolve to one Firebase UID, which is the
+  // identity used by the backend to find the corresponding MongoDB account.
+  const finishSocialSignIn = async (
+    firebaseUser,
+    successMessage = "Welcome back!",
+  ) => {
+    const token = await firebaseUser.getIdToken(true);
+    const response = await api.post("/api/auth/login", { token });
+    const user = response.data?.user;
+
+    if (!user) {
+      throw new Error("User information was not returned.");
+    }
+
+    if (user.profileCompleted) {
+      toast.success(successMessage);
+      setUser(user);
+      onClose();
+      return;
+    }
+
+    toast.success("Account created. Let's complete your profile.");
+    setUser(user);
+    setAccountSetupUser({
+      ...user,
+      email: firebaseUser.email || user.email || "",
+      emailVerified: firebaseUser.emailVerified === true,
+      phoneNumber: firebaseUser.phoneNumber || user.phoneNumber || "",
+      phoneVerified: Boolean(firebaseUser.phoneNumber),
+    });
+    setAccountSetupStep(true);
+  };
+
+  const handleSocialAuth = async (socialProvider, providerName) => {
     if (isLoading) return;
 
     try {
       setIsLoading(true);
 
-      const result = await signInWithPopup(auth, provider);
-      const token = await result.user.getIdToken();
+      try {
+        const result = await signInWithPopup(auth, socialProvider);
+        await finishSocialSignIn(result.user);
+      } catch (error) {
+        // Firebase blocks a second account with the same email. Authenticate
+        // the existing Google identity, then explicitly link GitHub to it.
+        // This preserves one Firebase UID (and therefore one RIO/Mongo user).
+        if (
+          providerName !== "GitHub" ||
+          error?.code !== "auth/account-exists-with-different-credential"
+        ) {
+          throw error;
+        }
 
-      const response = await api.post("/api/auth/login", {
-        token,
-      });
+        const pendingGithubCredential =
+          GithubAuthProvider.credentialFromError(error);
 
-      const user = response.data?.user;
+        if (!pendingGithubCredential) {
+          throw new Error(
+            "GitHub sign-in needs account verification, but Firebase did not return the pending credential. Please try again.",
+            { cause: error },
+          );
+        }
 
-      if (!user) {
-        throw new Error("User information was not returned.");
+        toast(
+          "This email already has a RIO account. Sign in with its Google account to connect GitHub.",
+        );
+
+        const googleResult = await signInWithPopup(auth, provider);
+        const expectedEmail = String(
+          error?.customData?.email || error?.email || "",
+        )
+          .trim()
+          .toLowerCase();
+        const googleEmail = String(googleResult.user.email || "")
+          .trim()
+          .toLowerCase();
+
+        // Never attach a GitHub identity to a different Google account just
+        // because another Google account is active in the browser.
+        if (expectedEmail && googleEmail !== expectedEmail) {
+          await signOut(auth);
+          throw new Error(
+            `Please choose the Google account that uses ${expectedEmail} to connect GitHub.`,
+            { cause: error },
+          );
+        }
+
+        try {
+          const linkedResult = await linkWithCredential(
+            googleResult.user,
+            pendingGithubCredential,
+          );
+          await finishSocialSignIn(
+            linkedResult.user,
+            "GitHub connected to your existing RIO account.",
+          );
+        } catch (linkError) {
+          if (linkError?.code === "auth/provider-already-linked") {
+            await finishSocialSignIn(
+              googleResult.user,
+              "Welcome back! Your GitHub account is already connected.",
+            );
+            return;
+          }
+          if (linkError?.code === "auth/credential-already-in-use") {
+            throw new Error(
+              "This GitHub account is already connected to a different Firebase account. Sign in to that account; accounts cannot be merged automatically.",
+              { cause: linkError },
+            );
+          }
+          throw linkError;
+        }
       }
-
-      if (user.profileCompleted) {
-        toast.success("Welcome back!");
-        setUser(user);
-        onClose();
-        return;
-      }
-
-      toast.success("Account created. Let's complete your profile.");
-
-      setUser(user);
-      setAccountSetupUser({
-        ...user,
-        email: result.user.email || user.email || "",
-        emailVerified: result.user.emailVerified === true,
-        phoneNumber: result.user.phoneNumber || user.phoneNumber || "",
-        phoneVerified: Boolean(result.user.phoneNumber),
-      });
-      setAccountSetupStep(true);
     } catch (error) {
       console.error("Social authentication failed:", error);
 
-      toast.error(
-        error?.response?.data?.message ||
-          "Unable to sign in. Please try again.",
-      );
+      const message =
+        error?.code === "auth/popup-closed-by-user"
+          ? "Sign-in was cancelled. Please try again."
+          : error?.message?.startsWith("Please choose the Google account") ||
+              error?.message?.startsWith("This GitHub account")
+            ? error.message
+            : error?.response?.data?.message ||
+              error?.message ||
+              "Unable to sign in. Please try again.";
+
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -756,19 +848,19 @@ const Loginmodel = ({
     reset();
   };
 
-  const handleSelectPhone = () => {
-    if (isLoading) return;
+  // const handleSelectPhone = () => {
+  //   if (isLoading) return;
 
-    clearPhoneOtpSession();
-    setMethod("phone");
-  };
+  //   clearPhoneOtpSession();
+  //   setMethod("phone");
+  // };
 
-  const handleSelectEmail = () => {
-    if (isLoading) return;
+  // const handleSelectEmail = () => {
+  //   if (isLoading) return;
 
-    clearPhoneOtpSession();
-    setMethod("email");
-  };
+  //   clearPhoneOtpSession();
+  //   setMethod("email");
+  // };
 
   const switchMode = async (nextMode) => {
     if (isLoading) return;
@@ -804,249 +896,144 @@ const Loginmodel = ({
     reset();
   };
 
-  const handleSendAccountPhoneCode = async () => {
-    if (isLoading) return;
-    const rawPhone = String(getValues("phoneNumber") || "").trim();
-    const digits = rawPhone.replace(/\D/g, "");
-    if (digits.length !== 10) {
-      toast.error("Enter a valid 10-digit Indian mobile number first.");
-      return;
-    }
-    const firebaseUser = auth.currentUser;
-    if (!firebaseUser) {
-      toast.error("Your sign-in session expired. Please sign in again.");
-      return;
-    }
-    try {
-      setIsLoading(true);
-      clearRecaptchaVerifier();
-      recaptchaVerifierRef.current = new RecaptchaVerifier(
-        auth,
-        "recaptcha-container",
-        { size: "invisible" },
-      );
-      const confirmation = await linkWithPhoneNumber(
-        firebaseUser,
-        `+91${digits}`,
-        recaptchaVerifierRef.current,
-      );
-      setPhoneLinkConfirmation(confirmation);
-      setPhoneLinkSent(true);
-      setPhoneLinkOtp("");
-      toast.success("Verification code sent to your mobile.");
-    } catch (error) {
-      console.error("Account phone linking failed:", error);
-      const messages = {
-        "auth/credential-already-in-use":
-          "This mobile number is linked to another account. Sign in to that account instead.",
-        "auth/phone-number-already-exists":
-          "This mobile number is already linked to another account.",
-        "auth/invalid-phone-number": "Enter a valid mobile number.",
-        "auth/requires-recent-login":
-          "Please sign in again before linking a mobile number.",
-      };
-      toast.error(
-        messages[error?.code] ||
-          "Could not send the verification code. Please try again.",
-      );
-      clearRecaptchaVerifier();
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // const handleSendAccountPhoneCode = async () => {
+  //   if (isLoading) return;
+  //   const rawPhone = String(getValues("phoneNumber") || "").trim();
+  //   const digits = rawPhone.replace(/\D/g, "");
+  //   if (digits.length !== 10) {
+  //     toast.error("Enter a valid 10-digit Indian mobile number first.");
+  //     return;
+  //   }
+  //   const firebaseUser = auth.currentUser;
+  //   if (!firebaseUser) {
+  //     toast.error("Your sign-in session expired. Please sign in again.");
+  //     return;
+  //   }
+  //   try {
+  //     setIsLoading(true);
+  //     clearRecaptchaVerifier();
+  //     recaptchaVerifierRef.current = new RecaptchaVerifier(
+  //       auth,
+  //       "recaptcha-container",
+  //       { size: "invisible" },
+  //     );
+  //     const confirmation = await linkWithPhoneNumber(
+  //       firebaseUser,
+  //       `+91${digits}`,
+  //       recaptchaVerifierRef.current,
+  //     );
+  //     setPhoneLinkConfirmation(confirmation);
+  //     setPhoneLinkSent(true);
+  //     setPhoneLinkOtp("");
+  //     toast.success("Verification code sent to your mobile.");
+  //   } catch (error) {
+  //     console.error("Account phone linking failed:", error);
+  //     const messages = {
+  //       "auth/credential-already-in-use":
+  //         "This mobile number is linked to another account. Sign in to that account instead.",
+  //       "auth/phone-number-already-exists":
+  //         "This mobile number is already linked to another account.",
+  //       "auth/invalid-phone-number": "Enter a valid mobile number.",
+  //       "auth/requires-recent-login":
+  //         "Please sign in again before linking a mobile number.",
+  //     };
+  //     toast.error(
+  //       messages[error?.code] ||
+  //         "Could not send the verification code. Please try again.",
+  //     );
+  //     clearRecaptchaVerifier();
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
-  const handleVerifyAccountPhoneCode = async () => {
-    if (isLoading) return;
-    if (!phoneLinkConfirmation || phoneLinkOtp.trim().length !== 6) {
-      toast.error("Enter the 6-digit verification code.");
-      return;
-    }
-    try {
-      setIsLoading(true);
-      const result = await phoneLinkConfirmation.confirm(phoneLinkOtp.trim());
-      clearRecaptchaVerifier();
-      const linkedPhone = result.user.phoneNumber || "";
-      const token = await result.user.getIdToken(true);
-      const loginResponse = await api.post("/api/auth/login", { token });
-      const refreshedUser = loginResponse?.data?.user;
-      if (!refreshedUser)
-        throw new Error(
-          "Account details could not be refreshed after phone verification.",
-        );
-      setUser(refreshedUser);
-      setValue("phoneNumber", linkedPhone, {
-        shouldValidate: true,
-        shouldDirty: true,
-      });
-      setAccountSetupUser((current) => ({
-        ...(current || {}),
-        ...refreshedUser,
-        phoneNumber: linkedPhone,
-        phoneVerified: true,
-      }));
-      setPhoneLinkConfirmation(null);
-      setPhoneLinkSent(false);
-      setPhoneLinkOtp("");
-      toast.success("Mobile number verified and linked to this account.");
-    } catch (error) {
-      console.error("Account phone verification failed:", error);
-      const messages = {
-        "auth/invalid-verification-code": "The verification code is incorrect.",
-        "auth/code-expired":
-          "The verification code has expired. Request a new one.",
-        "auth/credential-already-in-use":
-          "This mobile number is linked to another account.",
-      };
-      toast.error(
-        messages[error?.code] || "Could not verify this mobile number.",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // const handleVerifyAccountPhoneCode = async () => {
+  //   if (isLoading) return;
+  //   if (!phoneLinkConfirmation || phoneLinkOtp.trim().length !== 6) {
+  //     toast.error("Enter the 6-digit verification code.");
+  //     return;
+  //   }
+  //   try {
+  //     setIsLoading(true);
+  //     const result = await phoneLinkConfirmation.confirm(phoneLinkOtp.trim());
+  //     clearRecaptchaVerifier();
+  //     const linkedPhone = result.user.phoneNumber || "";
+  //     const token = await result.user.getIdToken(true);
+  //     const loginResponse = await api.post("/api/auth/login", { token });
+  //     const refreshedUser = loginResponse?.data?.user;
+  //     if (!refreshedUser)
+  //       throw new Error(
+  //         "Account details could not be refreshed after phone verification.",
+  //       );
+  //     setUser(refreshedUser);
+  //     setValue("phoneNumber", linkedPhone, {
+  //       shouldValidate: true,
+  //       shouldDirty: true,
+  //     });
+  //     setAccountSetupUser((current) => ({
+  //       ...(current || {}),
+  //       ...refreshedUser,
+  //       phoneNumber: linkedPhone,
+  //       phoneVerified: true,
+  //     }));
+  //     setPhoneLinkConfirmation(null);
+  //     setPhoneLinkSent(false);
+  //     setPhoneLinkOtp("");
+  //     toast.success("Mobile number verified and linked to this account.");
+  //   } catch (error) {
+  //     console.error("Account phone verification failed:", error);
+  //     const messages = {
+  //       "auth/invalid-verification-code": "The verification code is incorrect.",
+  //       "auth/code-expired":
+  //         "The verification code has expired. Request a new one.",
+  //       "auth/credential-already-in-use":
+  //         "This mobile number is linked to another account.",
+  //     };
+  //     toast.error(
+  //       messages[error?.code] || "Could not verify this mobile number.",
+  //     );
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   const handleCompleteProfile = async (data) => {
     if (isLoading) return;
 
     const name = data.name?.trim();
-    const email = data.email?.trim().toLowerCase();
-    const phoneNumber = data.phoneNumber?.trim();
-
-    if (!name) {
-      toast.error("Name is required.");
-      return;
-    }
-
-    if (name.toLowerCase() === "user") {
-      toast.error("Please enter your real name, not User.");
-      return;
-    }
-
-    const firebaseUser = auth.currentUser;
-    const effectiveEmail =
-      email || firebaseUser?.email || accountSetupUser?.email || "";
-    const effectivePhone =
-      phoneNumber ||
-      firebaseUser?.phoneNumber ||
-      accountSetupUser?.phoneNumber ||
+    const authenticatedEmail =
+      auth.currentUser?.email?.trim().toLowerCase() ||
+      accountSetupUser?.email?.trim().toLowerCase() ||
       "";
 
-    if (!effectiveEmail && !effectivePhone) {
-      toast.error("Add an email address or mobile number to continue.");
+    if (!name || name.length < 2) {
+      toast.error("Please enter your name (at least 2 characters).");
       return;
     }
-
-    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error("Please enter a valid email address.");
+    if (name.toLowerCase() === "user") {
+      toast.error("Please enter your name, not User.");
       return;
     }
-
-    const currentEmail = firebaseUser?.email?.trim().toLowerCase() || "";
-    const isEmailAlreadyVerified =
-      Boolean(
-        effectiveEmail &&
-        currentEmail === effectiveEmail &&
-        firebaseUser?.emailVerified,
-      ) ||
-      Boolean(
-        effectiveEmail &&
-        accountSetupUser?.emailVerified &&
-        accountSetupUser?.email?.trim().toLowerCase() === effectiveEmail,
-      );
-    const currentPhone = firebaseUser?.phoneNumber || "";
-    const normalizePhone = (value) => {
-      const digits = String(value || "").replace(/\D/g, "");
-      if (digits.length === 10) return `+91${digits}`;
-      if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
-      return String(value || "").trim();
-    };
-    const normalizedPhone = normalizePhone(effectivePhone);
-    const isPhoneAlreadyVerified =
-      Boolean(
-        currentPhone && normalizePhone(currentPhone) === normalizedPhone,
-      ) ||
-      Boolean(
-        accountSetupUser?.phoneVerified &&
-        normalizePhone(accountSetupUser?.phoneNumber) === normalizedPhone,
-      );
-
-    // Verify an additional email before Firebase links it to a phone-based identity.
-    // updateEmail() is intentionally avoided: Firebase now requires verification first.
-    if (email && !isEmailAlreadyVerified) {
-      if (!firebaseUser) {
-        toast.error("Your sign-in session expired. Please sign in again.");
-        return;
-      }
-      try {
-        setIsLoading(true);
-        pendingProfileDataRef.current = {
-          name,
-          email,
-          phoneNumber: normalizedPhone || "",
-        };
-        await verifyBeforeUpdateEmail(firebaseUser, email, {
-          url: window.location.origin,
-          handleCodeInApp: false,
-        });
-        setVerificationEmail(email);
-        setEmailVerificationStep(true);
-        toast.success(
-          "Verification link sent. Open your email; setup will continue automatically after verification.",
-        );
-      } catch (error) {
-        pendingProfileDataRef.current = null;
-        console.error("Profile email verification could not start:", error);
-        const message =
-          error?.code === "auth/email-already-in-use"
-            ? "This email is already linked to another account. Sign in to that account instead."
-            : error?.code === "auth/requires-recent-login"
-              ? "Please sign in again before changing account details."
-              : error?.code === "auth/operation-not-allowed"
-                ? "Email verification is disabled for this Firebase project. Enable the Email/Password provider in Firebase Authentication settings."
-                : error?.message ||
-                  "Unable to send the verification email. Please try again.";
-        toast.error(message);
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
-
-    // If a new phone was entered, Continue itself starts OTP verification.
-    if (phoneNumber && !isPhoneAlreadyVerified) {
-      await handleSendAccountPhoneCode();
-      return;
-    }
-
-    if (!isEmailAlreadyVerified && !isPhoneAlreadyVerified) {
-      toast.error(
-        "Verify the email or mobile number you added before continuing.",
-      );
+    if (!authenticatedEmail) {
+      toast.error("Your signed-in account does not have an email address.");
       return;
     }
 
     try {
       setIsLoading(true);
-
       const response = await api.patch("/api/auth/profile", { name });
-
       const user = response.data?.user;
-
-      if (!user) {
-        throw new Error("Updated user information was not returned.");
-      }
+      if (!user) throw new Error("Updated user information was not returned.");
 
       setUser(user);
       setAccountSetupUser(null);
       setAccountSetupStep(false);
       pendingProfileDataRef.current = null;
       reset();
-
       toast.success("Account setup completed.");
       onClose();
     } catch (error) {
       console.error("Account setup failed:", error);
-
       toast.error(
         error?.response?.data?.message ||
           "Unable to complete account setup. Please try again.",
@@ -1134,7 +1121,7 @@ const Loginmodel = ({
 
                 <p className="mt-1.5 text-[13px] leading-5 text-white/50 sm:text-sm sm:leading-6">
                   {accountSetupStep
-                    ? "Add your name and at least one contact method to continue."
+                    ? "Add your name to finish setting up your account."
                     : passwordResetStep
                       ? passwordResetSent
                         ? "We sent a secure password reset link to your email address."
@@ -1146,47 +1133,6 @@ const Loginmodel = ({
                           : "Start building your personalized career intelligence."}
                 </p>
               </div>
-
-              {/* Keep the reCAPTCHA mount point in the DOM while switching between phone and OTP screens. */}
-              <div id="recaptcha-container" />
-
-              {!accountSetupStep &&
-                !passwordResetStep &&
-                !emailVerificationStep &&
-                !passwordCreationStep && (
-                  <div className="mt-5 shrink-0 sm:mt-7">
-                    <div className="grid h-10 grid-cols-2 rounded-full border border-white/10 bg-[#111315]/55 p-1">
-                      <button
-                        type="button"
-                        onClick={handleSelectEmail}
-                        disabled={isLoading}
-                        aria-pressed={method === "email"}
-                        className={`rounded-full text-xs font-semibold transition-colors duration-100 disabled:opacity-50 ${
-                          method === "email"
-                            ? "bg-white/[0.14] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.09)]"
-                            : "text-white/35 hover:text-white/60"
-                        }`}
-                      >
-                        Email
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={handleSelectPhone}
-                        disabled={isLoading}
-                        aria-pressed={method === "phone"}
-                        className={`flex items-center justify-center gap-2 rounded-full text-xs font-semibold transition-colors duration-100 disabled:opacity-50 ${
-                          method === "phone"
-                            ? "bg-white/[0.14] text-white"
-                            : "text-white/35 hover:text-white/60"
-                        }`}
-                      >
-                        <MdPhoneIphone size={14} />
-                        Phone
-                      </button>
-                    </div>
-                  </div>
-                )}
 
               <AnimatePresence mode="sync" initial={false}>
                 {accountSetupStep ? (
@@ -1223,138 +1169,31 @@ const Loginmodel = ({
 
                     <div>
                       <label className="mb-1.5 block text-xs font-semibold text-white/70">
-                        Email
+                        Verified email
                       </label>
-                      <div className="relative">
-                        <input
-                          type="email"
-                          {...register("email", {
-                            validate: (value) => {
-                              const email = value?.trim();
-                              if (
-                                !email &&
-                                !getValues("phoneNumber") &&
-                                !accountSetupUser?.phoneNumber &&
-                                !accountSetupUser?.email
-                              ) {
-                                return "Add an email address or contact number.";
-                              }
-                              if (
-                                email &&
-                                !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
-                              ) {
-                                return "Enter a valid email address.";
-                              }
-                              return true;
-                            },
-                          })}
-                          defaultValue={accountSetupUser?.email || ""}
-                          placeholder="you@example.com"
-                          autoComplete="email"
-                          readOnly={accountSetupUser?.emailVerified === true}
-                          className={`h-12 min-w-0 w-full rounded-full md:rounded-xl border border-white/10 bg-white/[0.045] px-4 text-sm text-white outline-none transition-colors placeholder:text-white/20 focus:border-white/30 ${accountSetupUser?.emailVerified ? "cursor-not-allowed opacity-65" : ""}`}
-                        />
-                      </div>
-                      {accountSetupUser?.emailVerified && (
-                        <span className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-semibold text-[#A8D9B8]">
-                          <FiCheck size={12} /> Email verified
+                      <div className="flex min-h-12 items-center justify-between gap-3 rounded-full md:rounded-xl border border-white/10 bg-white/[0.045] px-4">
+                        <span className="min-w-0 break-all text-sm text-white">
+                          {auth.currentUser?.email ||
+                            accountSetupUser?.email ||
+                            "Email unavailable"}
                         </span>
-                      )}
-                      {errors.email && (
-                        <p className="mt-1.5 text-xs text-red-400">
-                          {errors.email.message}
-                        </p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="mb-1.5 block text-xs font-semibold text-white/70">
-                        Contact
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="tel"
-                          {...register("phoneNumber", {
-                            validate: (value) => {
-                              if (
-                                !value?.trim() &&
-                                !getValues("email") &&
-                                !accountSetupUser?.email &&
-                                !accountSetupUser?.phoneNumber
-                              ) {
-                                return "Add an email address or contact number.";
-                              }
-                              return true;
-                            },
-                          })}
-                          defaultValue={accountSetupUser?.phoneNumber || ""}
-                          placeholder="Mobile number"
-                          autoComplete="tel"
-                          readOnly={accountSetupUser?.phoneVerified === true}
-                          className={`h-12 min-w-0 w-full rounded-full md:rounded-xl border border-white/10 bg-white/[0.045] px-4 pr-20 text-sm text-white outline-none transition-colors placeholder:text-white/20 focus:border-white/30 ${accountSetupUser?.phoneVerified ? "cursor-not-allowed opacity-55" : ""}`}
-                        />
-                        {accountSetupUser?.phoneVerified && (
-                          <span className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-full bg-[#17191C] pl-1 text-[10px] font-semibold text-[#A8D9B8]">
-                            <FiCheck size={13} /> Verified
+                        {(auth.currentUser?.emailVerified ||
+                          accountSetupUser?.emailVerified ||
+                          auth.currentUser?.providerData?.some((provider) =>
+                            ["google.com", "github.com"].includes(
+                              provider.providerId,
+                            ),
+                          )) && (
+                          <span className="inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold text-[#A8D9B8]">
+                            <FiCheck size={12} /> Verified
                           </span>
                         )}
                       </div>
-                      {errors.phoneNumber && (
-                        <p className="mt-1.5 text-xs text-red-400">
-                          {errors.phoneNumber.message}
-                        </p>
-                      )}
-                      {!accountSetupUser?.phoneVerified &&
-                        !auth.currentUser?.phoneNumber && (
-                          <div className="mt-2 space-y-2">
-                            {!phoneLinkSent ? (
-                              <button
-                                type="button"
-                                onClick={handleSendAccountPhoneCode}
-                                disabled={isLoading}
-                                className="min-h-10 rounded-full border border-white/15 px-4 text-xs font-semibold text-white/80 hover:bg-white/[0.06] disabled:opacity-50"
-                              >
-                                {isLoading
-                                  ? "Please wait…"
-                                  : "Verify mobile number"}
-                              </button>
-                            ) : (
-                              <div className="flex gap-2">
-                                <input
-                                  value={phoneLinkOtp}
-                                  onChange={(event) =>
-                                    setPhoneLinkOtp(
-                                      event.target.value
-                                        .replace(/\D/g, "")
-                                        .slice(0, 6),
-                                    )
-                                  }
-                                  inputMode="numeric"
-                                  autoComplete="one-time-code"
-                                  placeholder="6-digit code"
-                                  className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.045] px-3 text-sm text-white outline-none focus:border-white/30"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={handleVerifyAccountPhoneCode}
-                                  disabled={
-                                    isLoading || phoneLinkOtp.length !== 6
-                                  }
-                                  className="rounded-xl bg-white px-4 text-xs font-bold text-[#17191C] disabled:opacity-50"
-                                >
-                                  Verify
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
                     </div>
-
                     <p className="pt-1 text-xs leading-5 text-white/35">
-                      Username/name and at least one verified contact method are
-                      required. Adding an email sends a verification link;
-                      adding a mobile number sends an OTP. A contact already
-                      linked to another account cannot be reused.
+                      Your account email is provided by your sign-in method. Add
+                      your name to finish setup. You can add an optional,
+                      unverified contact number later in your profile.
                     </p>
 
                     <button

@@ -1,10 +1,10 @@
 import { Eye, LoaderCircle, Save, Trash2 } from "lucide-react";
 
 export default function ResumeHistoryPreviewPanel({
-  TEMPLATES, template, setTemplate, selectedResume, draft, resumeTheme, resumePrintRef, TemplateComponent, setPreviewOpen, saveChanges, selectedId, dirty, saving, deleting, setDeleteOpen
+  TEMPLATES, template, setTemplate, selectedResume, draft, data, resumeTheme, resumePrintRef, TemplateComponent, setPreviewOpen, saveChanges, dirty, saving, deleting, setDeleteOpen, mobileOpen = false
 }) {
   return (
-        <aside className="absolute inset-y-4 right-4 z-30 hidden w-[min(282px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[18px] border border-white/[0.11] bg-[#111315]/90 shadow-[0_22px_60px_rgba(0,0,0,0.18)] backdrop-blur-xl lg:inset-y-5 lg:right-5 lg:flex">
+        <aside className={`fixed inset-y-4 right-4 z-[90] flex w-[80vw] max-w-[360px] flex-col overflow-hidden rounded-[18px] border border-white/[0.11] bg-[#111315]/95 shadow-[0_22px_60px_rgba(0,0,0,0.32)] backdrop-blur-xl transition-transform duration-300 ${mobileOpen ? "translate-x-0" : "translate-x-[calc(100%+1rem)]"} lg:absolute lg:inset-y-5 lg:right-5 lg:z-30 lg:w-[min(282px,calc(100vw-2rem))] lg:translate-x-0 lg:bg-[#111315]/90 lg:shadow-[0_22px_60px_rgba(0,0,0,0.18)]`}>
           <div className="shrink-0 border-b border-white/[0.065] bg-white/[0.012] px-4 pb-4 pt-5">
             <div className="flex items-start justify-between gap-3">
               <div>

@@ -3,7 +3,6 @@ import ProgressStatCard from "../../components/progress/ProgressStatCard";
 import ServiceNavigation from "../../components/ServiceNavigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
 import {
   FiActivity,
   FiArrowRight,
@@ -263,7 +262,7 @@ export default function ProgressPage({ user, setUser }) {
       <main
         className={`relative z-10 min-h-screen px-5 pb-6 pt-[clamp(5.5rem,10vh,6.5rem)] transition-[margin] duration-300 sm:px-7 sm:pb-10 lg:px-10 lg:pb-12 lg:pt-10 ${sidebarOpen ? "md:ml-[250px]" : "md:ml-[76px]"}`}
       >
-        <div className="mx-auto w-full max-w-[1600px]">
+        <div className="mx-auto w-full min-w-0 max-w-[1480px]">
           <div className="mb-8 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
             <div>
               <PageEyebrow className="mb-3">Progress</PageEyebrow>
@@ -378,7 +377,12 @@ export default function ProgressPage({ user, setUser }) {
           )}
           <div className="mb-7 grid grid-cols-2 gap-3 xl:grid-cols-4">
             {stats.map((stat, index) => (
-              <ProgressStatCard key={stat.label} stat={stat} loading={loading} index={index} />
+              <ProgressStatCard
+                key={stat.label}
+                stat={stat}
+                loading={loading}
+                index={index}
+              />
             ))}
           </div>
           <div className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
@@ -551,40 +555,36 @@ export default function ProgressPage({ user, setUser }) {
           </p>
           <nav
             aria-label="Progress quick actions"
-            className="rio-mobile-action-bar fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl md:hidden"
+            className="rio-mobile-action-bar fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-[#111315]/95 px-3 pt-2.5 pb-[max(12px,env(safe-area-inset-bottom))] shadow-[0_-12px_35px_rgba(0,0,0,0.28)] backdrop-blur-xl lg:hidden"
           >
-            <div className="mx-auto flex max-w-md items-center gap-2">
+            <div className="rio-progress-action-grid mx-auto grid w-full max-w-none grid-cols-2 items-stretch gap-2 md:grid-cols-4">
               <button
                 type="button"
-                onClick={() => {
-                  const nextRoadmap = roadmapStats.find(
-                    (roadmap) => roadmap.progress < 100,
-                  );
-
-                  navigate(
-                    nextRoadmap?.id ? `/roadmap/${nextRoadmap.id}` : "/roadmap",
-                  );
-                }}
-                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full bg-white px-3 py-3 text-xs font-semibold text-[#17191C] active:scale-[0.98]"
+                onClick={() => navigate("/builder")}
+                className="rio-progress-tablet-only flex h-11 min-w-0 w-full items-center justify-center rounded-full bg-white px-1 text-[10px] font-semibold text-[#17191C]"
               >
-                {roadmapStats.some((roadmap) => roadmap.progress < 100)
-                  ? "Continue Learning"
-                  : "Start Learning"}
-                <FiArrowRight size={14} />
+                Build Resume
               </button>
-
               <button
                 type="button"
-                onClick={() =>
-                  navigate(
-                    interviews.length
-                      ? "/mock-interview/history"
-                      : "/mock-interview/new",
-                  )
-                }
-                className="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-full border border-white/[0.12] bg-white/[0.045] px-3 py-3 text-xs font-semibold text-white active:scale-[0.98]"
+                onClick={() => navigate("/scorer")}
+                className="rio-progress-mobile-primary flex h-11 min-w-0 w-full items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.045] px-1 text-[10px] font-semibold text-white"
               >
-                {interviews.length ? "View Interviews" : "Start Interview"}
+                Score Resume
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/roadmap/new")}
+                className="rio-progress-tablet-only flex h-11 min-w-0 w-full items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.045] px-1 text-[10px] font-semibold text-white"
+              >
+                Create Roadmap
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/mock-interview/new")}
+                className="rio-progress-mobile-primary flex h-11 min-w-0 w-full items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.045] px-1 text-[10px] font-semibold text-white"
+              >
+                Start an Interview
               </button>
             </div>
           </nav>

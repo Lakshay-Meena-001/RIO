@@ -84,6 +84,49 @@ app.use(
   }),
 );
 
+// Razorpay webhook: preserve the original raw request body.
+app.post(
+  "/webhooks/razorpay",
+  express.raw({
+    type: "application/json",
+    limit: "100kb",
+  }),
+  proxy(services.billing, {
+    proxyReqPathResolver: () => "/webhooks/razorpay",
+
+    proxyReqBodyDecorator: (_body, sourceRequest) => {
+      return sourceRequest.body;
+    },
+
+    proxyReqOptDecorator: (proxyRequestOptions, sourceRequest) => {
+      proxyRequestOptions.headers = proxyRequestOptions.headers || {};
+
+      proxyRequestOptions.headers["content-type"] = "application/json";
+
+      proxyRequestOptions.headers["content-length"] = sourceRequest.body.length;
+
+      const signature = sourceRequest.get("x-razorpay-signature");
+      const eventId = sourceRequest.get("x-razorpay-event-id");
+      const requestId = sourceRequest.requestId;
+
+      if (signature) {
+        proxyRequestOptions.headers["x-razorpay-signature"] = signature;
+      }
+
+      if (eventId) {
+        proxyRequestOptions.headers["x-razorpay-event-id"] = eventId;
+      }
+
+      if (requestId) {
+        proxyRequestOptions.headers["x-request-id"] = requestId;
+      }
+      return proxyRequestOptions;
+    },
+
+    proxyErrorHandler: createProxyErrorHandler("Billing Service"),
+  }),
+);
+
 app.use(express.json({ limit: jsonBodyLimit }));
 app.use(cookieParser());
 app.use(morgan(isProduction ? "combined" : "dev"));
@@ -108,7 +151,7 @@ app.patch(
   "/api/profile",
   isAuth,
   proxy(services.auth, {
-   proxyReqPathResolver: () => "/auth/professional-profile",
+    proxyReqPathResolver: () => "/auth/professional-profile",
     proxyReqOptDecorator: attachTrustedHeaders,
     proxyErrorHandler: createProxyErrorHandler("Auth Service"),
   }),

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch } from "react-redux";
-import { Clock3, Eye, FileText, LoaderCircle, Plus, Save, Trash2, X } from "lucide-react";
 import ResumeHistoryWorkspace from "../../components/resume-builder/history/ResumeHistoryWorkspace";
 import "./resume-builder.css";
 import { createResumeDetailSections } from "../../components/resume-builder/details/createResumeDetailSections";
@@ -21,6 +20,7 @@ import {
   deleteResume,
 } from "../../api/resume/resume.api";
 import { setResume } from "../../redux/resumeSlice";
+import useDrawerSwipe from "../../hooks/useDrawerSwipe";
 
 const TEMPLATES = {
   basic: { label: "Basic", Component: BasicTemplate },
@@ -73,13 +73,15 @@ const unwrap = (response) => {
     response?.resume,
     response,
   ];
-  return candidates.find(
-    (candidate) =>
-      candidate &&
-      typeof candidate === "object" &&
-      !Array.isArray(candidate) &&
-      (candidate.profile || candidate.personalInfo),
-  ) || null;
+  return (
+    candidates.find(
+      (candidate) =>
+        candidate &&
+        typeof candidate === "object" &&
+        !Array.isArray(candidate) &&
+        (candidate.profile || candidate.personalInfo),
+    ) || null
+  );
 };
 const dateLabel = (value) => {
   if (!value) return "Date unavailable";
@@ -145,7 +147,8 @@ export default function ResumeHistoryPage() {
     const requestId = ++historyRequestRef.current;
     try {
       const response = await getResumes();
-      if (!mountedRef.current || requestId !== historyRequestRef.current) return [];
+      if (!mountedRef.current || requestId !== historyRequestRef.current)
+        return [];
       setError("");
       const rows = getResumeList(response);
       const sorted = [...rows].sort(
@@ -182,7 +185,8 @@ export default function ResumeHistoryPage() {
       }
       return [];
     } finally {
-      if (mountedRef.current && requestId === historyRequestRef.current) setLoadingList(false);
+      if (mountedRef.current && requestId === historyRequestRef.current)
+        setLoadingList(false);
     }
   }, []);
 
@@ -208,7 +212,8 @@ export default function ResumeHistoryPage() {
         );
       }
     } finally {
-      if (mountedRef.current && requestId === detailRequestRef.current) setLoadingDetail(false);
+      if (mountedRef.current && requestId === detailRequestRef.current)
+        setLoadingDetail(false);
     }
   }, []);
 
@@ -243,10 +248,6 @@ export default function ResumeHistoryPage() {
       cancelled = true;
     };
   }, [selectedId, loadDetail]);
-
-  useEffect(() => {
-    setHistoryPage(1);
-  }, [query]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -376,15 +377,34 @@ export default function ResumeHistoryPage() {
   const data = draft || normalize(selectedResume);
   const profile = data?.profile || {};
   const TemplateComponent = TEMPLATES[template]?.Component || BasicTemplate;
-  const displayName = profile.name?.trim() || "Untitled resume";
+  const displayName =
+    profile.name?.trim() ||
+    profile.title?.trim() ||
+    profile.headline?.trim() ||
+    "Scorer Workspace";
   const detailSections = createResumeDetailSections(data);
 
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+  useDrawerSwipe(mobileHistoryOpen, setMobileHistoryOpen, "left");
+  const [mobilePreviewPanelOpen, setMobilePreviewPanelOpen] = useState(false);
+  useDrawerSwipe(mobilePreviewPanelOpen, setMobilePreviewPanelOpen, "right");
 
   const historySidebarProps = {
-    loadHistory, selectedId, loadingList, history, query, setQuery, setHistoryPage,
-    filtered, pagedHistory, dateLabel, navigate, chooseResume, mobileHistoryOpen,
-    historyPage, historyPages,
+    loadHistory,
+    selectedId,
+    loadingList,
+    history,
+    query,
+    setQuery,
+    setHistoryPage,
+    filtered,
+    pagedHistory,
+    dateLabel,
+    navigate,
+    chooseResume,
+    mobileHistoryOpen,
+    historyPage,
+    historyPages,
   };
 
   return (
@@ -458,12 +478,21 @@ export default function ResumeHistoryPage() {
           profile={profile}
         />
 
+        {mobilePreviewPanelOpen && (
+          <button
+            type="button"
+            aria-label="Close resume preview panel"
+            onClick={() => setMobilePreviewPanelOpen(false)}
+            className="fixed inset-0 z-[80] bg-black/45 backdrop-blur-sm lg:hidden"
+          />
+        )}
         <ResumeHistoryPreviewPanel
           TEMPLATES={TEMPLATES}
           template={template}
           setTemplate={setTemplate}
           selectedResume={selectedResume}
           draft={draft}
+          data={draft}
           resumeTheme={resumeTheme}
           resumePrintRef={resumePrintRef}
           TemplateComponent={TemplateComponent}
@@ -474,6 +503,7 @@ export default function ResumeHistoryPage() {
           saving={saving}
           deleting={deleting}
           setDeleteOpen={setDeleteOpen}
+          mobileOpen={mobilePreviewPanelOpen}
         />
       </div>
 
@@ -484,6 +514,7 @@ export default function ResumeHistoryPage() {
         mobileHistoryOpen={mobileHistoryOpen}
         setPreviewOpen={setPreviewOpen}
         setMobileHistoryOpen={setMobileHistoryOpen}
+        setMobilePreviewPanelOpen={setMobilePreviewPanelOpen}
         saveChanges={saveChanges}
         dirty={dirty}
         saving={saving}
